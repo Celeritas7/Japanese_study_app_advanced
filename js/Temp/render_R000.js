@@ -572,7 +572,7 @@ export function renderSelfStudyWordList(app) {
   `;
 }
 
-// Export other tab renders are in separate files:
-// - render-srs.js
-// - render-stories.js  
-// - render-similar.js
+// Export other tab renders (SRS, Stories, Similar) - will add in separate file for brevity
+export { renderSRSTab } from './render-srs.js';
+export { renderStoriesTab } from './render-stories.js';
+export { renderSimilarTab } from './render-similar.js';

@@ -12,11 +12,9 @@ import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
-  renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList
+  renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList,
+  renderSRSTab, renderStoriesTab, renderSimilarTab
 } from './render.js';
-import { renderSRSTab } from './render-srs.js';
-import { renderStoriesTab } from './render-stories.js';
-import { renderSimilarTab } from './render-similar.js';
 import { attachEventListeners } from './events.js';
 
 class JLPTStudyApp {

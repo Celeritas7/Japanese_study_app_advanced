@@ -1,6 +1,7 @@
 // JLPT Vocabulary Master - SRS Tab Render Functions
 
 import { MARKING_CATEGORIES, LEVEL_COLORS } from './config.js';
+import { getMarking, escapeKanji } from './utils.js';
 
 export function renderSRSTab(app) {
   switch (app.srsView) {
