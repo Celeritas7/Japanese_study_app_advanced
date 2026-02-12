@@ -1,0 +1,35 @@
+-- Create vocabulary master table
+CREATE TABLE vocabulary_master (
+  id INTEGER PRIMARY KEY,
+  level TEXT NOT NULL,
+  sr_no INTEGER,
+  raw TEXT,
+  kanji TEXT,
+  hiragana TEXT,
+  meaning TEXT,
+  hint TEXT,
+  sentence TEXT,
+  supporting_word_1 TEXT,
+  supporting_word_2 TEXT,
+  page_no INTEGER
+);
+
+-- Create user markings table (if not exists)
+CREATE TABLE IF NOT EXISTS user_markings (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  word_id INTEGER NOT NULL,
+  marking INTEGER DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, word_id)
+);
+
+-- Enable Row Level Security
+ALTER TABLE vocabulary_master ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_markings ENABLE ROW LEVEL SECURITY;
+
+-- Allow read for vocabulary
+CREATE POLICY "Allow read vocabulary" ON vocabulary_master FOR SELECT USING (true);
+
+-- Allow all for user_markings
+CREATE POLICY "Allow all markings" ON user_markings FOR ALL USING (true);

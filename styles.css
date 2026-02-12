@@ -1,0 +1,152 @@
+/* JLPT Vocabulary Master - Styles */
+
+* {
+  font-family: 'Noto Sans JP', system-ui, sans-serif;
+}
+
+body {
+  overscroll-behavior: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+.animate-slideIn { animation: slideIn 0.2s ease-out; }
+
+/* Typography */
+.kanji-highlight {
+  font-size: clamp(2.5rem, 12vw, 5rem);
+  color: #dc2626;
+  font-weight: bold;
+}
+
+.reading-display {
+  font-size: clamp(1.5rem, 6vw, 2.5rem);
+}
+
+.meaning-display {
+  font-size: clamp(1.1rem, 4vw, 1.5rem);
+}
+
+.hint-text {
+  font-size: clamp(0.8rem, 3vw, 1rem);
+  color: #6b7280;
+}
+
+.context-text {
+  font-size: clamp(1rem, 4vw, 1.3rem);
+  color: #92400e;
+}
+
+/* Boxes */
+.sentence-box {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 3px solid #f59e0b;
+}
+
+.reveal-box {
+  background: white;
+  min-height: 180px;
+}
+
+.writing-box {
+  background: #ffffff;
+  border: 3px dashed #cbd5e1;
+  min-height: 120px;
+}
+
+/* Canvas */
+.canvas-container {
+  position: relative;
+  background: #ffffff;
+  border: 3px solid #e2e8f0;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+#writingCanvas,
+#srsWritingCanvas {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.canvas-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+/* Tabs */
+.tab-active {
+  border-bottom: 3px solid #3b82f6;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.subtab-active {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+
+/* Buttons */
+.category-btn {
+  transition: all 0.2s;
+}
+
+.category-btn:hover {
+  transform: scale(1.05);
+}
+
+.category-btn:active {
+  transform: scale(0.95);
+}
+
+/* Furigana */
+.furigana-text ruby rt {
+  font-size: 0.6em;
+  color: #6b7280;
+}
+
+.furigana-hidden ruby rt {
+  visibility: hidden;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: #1e293b;
+  border-radius: 1rem;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow: auto;
+  width: 500px;
+}

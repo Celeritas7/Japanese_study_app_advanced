@@ -1,0 +1,25 @@
+-- Create table for vocabulary data
+CREATE TABLE vocabulary (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  word_id INTEGER NOT NULL,
+  marking INTEGER DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, word_id)
+);
+
+-- Create table for storing the full CSV data (optional, for sync)
+CREATE TABLE user_data (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT UNIQUE NOT NULL,
+  csv_data TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE vocabulary ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_data ENABLE ROW LEVEL SECURITY;
+
+-- Allow all operations (simple setup - no auth required)
+CREATE POLICY "Allow all" ON vocabulary FOR ALL USING (true);
+CREATE POLICY "Allow all" ON user_data FOR ALL USING (true);

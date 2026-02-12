@@ -1,0 +1,115 @@
+-- New table for tracking test results & review dates
+CREATE TABLE user_reviews (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  kanji TEXT NOT NULL,
+  last_test_date DATE,
+  last_result BOOLEAN,  -- true = correct, false = wrong
+  next_review_date DATE,
+  streak INTEGER DEFAULT 0,  -- consecutive correct answers
+  UNIQUE(user_id, kanji)
+);
+
+-- Daily results log (kept for whole day reference)
+CREATE TABLE daily_test_log (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  kanji TEXT NOT NULL,
+  test_date DATE,
+  test_type TEXT,  -- 'kanji', 'hiragana', 'meaning'
+  result BOOLEAN,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+**Suggestion:** Add a "Today's Mistakes" button to review all wrong answers from today.
+
+---
+
+## Feature 2: Similar Words Grouping (KANJIDIC2 + JMdict)
+
+**Yes, it's possible!** Here's how:
+
+### KANJIDIC2 provides:
+- **Radicals** (部首) - e.g., 月 is radical for 胃, 脾, 膚
+- **Components** - kanji breakdown
+- **On'yomi / Kun'yomi** readings
+- **Stroke count**
+
+### JMdict provides:
+- **Vocabulary readings**
+- **Meanings** (can find synonyms)
+- **Related words**
+
+### Algorithm Approach:
+
+| Group Type | Data Source | Method |
+|------------|-------------|--------|
+| **Same Radical** | KANJIDIC2 | Filter by `radical` field |
+| **Similar Reading** | KANJIDIC2 + JMdict | Match `on'yomi` or `kun'yomi` |
+| **Look-alike Kanji** | KANJIDIC2 | Find shared components |
+| **Similar Meaning** | JMdict | Match meaning keywords |
+
+### Example Output:
+```
+Group: 月 (にくづき - flesh radical)
+┌────────────────────────────────────┐
+│ 胃 (stomach)   │ 脾 (spleen)      │
+│ 腸 (intestine) │ 肝 (liver)       │
+│ 脳 (brain)     │ 肺 (lung)        │
+└────────────────────────────────────┘
+All share: 月 radical = body parts
+```
+
+**Question:** Should I download and parse these XML files, or do you have them already?
+
+---
+
+## Feature 3: Story Section (Kanji Origin Stories)
+
+I can see your database structure now - it's based on **Heisig's "Remembering the Kanji"** methodology!
+
+### Your Structure:
+
+| Column | Example (兌 group) |
+|--------|-------------------|
+| **Group Kanji** | 兌 |
+| **Member Kanji** | 悦, 脱, 税, 説, 鋭, 閲 |
+| **Meaning** | devil |
+| **Story** | "The two horns on the head of a teenager..." |
+| **Frame Number** | [7], [18], [11], etc. |
+| **On'yomi** | ダツ, エイ, エツ (shared by group!) |
+
+### Can KANJIDIC2 generate this?
+
+| Aspect | KANJIDIC2 Can Do | Cannot Do |
+|--------|------------------|-----------|
+| Group by component | ✅ Yes | - |
+| Find shared On'yomi | ✅ Yes | - |
+| Meaning | ✅ Basic meaning | - |
+| **Mnemonic Stories** | ❌ No | Need your database or AI |
+| **Frame numbers** | ❌ No | Heisig-specific |
+
+### My Suggestion:
+
+**Hybrid Approach:**
+1. **Your existing database** for stories you already have
+2. **KANJIDIC2** to auto-generate groups for kanji WITHOUT stories
+3. **Optional:** AI can generate simple stories for missing entries
+
+### Story Display UI:
+```
+┌─────────────────────────────────────────────────┐
+│  Group: 兌 (devil)                    On: ダツ  │
+├─────────────────────────────────────────────────┤
+│  🎭 The two horns on the head of a teenager    │
+│     are enough to suggest a good image of a    │
+│     devil. [7]                                  │
+├─────────────────────────────────────────────────┤
+│  悦 ecstasy      │ State of mind...devil [18]  │
+│  脱 undress      │ To undress is to expose...  │
+│  税 tax          │ Wheat...devil [12]          │
+│  説 opinion      │ Rumour to devil's words [14]│
+│  鋭 pointed      │ Metal...devil's weapons [15]│
+│  閲 review       │ Gates...devil [15]          │
+└─────────────────────────────────────────────────┘

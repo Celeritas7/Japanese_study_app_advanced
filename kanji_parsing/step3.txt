@@ -1,0 +1,32 @@
+cd kanji_parsing
+python kanji_parser.py
+```
+
+### Expected Output
+```
+============================================================
+JLPT Kanji Data Parser
+============================================================
+
+📂 Output directory: output_csv/
+
+📖 Parsing Excel file: Kanji_Story_database_R002.xlsm
+   Loaded 4987 rows
+   ✅ Found 690 groups, 4978 stories
+   📁 Written: output_csv/japanese_kanji_story_groups.csv (690 rows)
+   📁 Written: output_csv/japanese_kanji_stories.csv (4978 rows)
+
+📚 Parsing KANJIDIC2: kanjidic2.xml
+   Loading XML (this may take a moment)...
+   ✅ Parsed 13108 kanji entries
+
+🔗 Generating similar kanji groups...
+   ✅ Generated 1247 similar groups
+      - Radical groups: 214
+      - On'yomi groups: 583
+      - Kun'yomi groups: 450
+   📁 Written: output_csv/japanese_kanji_similar_groups.csv (1247 rows)
+
+============================================================
+✅ PARSING COMPLETE!
+============================================================

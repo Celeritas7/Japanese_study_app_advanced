@@ -1,0 +1,4 @@
+-- Add unique constraint if not exists
+ALTER TABLE user_markings 
+ADD CONSTRAINT user_markings_user_word_unique 
+UNIQUE (user_id, word_id);

@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JLPT 総合学習アプリ</title>
+  
+  <meta name="theme-color" content="#1e293b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23059669' rx='20' width='100' height='100'/><text x='50' y='55' font-size='40' text-anchor='middle' fill='white' font-weight='bold'>学</text></svg>">
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * { font-family: 'Noto Sans JP', system-ui, sans-serif; }
+    body { overscroll-behavior: none; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    @keyframes correctFlash { 0% { background: #22c55e; } 100% { background: transparent; } }
+    @keyframes wrongFlash { 0% { background: #ef4444; } 100% { background: transparent; } }
+    
+    .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+    .animate-slideIn { animation: slideIn 0.2s ease-out; }
+    .animate-pulse { animation: pulse 2s infinite; }
+    .flash-correct { animation: correctFlash 0.5s ease-out; }
+    .flash-wrong { animation: wrongFlash 0.5s ease-out; }
+    
+    .kanji-display { font-size: clamp(3rem, 15vw, 6rem); line-height: 1.2; }
+    .reading-display { font-size: clamp(1.5rem, 6vw, 2.5rem); }
+    .meaning-display { font-size: clamp(1rem, 4vw, 1.5rem); }
+    
+    .story-text { font-size: 1.1rem; line-height: 1.8; }
+    .story-kanji { font-size: 2rem; }
+    
+    .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; }
+    
+    .card-hover { transition: all 0.2s; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); }
+    .card-hover:active { transform: scale(0.98); }
+  </style>
+</head>
+<body class="bg-slate-900 min-h-screen">
+  <div id="app"></div>
+
+  <script type="module">
+    // ===== SUPABASE CONFIG =====
+    const SUPABASE_URL = 'https://ulgrfumbwjovbjzjiems.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // ===== SRS INTERVALS (days) =====
+    const SRS_INTERVALS = {
+      correct: 30,      // 1 month
+      wrong_1: 21,      // 3 weeks
+      wrong_2: 14,      // 2 weeks
+      wrong_3: 7,       // 1 week
+      wrong_4: 2,       // 2 days
+      wrong_5: 1,       // 1 day (next day)
+    };
+    
+    // ===== LEVEL COLORS =====
+    const LEVEL_COLORS = {
+      'N1': { bg: 'bg-rose-500', text: 'text-rose-500', border: 'border-rose-500', light: 'bg-rose-900/30' },
+      'N2': { bg: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', light: 'bg-amber-900/30' },
+      'N3': { bg: 'bg-emerald-500', text: 'text-emerald-500', border: 'border-emerald-500', light: 'bg-emerald-900/30' },
+    };
+    
+    // ===== MARKING CATEGORIES =====
+    const MARKING_CATEGORIES = {
+      0: { label: 'Not Marked', color: 'bg-gray-500', icon: '○' },
+      1: { label: 'Monthly Review', color: 'bg-emerald-500', icon: '✓' },
+      2: { label: "Can't Converse", color: 'bg-violet-500', icon: '💬' },
+      3: { label: "Can't Write", color: 'bg-orange-500', icon: '✍' },
+      4: { label: "Can't Use", color: 'bg-pink-500', icon: '🤔' },
+      5: { label: "Don't Know", color: 'bg-red-500', icon: '❌' },
+    };
+    
+    // ===== TEST TYPES =====
+    const TEST_TYPES = {
+      reading: { label: '読み方テスト', desc: '漢字を見て読み方を答える', icon: '📖' },
+      meaning: { label: '意味テスト', desc: '漢字・読みを見て意味を答える', icon: '💭' },
+      writing: { label: '書き取りテスト', desc: '読みと意味から漢字を書く', icon: '✍️' },
+    };
+    
+    // ===== SIMILAR GROUP TYPES =====
+    const GROUP_TYPES = {
+      radical: { label: '部首別', icon: '⿱', color: 'bg-blue-500' },
+      onyomi: { label: '音読み別', icon: 'オン', color: 'bg-purple-500' },
+      kunyomi: { label: '訓読み別', icon: 'くん', color: 'bg-green-500' },
+    };
+    
+    // ===== MAIN APP CLASS =====
+    class JLPTStudyApp {
+      constructor() {
+        // Auth
+        this.user = null;
+        this.loading = true;
+        this.syncing = false;
+        
+        // Data stores
+        this.vocabulary = [];
+        this.markings = {};
+        this.reviews = [];
+        this.dailyLog = [];
+        this.storyGroups = [];
+        this.stories = [];
+        this.similarGroups = [];
+        
+        // Navigation
+        this.currentTab = 'srs';  // 'srs', 'similar', 'story'
+        this.currentView = 'home';
+        
+        // SRS Study state
+        this.srsConfig = { level: null, testType: null, wordCount: 20 };
+        this.srsWords = [];
+        this.srsIndex = 0;
+        this.srsResults = [];
+        this.srsPhase = 'setup';  // 'setup', 'test', 'rate', 'summary', 'review'
+        this.srsRevealed = false;
+        this.srsAnswer = '';
+        
+        // Similar groups state
+        this.similarFilter = { type: 'all', search: '' };
+        this.selectedSimilarGroup = null;
+        
+        // Story state
+        this.storyFilter = { search: '' };
+        this.selectedStoryGroup = null;
+        
+        this.init();
+      }
+      
+      async init() {
+        this.render();
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) this.user = session.user;
+        
+        supabase.auth.onAuthStateChange((event, session) => {
+          this.user = session?.user || null;
+          if (event === 'SIGNED_IN') this.loadAllData();
+          this.render();
+        });
+        
+        if (this.user) await this.loadAllData();
+        
+        this.loading = false;
+        this.render();
+      }
+      
+      // ===== AUTH =====
+      async signInWithGoogle() {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin + window.location.pathname }
+        });
+        if (error) alert('Login failed: ' + error.message);
+      }
+      
+      async signOut() {
+        await supabase.auth.signOut();
+        this.user = null;
+        this.currentTab = 'srs';
+        this.currentView = 'home';
+        this.render();
+      }
+      
+      // ===== DATA LOADING =====
+      async loadAllData() {
+        this.syncing = true;
+        this.render();
+        
+        // Load each independently so one failure doesn't break everything
+        await this.loadVocabulary();
+        await this.loadMarkings();
+        await this.loadReviews();
+        await this.loadDailyLog();
+        await this.loadStoryGroups();
+        await this.loadStories();
+        await this.loadSimilarGroups();
+        
+        this.syncing = false;
+        this.render();
+      }
+      
+      async loadVocabulary() {
+        try {
+          let allData = [];
+          let page = 0;
+          const pageSize = 1000;
+          
+          while (true) {
+            const { data, error } = await supabase
+              .from('japanese_vocabulary')
+              .select('*')
+              .range(page * pageSize, (page + 1) * pageSize - 1)
+              .order('id');
+            
+            if (error) { console.error('Vocabulary error:', error); break; }
+            if (!data || data.length === 0) break;
+            allData = allData.concat(data);
+            if (data.length < pageSize) break;
+            page++;
+          }
+          
+          this.vocabulary = allData;
+          console.log(`Loaded ${this.vocabulary.length} vocabulary words`);
+        } catch (err) {
+          console.error('loadVocabulary failed:', err);
+          this.vocabulary = [];
+        }
+      }
+      
+      async loadMarkings() {
+        if (!this.user) return;
+        try {
+          const { data, error } = await supabase
+            .from('japanese_user_markings')
+            .select('kanji, marking')
+            .eq('user_id', this.user.id);
+          
+          if (error) { console.error('Markings error:', error); this.markings = {}; return; }
+          this.markings = {};
+          (data || []).forEach(r => this.markings[r.kanji] = r.marking);
+        } catch (err) {
+          console.error('loadMarkings failed:', err);
+          this.markings = {};
+        }
+      }
+      
+      async loadReviews() {
+        if (!this.user) return;
+        try {
+          const { data, error } = await supabase
+            .from('japanese_user_reviews')
+            .select('*')
+            .eq('user_id', this.user.id);
+          
+          if (error) { console.error('Reviews error:', error); this.reviews = []; return; }
+          this.reviews = data || [];
+        } catch (err) {
+          console.error('loadReviews failed:', err);
+          this.reviews = [];
+        }
+      }
+      
+      async loadDailyLog() {
+        if (!this.user) return;
+        try {
+          const today = new Date().toISOString().split('T')[0];
+          const { data, error } = await supabase
+            .from('japanese_daily_test_log')
+            .select('*')
+            .eq('user_id', this.user.id)
+            .eq('test_date', today);
+          
+          if (error) { console.error('Daily log error:', error); this.dailyLog = []; return; }
+          this.dailyLog = data || [];
+        } catch (err) {
+          console.error('loadDailyLog failed:', err);
+          this.dailyLog = [];
+        }
+      }
+      
+      async loadStoryGroups() {
+        try {
+          const { data, error } = await supabase
+            .from('japanese_kanji_story_groups')
+            .select('*')
+            .order('group_id');
+          
+          if (error) { console.error('Story groups error:', error); this.storyGroups = []; return; }
+          this.storyGroups = data || [];
+          console.log(`Loaded ${this.storyGroups.length} story groups`);
+        } catch (err) {
+          console.error('loadStoryGroups failed:', err);
+          this.storyGroups = [];
+        }
+      }
+      
+      async loadStories() {
+        try {
+          let allData = [];
+          let page = 0;
+          const pageSize = 1000;
+          
+          while (true) {
+            const { data, error } = await supabase
+              .from('japanese_kanji_stories')
+              .select('*')
+              .range(page * pageSize, (page + 1) * pageSize - 1)
+              .order('id');
+            
+            if (error) { console.error('Stories error:', error); break; }
+            if (!data || data.length === 0) break;
+            allData = allData.concat(data);
+            if (data.length < pageSize) break;
+            page++;
+          }
+          
+          this.stories = allData;
+          console.log(`Loaded ${this.stories.length} stories`);
+        } catch (err) {
+          console.error('loadStories failed:', err);
+          this.stories = [];
+        }
+      }
+      
+      async loadSimilarGroups() {
+        try {
+          const { data, error } = await supabase
+            .from('japanese_kanji_similar_groups')
+            .select('*')
+            .order('id');
+          
+          if (error) { console.error('Similar groups error:', error); this.similarGroups = []; return; }
+          this.similarGroups = data || [];
+          console.log(`Loaded ${this.similarGroups.length} similar groups`);
+        } catch (err) {
+          console.error('loadSimilarGroups failed:', err);
+          this.similarGroups = [];
+        }
+      }
+      
+      // ===== HELPERS =====
+      getMarking(kanji) {
+        return this.markings[kanji] || 0;
+      }
+      
+      getReviewForWord(kanji) {
+        return this.reviews.find(r => r.kanji === kanji);
+      }
+      
+      getDueWords() {
+        const today = new Date();
+        return this.vocabulary.filter(word => {
+          const review = this.getReviewForWord(word.kanji);
+          if (!review) return true; // Never reviewed = due
+          const nextReview = new Date(review.next_review);
+          return nextReview <= today;
+        });
+      }
+      
+      shuffleArray(arr) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      }
+      
+      // ===== SRS LOGIC =====
+      async saveReview(kanji, isCorrect, rating = null) {
+        if (!this.user) return;
+        
+        const today = new Date();
+        let intervalDays;
+        
+        if (isCorrect) {
+          intervalDays = SRS_INTERVALS.correct;
+        } else {
+          intervalDays = SRS_INTERVALS[`wrong_${rating}`] || SRS_INTERVALS.wrong_3;
+        }
+        
+        const nextReview = new Date(today);
+        nextReview.setDate(nextReview.getDate() + intervalDays);
+        
+        const existingReview = this.getReviewForWord(kanji);
+        
+        const reviewData = {
+          user_id: this.user.id,
+          kanji: kanji,
+          last_review: today.toISOString(),
+          next_review: nextReview.toISOString(),
+          correct_count: (existingReview?.correct_count || 0) + (isCorrect ? 1 : 0),
+          wrong_count: (existingReview?.wrong_count || 0) + (isCorrect ? 0 : 1),
+          last_rating: isCorrect ? 0 : rating,
+          updated_at: today.toISOString(),
+        };
+        
+        try {
+          const { error } = await supabase
+            .from('japanese_user_reviews')
+            .upsert(reviewData, { onConflict: 'user_id,kanji' });
+          
+          if (error) throw error;
+          
+          // Update local state
+          const idx = this.reviews.findIndex(r => r.kanji === kanji);
+          if (idx >= 0) this.reviews[idx] = reviewData;
+          else this.reviews.push(reviewData);
+          
+        } catch (err) {
+          console.error('Save review error:', err);
+        }
+      }
+      
+      async saveDailyLogEntry(kanji, testType, isCorrect, rating = null) {
+        if (!this.user) return;
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        const logEntry = {
+          user_id: this.user.id,
+          kanji: kanji,
+          test_type: testType,
+          test_date: today,
+          is_correct: isCorrect,
+          rating: isCorrect ? null : rating,
+          created_at: new Date().toISOString(),
+        };
+        
+        try {
+          const { error } = await supabase
+            .from('japanese_daily_test_log')
+            .insert(logEntry);
+          
+          if (error) throw error;
+          this.dailyLog.push(logEntry);
+          
+        } catch (err) {
+          console.error('Save daily log error:', err);
+        }
+      }
+      
+      // ===== SRS STUDY FLOW =====
+      startSRSSetup() {
+        this.srsPhase = 'setup';
+        this.srsConfig = { level: null, testType: null, wordCount: 20 };
+        this.currentView = 'srs-setup';
+        this.render();
+      }
+      
+      selectSRSLevel(level) {
+        this.srsConfig.level = level;
+        this.render();
+      }
+      
+      selectSRSTestType(type) {
+        this.srsConfig.testType = type;
+        this.render();
+      }
+      
+      setSRSWordCount(count) {
+        this.srsConfig.wordCount = parseInt(count) || 20;
+        this.render();
+      }
+      
+      startSRSTest() {
+        let words = this.getDueWords();
+        
+        if (this.srsConfig.level && this.srsConfig.level !== 'ALL') {
+          words = words.filter(w => w.level === this.srsConfig.level);
+        }
+        
+        // Prioritize words with higher difficulty (higher marking)
+        words.sort((a, b) => {
+          const markA = this.getMarking(a.kanji);
+          const markB = this.getMarking(b.kanji);
+          return markB - markA;
+        });
+        
+        this.srsWords = words.slice(0, this.srsConfig.wordCount);
+        this.srsIndex = 0;
+        this.srsResults = [];
+        this.srsPhase = 'test';
+        this.srsRevealed = false;
+        this.srsAnswer = '';
+        this.currentView = 'srs-test';
+        this.render();
+      }
+      
+      revealSRSAnswer() {
+        this.srsRevealed = true;
+        this.render();
+      }
+      
+      submitSRSCorrect() {
+        const word = this.srsWords[this.srsIndex];
+        this.srsResults.push({ word, isCorrect: true, rating: null });
+        this.saveReview(word.kanji, true, null);
+        this.saveDailyLogEntry(word.kanji, this.srsConfig.testType, true, null);
+        this.nextSRSWord();
+      }
+      
+      submitSRSWrong() {
+        this.srsPhase = 'rate';
+        this.render();
+      }
+      
+      submitSRSRating(rating) {
+        const word = this.srsWords[this.srsIndex];
+        this.srsResults.push({ word, isCorrect: false, rating });
+        this.saveReview(word.kanji, false, rating);
+        this.saveDailyLogEntry(word.kanji, this.srsConfig.testType, false, rating);
+        this.nextSRSWord();
+      }
+      
+      nextSRSWord() {
+        this.srsIndex++;
+        if (this.srsIndex >= this.srsWords.length) {
+          this.srsPhase = 'summary';
+        } else {
+          this.srsPhase = 'test';
+          this.srsRevealed = false;
+          this.srsAnswer = '';
+        }
+        this.render();
+      }
+      
+      showDailyReview() {
+        this.srsPhase = 'review';
+        this.currentView = 'srs-review';
+        this.render();
+      }
+      
+      // ===== RENDER =====
+      render() {
+        const app = document.getElementById('app');
+        
+        if (this.loading) {
+          app.innerHTML = this.renderLoading();
+          return;
+        }
+        
+        if (!this.user) {
+          app.innerHTML = this.renderLogin();
+          return;
+        }
+        
+        app.innerHTML = `
+          <div class="min-h-screen flex flex-col">
+            ${this.renderHeader()}
+            ${this.renderTabs()}
+            <div class="flex-1 overflow-auto hide-scrollbar pb-20">
+              ${this.renderContent()}
+            </div>
+          </div>
+        `;
+        
+        this.attachEventListeners();
+      }
+      
+      renderLoading() {
+        return `
+          <div class="min-h-screen flex items-center justify-center">
+            <div class="text-center">
+              <div class="text-6xl mb-4 animate-pulse">📚</div>
+              <div class="text-white text-lg">Loading...</div>
+            </div>
+          </div>
+        `;
+      }
+      
+      renderLogin() {
+        return `
+          <div class="min-h-screen flex items-center justify-center p-4">
+            <div class="bg-slate-800 rounded-2xl p-8 max-w-md w-full text-center">
+              <div class="text-6xl mb-4">📚</div>
+              <h1 class="text-2xl font-bold text-white mb-2">JLPT 総合学習アプリ</h1>
+              <p class="text-slate-400 mb-6">SRS復習・類似漢字・物語で効率学習</p>
+              
+              <button id="loginBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all">
+                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Googleでログイン
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      
+      renderHeader() {
+        const dueCount = this.getDueWords().length;
+        return `
+          <header class="bg-slate-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">📚</span>
+              <div>
+                <h1 class="text-white font-bold text-lg">JLPT 総合学習</h1>
+                <p class="text-slate-400 text-xs">${this.vocabulary.length} words • ${dueCount} due</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              ${this.syncing ? '<span class="text-blue-400 animate-pulse text-sm">同期中...</span>' : ''}
+              <button id="signOutBtn" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors" title="ログアウト">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+              </button>
+            </div>
+          </header>
+        `;
+      }
+      
+      renderTabs() {
+        const tabs = [
+          { id: 'srs', label: 'SRS復習', icon: '🔄' },
+          { id: 'similar', label: '類似漢字', icon: '⿱' },
+          { id: 'story', label: '物語', icon: '📖' },
+        ];
+        
+        return `
+          <nav class="bg-slate-800 border-b border-slate-700 flex">
+            ${tabs.map(tab => `
+              <button data-tab="${tab.id}" class="flex-1 py-3 px-4 text-center transition-colors ${
+                this.currentTab === tab.id 
+                  ? 'tab-active bg-slate-700/50' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/30'
+              }">
+                <span class="text-lg mr-1">${tab.icon}</span>
+                <span class="text-sm font-medium">${tab.label}</span>
+              </button>
+            `).join('')}
+          </nav>
+        `;
+      }
+      
+      renderContent() {
+        switch (this.currentTab) {
+          case 'srs': return this.renderSRSContent();
+          case 'similar': return this.renderSimilarContent();
+          case 'story': return this.renderStoryContent();
+          default: return '';
+        }
+      }
+      
+      // ===== SRS TAB =====
+      renderSRSContent() {
+        switch (this.currentView) {
+          case 'srs-setup': return this.renderSRSSetup();
+          case 'srs-test': return this.renderSRSTest();
+          case 'srs-review': return this.renderDailyReview();
+          default: return this.renderSRSHome();
+        }
+      }
+      
+      renderSRSHome() {
+        const dueWords = this.getDueWords();
+        const todayCorrect = this.dailyLog.filter(l => l.is_correct).length;
+        const todayWrong = this.dailyLog.filter(l => !l.is_correct).length;
+        
+        const levelStats = ['N1', 'N2', 'N3'].map(level => {
+          const levelWords = this.vocabulary.filter(w => w.level === level);
+          const due = dueWords.filter(w => w.level === level).length;
+          return { level, total: levelWords.length, due };
+        });
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <!-- Today's Summary -->
+            <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5 mb-4 text-white">
+              <h2 class="text-lg font-bold mb-3">📅 今日の学習</h2>
+              <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="bg-white/20 rounded-xl p-3">
+                  <div class="text-2xl font-bold">${dueWords.length}</div>
+                  <div class="text-xs opacity-80">復習待ち</div>
+                </div>
+                <div class="bg-white/20 rounded-xl p-3">
+                  <div class="text-2xl font-bold text-green-300">${todayCorrect}</div>
+                  <div class="text-xs opacity-80">正解</div>
+                </div>
+                <div class="bg-white/20 rounded-xl p-3">
+                  <div class="text-2xl font-bold text-red-300">${todayWrong}</div>
+                  <div class="text-xs opacity-80">不正解</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Start Test Button -->
+            <button id="startSRSBtn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-4 px-6 rounded-2xl font-bold text-lg mb-4 transition-all card-hover flex items-center justify-center gap-3">
+              <span class="text-2xl">🚀</span>
+              SRS復習を開始
+            </button>
+            
+            <!-- Level Stats -->
+            <div class="space-y-3 mb-4">
+              ${levelStats.map(s => `
+                <div class="bg-slate-800 rounded-xl p-4 flex items-center justify-between ${LEVEL_COLORS[s.level].light}">
+                  <div class="flex items-center gap-3">
+                    <span class="text-2xl ${LEVEL_COLORS[s.level].bg} text-white w-12 h-12 rounded-xl flex items-center justify-center font-bold">${s.level}</span>
+                    <div>
+                      <div class="text-white font-semibold">${s.total} 語彙</div>
+                      <div class="text-slate-400 text-sm">${s.due} 語が復習待ち</div>
+                    </div>
+                  </div>
+                  <div class="${LEVEL_COLORS[s.level].text} font-bold text-lg">${Math.round((1 - s.due / s.total) * 100)}%</div>
+                </div>
+              `).join('')}
+            </div>
+            
+            <!-- Daily Review -->
+            ${this.dailyLog.length > 0 ? `
+              <button id="showDailyReviewBtn" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-xl font-semibold transition-all flex items-center justify-center gap-2">
+                <span>📋</span>
+                今日の復習記録を見る (${this.dailyLog.length}件)
+              </button>
+            ` : ''}
+          </div>
+        `;
+      }
+      
+      renderSRSSetup() {
+        const { level, testType, wordCount } = this.srsConfig;
+        const dueWords = this.getDueWords();
+        const availableByLevel = {
+          'ALL': dueWords.length,
+          'N1': dueWords.filter(w => w.level === 'N1').length,
+          'N2': dueWords.filter(w => w.level === 'N2').length,
+          'N3': dueWords.filter(w => w.level === 'N3').length,
+        };
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <button id="backToSRSHomeBtn" class="text-slate-400 hover:text-white mb-4 flex items-center gap-2">
+              ← 戻る
+            </button>
+            
+            <h2 class="text-white text-xl font-bold mb-4">SRS復習設定</h2>
+            
+            <!-- Level Selection -->
+            <div class="mb-6">
+              <h3 class="text-slate-400 text-sm mb-2">レベル選択</h3>
+              <div class="grid grid-cols-2 gap-2">
+                ${['ALL', 'N1', 'N2', 'N3'].map(l => `
+                  <button data-srs-level="${l}" class="py-3 px-4 rounded-xl font-semibold transition-all ${
+                    level === l 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }">
+                    ${l === 'ALL' ? '全レベル' : l} (${availableByLevel[l]})
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+            
+            <!-- Test Type -->
+            <div class="mb-6">
+              <h3 class="text-slate-400 text-sm mb-2">テスト種類</h3>
+              <div class="space-y-2">
+                ${Object.entries(TEST_TYPES).map(([key, t]) => `
+                  <button data-srs-type="${key}" class="w-full py-4 px-4 rounded-xl text-left transition-all flex items-center gap-3 ${
+                    testType === key 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }">
+                    <span class="text-2xl">${t.icon}</span>
+                    <div>
+                      <div class="font-semibold">${t.label}</div>
+                      <div class="text-sm opacity-80">${t.desc}</div>
+                    </div>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+            
+            <!-- Word Count -->
+            <div class="mb-6">
+              <h3 class="text-slate-400 text-sm mb-2">出題数: ${wordCount}語</h3>
+              <input type="range" id="wordCountSlider" min="5" max="50" step="5" value="${wordCount}" 
+                class="w-full accent-blue-500">
+              <div class="flex justify-between text-slate-500 text-xs mt-1">
+                <span>5</span><span>25</span><span>50</span>
+              </div>
+            </div>
+            
+            <!-- Start Button -->
+            <button id="startSRSTestBtn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-4 px-6 rounded-2xl font-bold text-lg transition-all ${
+              !level || !testType ? 'opacity-50 cursor-not-allowed' : ''
+            }" ${!level || !testType ? 'disabled' : ''}>
+              テスト開始
+            </button>
+          </div>
+        `;
+      }
+      
+      renderSRSTest() {
+        if (this.srsPhase === 'summary') return this.renderSRSSummary();
+        
+        const word = this.srsWords[this.srsIndex];
+        if (!word) return '<div class="p-4 text-white">No words available</div>';
+        
+        const progress = ((this.srsIndex + 1) / this.srsWords.length) * 100;
+        const testType = this.srsConfig.testType;
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <!-- Progress -->
+            <div class="mb-4">
+              <div class="flex justify-between text-slate-400 text-sm mb-1">
+                <span>${this.srsIndex + 1} / ${this.srsWords.length}</span>
+                <span>${TEST_TYPES[testType].label}</span>
+              </div>
+              <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-500 transition-all" style="width: ${progress}%"></div>
+              </div>
+            </div>
+            
+            <!-- Question Card -->
+            <div class="bg-slate-800 rounded-2xl p-6 mb-4 text-center">
+              ${this.renderSRSQuestion(word, testType)}
+            </div>
+            
+            ${this.srsPhase === 'rate' ? this.renderRatingButtons() : this.renderAnswerSection(word, testType)}
+          </div>
+        `;
+      }
+      
+      renderSRSQuestion(word, testType) {
+        switch (testType) {
+          case 'reading':
+            return `
+              <div class="kanji-display text-white mb-2">${word.kanji}</div>
+              <div class="text-slate-400 text-sm">読み方は？</div>
+            `;
+          case 'meaning':
+            return `
+              <div class="kanji-display text-white mb-2">${word.kanji}</div>
+              <div class="reading-display text-slate-300 mb-2">${word.reading || word.kana || ''}</div>
+              <div class="text-slate-400 text-sm">意味は？</div>
+            `;
+          case 'writing':
+            return `
+              <div class="reading-display text-blue-400 mb-2">${word.reading || word.kana || ''}</div>
+              <div class="meaning-display text-slate-300 mb-4">${word.meaning_en || word.meaning || ''}</div>
+              <div class="text-slate-400 text-sm">漢字で書くと？</div>
+            `;
+          default:
+            return '';
+        }
+      }
+      
+      renderAnswerSection(word, testType) {
+        if (!this.srsRevealed) {
+          return `
+            <button id="revealAnswerBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-4 px-6 rounded-xl font-bold text-lg transition-all">
+              答えを見る
+            </button>
+          `;
+        }
+        
+        // Show answer
+        const answer = this.getAnswerForType(word, testType);
+        
+        return `
+          <div class="bg-emerald-900/30 border border-emerald-500 rounded-2xl p-6 mb-4 text-center">
+            <div class="text-emerald-400 text-sm mb-2">答え</div>
+            <div class="text-white text-2xl font-bold mb-2">${answer.main}</div>
+            ${answer.sub ? `<div class="text-slate-300">${answer.sub}</div>` : ''}
+          </div>
+          
+          <div class="flex gap-3">
+            <button id="srsCorrectBtn" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-4 px-4 rounded-xl font-bold text-lg transition-all">
+              ✓ 正解
+            </button>
+            <button id="srsWrongBtn" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-4 px-4 rounded-xl font-bold text-lg transition-all">
+              ✗ 不正解
+            </button>
+          </div>
+        `;
+      }
+      
+      getAnswerForType(word, testType) {
+        switch (testType) {
+          case 'reading':
+            return { main: word.reading || word.kana || '', sub: word.meaning_en || word.meaning };
+          case 'meaning':
+            return { main: word.meaning_en || word.meaning || '', sub: '' };
+          case 'writing':
+            return { main: word.kanji, sub: '' };
+          default:
+            return { main: '', sub: '' };
+        }
+      }
+      
+      renderRatingButtons() {
+        const ratings = [
+          { num: 5, label: '全く分からない', interval: '明日', color: 'bg-red-500' },
+          { num: 4, label: 'ほぼ分からない', interval: '2日後', color: 'bg-orange-500' },
+          { num: 3, label: '少し分かる', interval: '1週間後', color: 'bg-yellow-500' },
+          { num: 2, label: 'だいたい分かる', interval: '2週間後', color: 'bg-lime-500' },
+          { num: 1, label: 'ほぼ分かる', interval: '3週間後', color: 'bg-emerald-500' },
+        ];
+        
+        return `
+          <div class="bg-slate-800 rounded-2xl p-4 mb-4">
+            <h3 class="text-white font-bold text-center mb-3">理解度を評価</h3>
+            <div class="space-y-2">
+              ${ratings.map(r => `
+                <button data-rating="${r.num}" class="w-full ${r.color} hover:opacity-90 text-white py-3 px-4 rounded-xl font-semibold transition-all flex justify-between items-center">
+                  <span>${r.num}. ${r.label}</span>
+                  <span class="text-sm opacity-80">${r.interval}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+      
+      renderSRSSummary() {
+        const correct = this.srsResults.filter(r => r.isCorrect).length;
+        const wrong = this.srsResults.filter(r => !r.isCorrect).length;
+        const accuracy = this.srsResults.length > 0 ? Math.round((correct / this.srsResults.length) * 100) : 0;
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <div class="bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl p-6 text-white text-center mb-4">
+              <div class="text-6xl mb-4">🎉</div>
+              <h2 class="text-2xl font-bold mb-2">テスト完了！</h2>
+              <p class="opacity-80">${TEST_TYPES[this.srsConfig.testType].label}</p>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="bg-slate-800 rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-blue-400">${accuracy}%</div>
+                <div class="text-slate-400 text-sm">正答率</div>
+              </div>
+              <div class="bg-slate-800 rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-emerald-400">${correct}</div>
+                <div class="text-slate-400 text-sm">正解</div>
+              </div>
+              <div class="bg-slate-800 rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-red-400">${wrong}</div>
+                <div class="text-slate-400 text-sm">不正解</div>
+              </div>
+            </div>
+            
+            ${wrong > 0 ? `
+              <div class="bg-slate-800 rounded-xl p-4 mb-4">
+                <h3 class="text-white font-bold mb-3">間違えた単語</h3>
+                <div class="space-y-2 max-h-60 overflow-auto">
+                  ${this.srsResults.filter(r => !r.isCorrect).map(r => `
+                    <div class="flex justify-between items-center bg-slate-700 rounded-lg p-3">
+                      <div>
+                        <span class="text-white font-bold">${r.word.kanji}</span>
+                        <span class="text-slate-400 ml-2">${r.word.reading || ''}</span>
+                      </div>
+                      <span class="text-red-400 text-sm">評価 ${r.rating}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+            
+            <div class="flex gap-3">
+              <button id="backToSRSHomeBtn2" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 px-4 rounded-xl font-semibold transition-all">
+                ホームへ
+              </button>
+              <button id="restartSRSBtn" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-xl font-semibold transition-all">
+                もう一度
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      
+      renderDailyReview() {
+        const grouped = {};
+        this.dailyLog.forEach(log => {
+          const key = log.kanji;
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(log);
+        });
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <button id="backToSRSHomeBtn3" class="text-slate-400 hover:text-white mb-4 flex items-center gap-2">
+              ← 戻る
+            </button>
+            
+            <h2 class="text-white text-xl font-bold mb-4">📋 今日の復習記録</h2>
+            
+            <div class="space-y-2">
+              ${Object.entries(grouped).map(([kanji, logs]) => {
+                const word = this.vocabulary.find(w => w.kanji === kanji);
+                const lastLog = logs[logs.length - 1];
+                return `
+                  <div class="bg-slate-800 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <span class="text-white font-bold text-lg">${kanji}</span>
+                      <span class="text-slate-400 ml-2">${word?.reading || ''}</span>
+                      <div class="text-slate-500 text-sm">${word?.meaning_en || ''}</div>
+                    </div>
+                    <div class="text-right">
+                      <span class="${lastLog.is_correct ? 'text-emerald-400' : 'text-red-400'} font-semibold">
+                        ${lastLog.is_correct ? '正解' : `不正解(${lastLog.rating})`}
+                      </span>
+                      <div class="text-slate-500 text-xs">${TEST_TYPES[lastLog.test_type]?.label || lastLog.test_type}</div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+      
+      // ===== SIMILAR TAB =====
+      renderSimilarContent() {
+        if (this.selectedSimilarGroup) return this.renderSimilarGroupDetail();
+        return this.renderSimilarList();
+      }
+      
+      renderSimilarList() {
+        let groups = this.similarGroups;
+        
+        // Filter by type
+        if (this.similarFilter.type !== 'all') {
+          groups = groups.filter(g => g.group_type === this.similarFilter.type);
+        }
+        
+        // Filter by search
+        if (this.similarFilter.search) {
+          const search = this.similarFilter.search.toLowerCase();
+          groups = groups.filter(g => 
+            g.group_name?.toLowerCase().includes(search) ||
+            g.kanji_list?.includes(this.similarFilter.search)
+          );
+        }
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <!-- Filter Tabs -->
+            <div class="flex gap-2 mb-4 overflow-x-auto hide-scrollbar">
+              <button data-similar-filter="all" class="px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all ${
+                this.similarFilter.type === 'all' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'
+              }">
+                全て (${this.similarGroups.length})
+              </button>
+              ${Object.entries(GROUP_TYPES).map(([key, type]) => {
+                const count = this.similarGroups.filter(g => g.group_type === key).length;
+                return `
+                  <button data-similar-filter="${key}" class="px-4 py-2 rounded-full font-semibold whitespace-nowrap transition-all ${
+                    this.similarFilter.type === key ? `${type.color} text-white` : 'bg-slate-700 text-slate-300'
+                  }">
+                    ${type.icon} ${type.label} (${count})
+                  </button>
+                `;
+              }).join('')}
+            </div>
+            
+            <!-- Search -->
+            <div class="mb-4">
+              <input type="text" id="similarSearchInput" placeholder="部首名・漢字で検索..." 
+                value="${this.similarFilter.search}"
+                class="w-full bg-slate-700 text-white px-4 py-3 rounded-xl border border-slate-600 focus:border-blue-500 focus:outline-none">
+            </div>
+            
+            <!-- Groups List -->
+            <div class="space-y-2">
+              ${groups.slice(0, 50).map(group => {
+                const kanjiList = this.parseKanjiList(group.kanji_list);
+                const typeInfo = GROUP_TYPES[group.group_type] || { icon: '?', color: 'bg-gray-500' };
+                return `
+                  <button data-similar-group="${group.id}" class="w-full bg-slate-800 hover:bg-slate-700 rounded-xl p-4 text-left transition-all card-hover">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex items-center gap-2">
+                        <span class="${typeInfo.color} text-white px-2 py-1 rounded text-xs">${typeInfo.icon}</span>
+                        <span class="text-white font-bold">${group.group_name || 'Unknown'}</span>
+                      </div>
+                      <span class="text-slate-400 text-sm">${group.kanji_count || kanjiList.length}字</span>
+                    </div>
+                    <div class="text-slate-300 text-lg truncate">${kanjiList.slice(0, 15).join('')}${kanjiList.length > 15 ? '...' : ''}</div>
+                  </button>
+                `;
+              }).join('')}
+              ${groups.length > 50 ? `<div class="text-slate-500 text-center py-4">他 ${groups.length - 50} グループ...</div>` : ''}
+            </div>
+          </div>
+        `;
+      }
+      
+      renderSimilarGroupDetail() {
+        const group = this.selectedSimilarGroup;
+        const kanjiList = this.parseKanjiList(group.kanji_list);
+        const typeInfo = GROUP_TYPES[group.group_type] || { icon: '?', label: 'Unknown', color: 'bg-gray-500' };
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <button id="backToSimilarListBtn" class="text-slate-400 hover:text-white mb-4 flex items-center gap-2">
+              ← 戻る
+            </button>
+            
+            <div class="bg-slate-800 rounded-2xl p-5 mb-4">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="${typeInfo.color} text-white px-3 py-1 rounded-full text-sm">${typeInfo.label}</span>
+              </div>
+              <h2 class="text-white text-2xl font-bold">${group.group_name}</h2>
+              <p class="text-slate-400">${kanjiList.length} 漢字</p>
+            </div>
+            
+            <div class="grid grid-cols-5 gap-2">
+              ${kanjiList.map(kanji => {
+                const word = this.vocabulary.find(w => w.kanji === kanji);
+                const marking = this.getMarking(kanji);
+                const markInfo = MARKING_CATEGORIES[marking];
+                return `
+                  <div class="bg-slate-800 rounded-xl p-3 text-center relative ${word ? 'cursor-pointer hover:bg-slate-700' : ''}" 
+                       ${word ? `title="${word.reading || ''} - ${word.meaning_en || ''}"` : ''}>
+                    <div class="text-white text-2xl font-bold">${kanji}</div>
+                    ${marking > 0 ? `<div class="absolute top-1 right-1 w-3 h-3 ${markInfo.color} rounded-full"></div>` : ''}
+                    ${word ? `<div class="text-slate-400 text-xs truncate">${word.reading || ''}</div>` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+      
+      parseKanjiList(kanjiList) {
+        if (!kanjiList) return [];
+        // Handle PostgreSQL array format {a,b,c} or plain comma-separated
+        let cleaned = kanjiList;
+        if (cleaned.startsWith('{')) cleaned = cleaned.slice(1);
+        if (cleaned.endsWith('}')) cleaned = cleaned.slice(0, -1);
+        return cleaned.split(',').map(k => k.trim()).filter(k => k);
+      }
+      
+      // ===== STORY TAB =====
+      renderStoryContent() {
+        if (this.selectedStoryGroup) return this.renderStoryGroupDetail();
+        return this.renderStoryList();
+      }
+      
+      renderStoryList() {
+        let groups = this.storyGroups;
+        
+        // Filter by search
+        if (this.storyFilter.search) {
+          const search = this.storyFilter.search.toLowerCase();
+          groups = groups.filter(g => 
+            g.group_kanji?.includes(this.storyFilter.search) ||
+            g.group_name?.toLowerCase().includes(search)
+          );
+        }
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <div class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-5 mb-4 text-white">
+              <h2 class="text-xl font-bold mb-1">📖 漢字物語</h2>
+              <p class="opacity-80 text-sm">${this.storyGroups.length} グループ • ${this.stories.length} 物語</p>
+            </div>
+            
+            <!-- Search -->
+            <div class="mb-4">
+              <input type="text" id="storySearchInput" placeholder="漢字・グループ名で検索..." 
+                value="${this.storyFilter.search}"
+                class="w-full bg-slate-700 text-white px-4 py-3 rounded-xl border border-slate-600 focus:border-purple-500 focus:outline-none">
+            </div>
+            
+            <!-- Groups Grid -->
+            <div class="grid grid-cols-2 gap-3">
+              ${groups.slice(0, 40).map(group => {
+                const groupStories = this.stories.filter(s => s.group_id === group.group_id);
+                return `
+                  <button data-story-group="${group.group_id}" class="bg-slate-800 hover:bg-slate-700 rounded-xl p-4 text-left transition-all card-hover">
+                    <div class="text-3xl font-bold text-white mb-2">${group.group_kanji || '?'}</div>
+                    <div class="text-slate-300 text-sm truncate">${group.group_name || ''}</div>
+                    <div class="text-slate-500 text-xs mt-1">${groupStories.length} 物語</div>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+            ${groups.length > 40 ? `<div class="text-slate-500 text-center py-4 mt-4">他 ${groups.length - 40} グループ...</div>` : ''}
+          </div>
+        `;
+      }
+      
+      renderStoryGroupDetail() {
+        const group = this.selectedStoryGroup;
+        const groupStories = this.stories.filter(s => s.group_id === group.group_id);
+        
+        return `
+          <div class="p-4 animate-fadeIn">
+            <button id="backToStoryListBtn" class="text-slate-400 hover:text-white mb-4 flex items-center gap-2">
+              ← 戻る
+            </button>
+            
+            <div class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-5 mb-4 text-white text-center">
+              <div class="text-5xl font-bold mb-2">${group.group_kanji || '?'}</div>
+              <div class="text-lg">${group.group_name || ''}</div>
+              <div class="text-sm opacity-80 mt-1">${groupStories.length} 漢字</div>
+            </div>
+            
+            <!-- Stories -->
+            <div class="space-y-3">
+              ${groupStories.map(story => {
+                const word = this.vocabulary.find(w => w.kanji === (story.original_kanji || story.kanji));
+                const marking = this.getMarking(story.original_kanji || story.kanji);
+                const markInfo = MARKING_CATEGORIES[marking];
+                return `
+                  <div class="bg-slate-800 rounded-xl p-4">
+                    <div class="flex items-start justify-between mb-2">
+                      <div class="flex items-center gap-3">
+                        <span class="story-kanji text-white font-bold">${story.kanji}</span>
+                        ${story.frame_number ? `<span class="text-slate-500 text-sm">#${story.frame_number}</span>` : ''}
+                        ${marking > 0 ? `<span class="${markInfo.color} text-white text-xs px-2 py-1 rounded">${markInfo.icon}</span>` : ''}
+                      </div>
+                      <div class="text-right">
+                        ${story.onyomi ? `<div class="text-purple-400 text-sm">${story.onyomi}</div>` : ''}
+                        ${story.kunyomi ? `<div class="text-green-400 text-sm">${story.kunyomi}</div>` : ''}
+                      </div>
+                    </div>
+                    <div class="text-amber-300 font-semibold mb-2">${story.meaning || ''}</div>
+                    <div class="story-text text-slate-300">${story.story || ''}</div>
+                    ${word ? `
+                      <div class="mt-3 pt-3 border-t border-slate-700">
+                        <div class="text-slate-400 text-sm">📚 語彙: ${word.reading || ''} - ${word.meaning_en || ''}</div>
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+      
+      // ===== EVENT LISTENERS =====
+      attachEventListeners() {
+        // Auth
+        document.getElementById('loginBtn')?.addEventListener('click', () => this.signInWithGoogle());
+        document.getElementById('signOutBtn')?.addEventListener('click', () => this.signOut());
+        
+        // Tab navigation
+        document.querySelectorAll('[data-tab]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.currentTab = btn.dataset.tab;
+            this.currentView = 'home';
+            this.selectedSimilarGroup = null;
+            this.selectedStoryGroup = null;
+            this.render();
+          });
+        });
+        
+        // SRS
+        document.getElementById('startSRSBtn')?.addEventListener('click', () => this.startSRSSetup());
+        document.getElementById('backToSRSHomeBtn')?.addEventListener('click', () => { this.currentView = 'home'; this.render(); });
+        document.getElementById('backToSRSHomeBtn2')?.addEventListener('click', () => { this.currentView = 'home'; this.render(); });
+        document.getElementById('backToSRSHomeBtn3')?.addEventListener('click', () => { this.currentView = 'home'; this.render(); });
+        document.getElementById('showDailyReviewBtn')?.addEventListener('click', () => this.showDailyReview());
+        document.getElementById('restartSRSBtn')?.addEventListener('click', () => this.startSRSSetup());
+        
+        document.querySelectorAll('[data-srs-level]').forEach(btn => {
+          btn.addEventListener('click', () => this.selectSRSLevel(btn.dataset.srsLevel));
+        });
+        document.querySelectorAll('[data-srs-type]').forEach(btn => {
+          btn.addEventListener('click', () => this.selectSRSTestType(btn.dataset.srsType));
+        });
+        document.getElementById('wordCountSlider')?.addEventListener('input', (e) => this.setSRSWordCount(e.target.value));
+        document.getElementById('startSRSTestBtn')?.addEventListener('click', () => this.startSRSTest());
+        
+        document.getElementById('revealAnswerBtn')?.addEventListener('click', () => this.revealSRSAnswer());
+        document.getElementById('srsCorrectBtn')?.addEventListener('click', () => this.submitSRSCorrect());
+        document.getElementById('srsWrongBtn')?.addEventListener('click', () => this.submitSRSWrong());
+        
+        document.querySelectorAll('[data-rating]').forEach(btn => {
+          btn.addEventListener('click', () => this.submitSRSRating(parseInt(btn.dataset.rating)));
+        });
+        
+        // Similar
+        document.querySelectorAll('[data-similar-filter]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.similarFilter.type = btn.dataset.similarFilter;
+            this.render();
+          });
+        });
+        document.getElementById('similarSearchInput')?.addEventListener('input', (e) => {
+          this.similarFilter.search = e.target.value;
+          this.render();
+        });
+        document.querySelectorAll('[data-similar-group]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.selectedSimilarGroup = this.similarGroups.find(g => g.id == btn.dataset.similarGroup);
+            this.render();
+          });
+        });
+        document.getElementById('backToSimilarListBtn')?.addEventListener('click', () => {
+          this.selectedSimilarGroup = null;
+          this.render();
+        });
+        
+        // Story
+        document.getElementById('storySearchInput')?.addEventListener('input', (e) => {
+          this.storyFilter.search = e.target.value;
+          this.render();
+        });
+        document.querySelectorAll('[data-story-group]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.selectedStoryGroup = this.storyGroups.find(g => g.group_id == btn.dataset.storyGroup);
+            this.render();
+          });
+        });
+        document.getElementById('backToStoryListBtn')?.addEventListener('click', () => {
+          this.selectedStoryGroup = null;
+          this.render();
+        });
+      }
+    }
+    
+    // Initialize app
+    new JLPTStudyApp();
+  </script>
+</body>
+</html>

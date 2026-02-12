@@ -1,0 +1,69 @@
+I want some new updates in the app. 
+
+
+1. The SRS tab is working fine now. But I want a new feature in SRS tab and homepage tab. As you know I have the story database linked but it is not effectively used to learn the kanji.
+
+For that, At the end of the signle word test flashcard I should be able to see a button to see the story of kanji word which I was trying to learn. Looking the story of that kanji is kind of optional but according to me it will be very powerful tool to remember the kanji word.
+a. Once I click the story option I should be shown the entire group of kanji inside the story database. I want to remember the kanji with the memories of it's entire group. Please see attached image with which how I showed the story of kanji characters in my excel app.
+b. Currently I have intermediate sheet which first split the kanji word and then show the story for individual kanji character. The UI and linking of this part is upto you. I will review it later.
+
+
+
+
+
+I want some new updates in the app. 
+
+My SRS test have 3 sections. And in those I want the to see the question word in different styles for kanji which  I don't know (marking 5), difficult to use in daily pronunciation (marking 4), difficult to write (marking 3). Or any marking level.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Don't need to generate any code as of now. Just remember the next new 3 features I want to add in my app. You can give suggestions related to these
+
+
+1.Want the n words random study mode (I will set the n value to study words). I should have option of japanese level, or all level mixed before starting the study mode. This study mode will have 3 types of random flashcards.
+a. guess the kanji from hiragana and check correct or wrong based on the answer I have in my mind. (I will choose the correct or incorrect).
+b. guess the hiragana from kanji and meaning
+c. guess the meaning from the kanji and hiragana
+
+
+2. New section to display words groupwise
+Can I generate a section to display words with similar meaning, similar hiragana, similar kanji words, almost similar meaning words side by side as remembering them will be easier by reading in this way.
+
+
+
+
+3. Story section
+Want to add the story section inside the app. Just remember this is the special section of the app. It is there to teach how the kanjies got their meaning.
+
+First of all let me teach you how it is being generated before generating any code.
+
+
+
+
+
+
+
+
+
+
+
+
+So the thing is everytime I search for any kanji. You have to show the entire block having those kanji, their meaning and story.
+
+This is the way I will visually remember the kanji.

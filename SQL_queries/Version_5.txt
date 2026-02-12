@@ -1,0 +1,2 @@
+-- Add level column to vocabulary table
+ALTER TABLE vocabulary ADD COLUMN level VARCHAR(5) DEFAULT 'N1';

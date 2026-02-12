@@ -1,0 +1,39 @@
+-- =====================================================
+-- Recreate user_markings table with kanji column
+-- =====================================================
+
+-- Drop old table
+DROP TABLE IF EXISTS user_markings;
+
+-- Create new table with kanji (text) instead of word_id (int)
+CREATE TABLE user_markings (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  kanji TEXT NOT NULL,
+  marking INTEGER DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, kanji)
+);
+
+-- Create indexes for performance
+CREATE INDEX idx_markings_user ON user_markings(user_id);
+CREATE INDEX idx_markings_kanji ON user_markings(kanji);
+
+-- Enable Row Level Security
+ALTER TABLE user_markings ENABLE ROW LEVEL SECURITY;
+
+-- Policies for user access
+CREATE POLICY "Users can read own markings" ON user_markings
+  FOR SELECT USING (auth.uid()::text = user_id);
+
+CREATE POLICY "Users can insert own markings" ON user_markings
+  FOR INSERT WITH CHECK (auth.uid()::text = user_id);
+
+CREATE POLICY "Users can update own markings" ON user_markings
+  FOR UPDATE USING (auth.uid()::text = user_id);
+
+CREATE POLICY "Users can delete own markings" ON user_markings
+  FOR DELETE USING (auth.uid()::text = user_id);
+
+-- Verify
+SELECT 'Table recreated successfully!' as status;

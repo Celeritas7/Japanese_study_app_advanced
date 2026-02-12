@@ -1,0 +1,16 @@
+-- Create master vocabulary table
+CREATE TABLE vocabulary_master (
+  id SERIAL PRIMARY KEY,
+  sr_no INTEGER,
+  raw TEXT,
+  kanji TEXT,
+  hint TEXT,
+  sentence TEXT,
+  hiragana TEXT,
+  meaning TEXT,
+  page_no INTEGER
+);
+
+-- Allow read access
+ALTER TABLE vocabulary_master ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read" ON vocabulary_master FOR SELECT USING (true);
