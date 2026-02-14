@@ -3,31 +3,31 @@
 import { initCanvas, clearCanvas } from './canvas.js';
 
 export function attachEventListeners(app) {
-  // Auth
+  // ===== AUTH =====
   document.getElementById('loginBtn')?.addEventListener('click', () => app.signInWithGoogle());
   document.getElementById('signOutBtn')?.addEventListener('click', () => app.signOut());
   
-  // Main Tabs
+  // ===== MAIN TABS =====
   document.querySelectorAll('[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => app.selectTab(btn.dataset.tab));
   });
   
-  // Study Sub-tabs (Goi | Kanji | Self Study)
+  // ===== STUDY SUB-TABS =====
   document.querySelectorAll('[data-study-subtab]').forEach(btn => {
     btn.addEventListener('click', () => app.selectStudySubTab(btn.dataset.studySubtab));
   });
   
-  // Level selection
+  // ===== LEVEL SELECTION =====
   document.querySelectorAll('[data-level]').forEach(btn => {
     btn.addEventListener('click', () => app.selectLevel(btn.dataset.level));
   });
   
-  // Test type selection
+  // ===== TEST TYPE =====
   document.querySelectorAll('[data-test-type]').forEach(btn => {
     btn.addEventListener('click', () => app.setTestType(btn.dataset.testType));
   });
   
-  // Category selection
+  // ===== CATEGORY FILTER =====
   document.querySelectorAll('[data-category]').forEach(btn => {
     btn.addEventListener('click', () => {
       const cat = parseInt(btn.dataset.category);
@@ -36,12 +36,12 @@ export function attachEventListeners(app) {
     });
   });
   
-  // Back buttons
+  // ===== BACK BUTTONS =====
   document.getElementById('backToLevelBtn')?.addEventListener('click', () => app.backToLevel());
   document.getElementById('backToWeekDayBtn')?.addEventListener('click', () => app.backToWeekDay());
   document.getElementById('backToTopicsBtn')?.addEventListener('click', () => app.backToLevel());
   
-  // Week/Day selection and start study
+  // ===== STUDY START =====
   document.getElementById('startStudyBtn')?.addEventListener('click', () => {
     const weekDay = document.getElementById('weekDaySelect')?.value || null;
     app.selectedWeekDay = weekDay;
@@ -52,13 +52,13 @@ export function attachEventListeners(app) {
     app.startStudy(app.selectedWeekDay);
   });
   
-  // Flashcard navigation
+  // ===== FLASHCARD NAVIGATION =====
   document.getElementById('prevWordBtn')?.addEventListener('click', () => app.prevWord());
   document.getElementById('nextWordBtn')?.addEventListener('click', () => app.nextWord());
   document.getElementById('randomWordBtn')?.addEventListener('click', () => app.randomWord());
   document.getElementById('revealNextBtn')?.addEventListener('click', () => app.revealNext());
   
-  // Canvas
+  // ===== CANVAS =====
   document.getElementById('clearCanvasBtn')?.addEventListener('click', () => {
     clearCanvas('writingCanvas');
     clearCanvas('srsWritingCanvas');
@@ -75,9 +75,10 @@ export function attachEventListeners(app) {
     app.restoreCanvasData();
   }
   
-  // Marking buttons
+  // ===== MARKING BUTTONS =====
   document.querySelectorAll('[data-mark-kanji]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const kanji = btn.dataset.markKanji;
       const value = parseInt(btn.dataset.markValue);
       app.updateMarking(kanji, value);
@@ -117,6 +118,7 @@ export function attachEventListeners(app) {
     });
   });
   
+  // SRS Word Count Inputs
   document.getElementById('srsN1Count')?.addEventListener('input', (e) => {
     app.srsConfig.n1Count = parseInt(e.target.value) || 0;
     updateSRSButton(app);
@@ -135,15 +137,20 @@ export function attachEventListeners(app) {
   document.getElementById('startSRSTestBtn')?.addEventListener('click', () => app.startSRSTest());
   document.getElementById('backToSRSSetupBtn')?.addEventListener('click', () => app.resetSRS());
   
+  // SRS MCQ Options
   document.querySelectorAll('[data-srs-option]').forEach(btn => {
     btn.addEventListener('click', () => app.selectSRSOption(parseInt(btn.dataset.srsOption)));
   });
   
   document.getElementById('srsSubmitBtn')?.addEventListener('click', () => app.submitSRSAnswer());
   document.getElementById('srsNextBtn')?.addEventListener('click', () => app.srsNextQuestion());
+  
+  // SRS Writing
   document.getElementById('srsRevealWritingBtn')?.addEventListener('click', () => app.revealSRSWriting());
   document.getElementById('srsMarkCorrectBtn')?.addEventListener('click', () => app.markSRSWritingResult(true));
   document.getElementById('srsMarkWrongBtn')?.addEventListener('click', () => app.markSRSWritingResult(false));
+  
+  // SRS Results
   document.getElementById('srsRetestWrongBtn')?.addEventListener('click', () => app.retestWrongAnswers());
   document.getElementById('srsNewTestBtn')?.addEventListener('click', () => app.resetSRS());
   
@@ -189,7 +196,6 @@ export function attachEventListeners(app) {
   document.getElementById('closeModalBtn')?.addEventListener('click', () => {
     app.showAddTopicModal = false;
     app.showAddWordModal = false;
-    app.showAddSentenceModal = false;
     app.render();
   });
   
@@ -197,14 +203,12 @@ export function attachEventListeners(app) {
     if (e.target.id === 'modalOverlay') {
       app.showAddTopicModal = false;
       app.showAddWordModal = false;
-      app.showAddSentenceModal = false;
       app.render();
     }
   });
   
   document.getElementById('submitTopicBtn')?.addEventListener('click', () => app.submitNewTopic());
   document.getElementById('submitWordBtn')?.addEventListener('click', () => app.submitNewWord());
-  document.getElementById('submitSentenceBtn')?.addEventListener('click', () => app.submitNewSentence());
 }
 
 function updateSRSButton(app) {

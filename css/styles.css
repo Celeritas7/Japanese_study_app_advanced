@@ -8,10 +8,10 @@ body {
   overscroll-behavior: none;
 }
 
+/* Scrollbar */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
-
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -28,8 +28,14 @@ body {
   to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
 .animate-slideIn { animation: slideIn 0.2s ease-out; }
+.animate-pulse { animation: pulse 2s infinite; }
 
 /* Typography */
 .kanji-highlight {
@@ -56,7 +62,7 @@ body {
   color: #92400e;
 }
 
-/* Boxes */
+/* Card Styles */
 .sentence-box {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border: 3px solid #f59e0b;
@@ -121,16 +127,6 @@ body {
   transform: scale(0.95);
 }
 
-/* Furigana */
-.furigana-text ruby rt {
-  font-size: 0.6em;
-  color: #6b7280;
-}
-
-.furigana-hidden ruby rt {
-  visibility: hidden;
-}
-
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -149,4 +145,28 @@ body {
   max-height: 90vh;
   overflow: auto;
   width: 500px;
+}
+
+/* Furigana */
+ruby {
+  ruby-align: center;
+}
+
+ruby rt {
+  font-size: 0.5em;
+  color: #6b7280;
+}
+
+/* Progress Bar */
+.progress-bar {
+  height: 4px;
+  background: #334155;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #10b981;
+  transition: width 0.3s ease;
 }

@@ -1,7 +1,7 @@
-// JLPT Vocabulary Master - Render Functions
+// JLPT Vocabulary Master - Render Functions (Study Tab)
 
-import { LEVEL_COLORS, MARKING_CATEGORIES, TEST_TYPES, TOPIC_ICONS, TOPIC_COLORS } from './config.js';
-import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeKanji, parseKanjiList } from './utils.js';
+import { LEVEL_COLORS, MARKING_CATEGORIES, TEST_TYPES, TAB_ICONS } from './config.js';
+import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml } from './utils.js';
 
 // ===== COMMON RENDERS =====
 
@@ -56,10 +56,10 @@ export function renderHeader(app) {
         </div>
         <div>
           <h1 class="text-white font-bold">JLPT Vocabulary</h1>
-          <p class="text-slate-400 text-xs">${app.vocabulary.length} words${app.syncing ? ' - Syncing...' : ''}</p>
+          <p class="text-slate-400 text-xs">${app.vocabulary.length} words${app.syncing ? ' • Syncing...' : ''}</p>
         </div>
       </div>
-      <button id="signOutBtn" class="text-slate-400 hover:text-white p-2">
+      <button id="signOutBtn" class="text-slate-400 hover:text-white p-2" title="Sign Out">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
         </svg>
@@ -70,17 +70,17 @@ export function renderHeader(app) {
 
 export function renderTabs(currentTab) {
   const tabs = [
-    { id: 'study', label: 'Study', icon: 'St' },
-    { id: 'srs', label: 'SRS Review', icon: 'SR' },
-    { id: 'stories', label: 'Stories', icon: 'Bo' },
-    { id: 'similar', label: 'Similar', icon: 'Si' }
+    { id: 'study', label: 'Study', icon: TAB_ICONS.study },
+    { id: 'srs', label: 'SRS Review', icon: TAB_ICONS.srs },
+    { id: 'stories', label: 'Stories', icon: TAB_ICONS.stories },
+    { id: 'similar', label: 'Similar', icon: TAB_ICONS.similar }
   ];
   
   return `
     <nav class="bg-slate-800 border-b border-slate-700 flex">
       ${tabs.map(t => `
         <button data-tab="${t.id}" class="flex-1 py-3 px-2 text-center transition-all ${currentTab === t.id ? 'tab-active' : 'text-slate-400 hover:text-white'}">
-          <span class="text-lg font-bold">${t.icon}</span>
+          <span class="text-lg">${t.icon}</span>
           <span class="text-xs block mt-1">${t.label}</span>
         </button>
       `).join('')}
@@ -88,31 +88,33 @@ export function renderTabs(currentTab) {
   `;
 }
 
-// ===== STUDY TAB =====
-
-export function renderStudySubTabs(studySubTab) {
+export function renderStudySubTabs(currentSubTab) {
+  const subTabs = [
+    { id: 'goi', label: 'Goi' },
+    { id: 'kanji', label: 'Kanji' },
+    { id: 'self_study', label: 'Self Study' }
+  ];
+  
   return `
     <div class="bg-slate-700 px-4 py-2">
       <div class="flex gap-2 justify-center">
-        <button data-study-subtab="goi" class="px-5 py-2 rounded-full font-medium text-sm transition-all ${studySubTab === 'goi' ? 'subtab-active' : 'bg-slate-600 text-slate-300 hover:bg-slate-500'}">
-          Goi
-        </button>
-        <button data-study-subtab="kanji" class="px-5 py-2 rounded-full font-medium text-sm transition-all ${studySubTab === 'kanji' ? 'subtab-active' : 'bg-slate-600 text-slate-300 hover:bg-slate-500'}">
-          Kanji
-        </button>
-        <button data-study-subtab="self_study" class="px-5 py-2 rounded-full font-medium text-sm transition-all ${studySubTab === 'self_study' ? 'subtab-active' : 'bg-slate-600 text-slate-300 hover:bg-slate-500'}">
-          Self Study
-        </button>
+        ${subTabs.map(t => `
+          <button data-study-subtab="${t.id}" class="px-5 py-2 rounded-full font-medium text-sm transition-all ${currentSubTab === t.id ? 'subtab-active' : 'bg-slate-600 text-slate-300 hover:bg-slate-500'}">
+            ${t.label}
+          </button>
+        `).join('')}
       </div>
     </div>
   `;
 }
 
+// ===== LEVEL SELECTOR =====
+
 export function renderLevelSelector(app) {
   const levels = ['N1', 'N2', 'N3'];
   
   return `
-    <div class="p-4 animate-fadeIn">
+    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
       <div class="max-w-md mx-auto pt-4">
         <div class="text-center mb-6">
           <h1 class="text-xl font-bold text-white mb-1">Select Level</h1>
@@ -133,7 +135,7 @@ export function renderLevelSelector(app) {
                       <p class="text-gray-500 text-sm">${stats.total} words</p>
                     </div>
                   </div>
-                  <span class="text-2xl text-gray-400 group-hover:translate-x-1 transition-transform">-></span>
+                  <span class="text-2xl text-gray-400 group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </button>
             `;
@@ -148,7 +150,7 @@ export function renderLevelSelector(app) {
                   <p class="text-slate-400 text-sm">${app.vocabulary.length} words</p>
                 </div>
               </div>
-              <span class="text-2xl text-slate-400 group-hover:translate-x-1 transition-transform">-></span>
+              <span class="text-2xl text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </button>
         </div>
@@ -157,16 +159,18 @@ export function renderLevelSelector(app) {
   `;
 }
 
+// ===== WEEK/DAY SELECTOR =====
+
 export function renderWeekDaySelector(app) {
   const stats = getStatsByLevel(app.vocabulary, app.markings, app.selectedLevel);
   const weekDays = getAvailableWeekDays(app.vocabulary, app.selectedLevel);
   const levelColor = LEVEL_COLORS[app.selectedLevel] || LEVEL_COLORS['ALL'];
   
   return `
-    <div class="p-4 animate-fadeIn">
+    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
       <div class="max-w-lg mx-auto">
         <div class="flex items-center gap-3 mb-6">
-          <button id="backToLevelBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg"><- Back</button>
+          <button id="backToLevelBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg">← Back</button>
           <div class="w-12 h-12 ${levelColor.bg} rounded-xl flex items-center justify-center text-white font-bold">
             ${app.selectedLevel === 'ALL' ? 'ALL' : app.selectedLevel}
           </div>
@@ -176,18 +180,20 @@ export function renderWeekDaySelector(app) {
           </div>
         </div>
         
+        <!-- Test Type -->
         <div class="bg-slate-800 rounded-xl p-4 mb-4">
           <h3 class="text-sm text-slate-400 mb-3">Test Type</h3>
           <div class="grid grid-cols-3 gap-2">
             ${Object.entries(TEST_TYPES).map(([key, t]) => `
               <button data-test-type="${key}" class="p-3 rounded-xl text-center transition-all ${app.selectedTestType === key ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
                 <span class="text-xl block mb-1">${t.icon}</span>
-                <span class="text-xs">${t.label}</span>
+                <span class="text-xs">${t.label.split(' ')[0]}</span>
               </button>
             `).join('')}
           </div>
         </div>
         
+        <!-- Category Filter -->
         <div class="bg-slate-800 rounded-xl p-4 mb-4">
           <h3 class="text-sm text-slate-400 mb-3">Filter by Category</h3>
           <div class="flex flex-wrap gap-2 justify-center">
@@ -200,13 +206,12 @@ export function renderWeekDaySelector(app) {
           </div>
         </div>
         
+        <!-- Week/Day Select -->
         <div class="bg-white rounded-xl p-4 shadow-lg">
           <h3 class="text-sm text-slate-600 mb-3">Select Chapter</h3>
           <select id="weekDaySelect" class="w-full p-3 border rounded-xl bg-white text-gray-800">
             <option value="">All ${app.selectedLevel === 'ALL' ? '' : app.selectedLevel + ' '}Words (${stats.total})</option>
-            ${weekDays.map(wd => `
-              <option value="${wd.label}">${wd.label} (${wd.count} words)</option>
-            `).join('')}
+            ${weekDays.map(wd => `<option value="${wd.label}">${wd.label} (${wd.count} words)</option>`).join('')}
           </select>
           
           <button id="startStudyBtn" class="w-full mt-4 py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all">
@@ -218,24 +223,20 @@ export function renderWeekDaySelector(app) {
   `;
 }
 
+// ===== WORD LIST =====
+
 export function renderWordList(app) {
   let words = app.selectedLevel === 'ALL' ? app.vocabulary : app.vocabulary.filter(v => v.level === app.selectedLevel);
+  if (app.selectedWeekDay) words = words.filter(w => w.weekDayLabel === app.selectedWeekDay);
+  if (app.selectedCategory !== null) words = words.filter(w => getMarking(app.markings, w) === app.selectedCategory);
   
-  if (app.selectedWeekDay) {
-    words = words.filter(w => w.weekDayLabel === app.selectedWeekDay);
-  }
-  
-  if (app.selectedCategory !== null) {
-    words = words.filter(w => getMarking(app.markings, w) === app.selectedCategory);
-  }
-  
-  const catInfo = app.selectedCategory !== null ? MARKING_CATEGORIES[app.selectedCategory] : { label: 'All', icon: 'All', color: 'bg-slate-500' };
+  const catInfo = app.selectedCategory !== null ? MARKING_CATEGORIES[app.selectedCategory] : { label: 'All', icon: '📋', color: 'bg-slate-500' };
   
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
       <div class="bg-slate-800 p-4 border-b border-slate-700">
         <div class="flex items-center gap-3">
-          <button id="backToWeekDayBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg"><- Back</button>
+          <button id="backToWeekDayBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg">← Back</button>
           <div>
             <h2 class="text-white font-bold">${catInfo.label}</h2>
             <p class="text-slate-400 text-sm">${words.length} words</p>
@@ -251,7 +252,7 @@ export function renderWordList(app) {
         </div>
       ` : ''}
       
-      <main class="flex-1 overflow-auto hide-scrollbar p-4">
+      <div class="flex-1 overflow-auto hide-scrollbar p-4">
         ${words.length === 0 ? `
           <div class="text-center py-12">
             <p class="text-2xl text-slate-500 mb-2">${catInfo.icon}</p>
@@ -262,7 +263,7 @@ export function renderWordList(app) {
             ${words.map(w => {
               const m = getMarking(app.markings, w);
               const mInfo = MARKING_CATEGORIES[m];
-              const kanjiEsc = escapeKanji(w.kanji);
+              const kanjiEsc = escapeHtml(w.kanji || w.raw);
               return `
                 <div class="bg-white rounded-xl p-4 shadow ${mInfo.border} border-l-4">
                   <div class="flex items-center justify-between">
@@ -287,10 +288,12 @@ export function renderWordList(app) {
             }).join('')}
           </div>
         `}
-      </main>
+      </div>
     </div>
   `;
 }
+
+// ===== FLASHCARD =====
 
 export function renderFlashcard(app) {
   if (app.studyWords.length === 0) {
@@ -298,7 +301,7 @@ export function renderFlashcard(app) {
       <div class="flex-1 flex items-center justify-center p-4">
         <div class="text-center">
           <p class="text-2xl text-white mb-4">No words found</p>
-          <button id="backToWeekDayBtn" class="px-6 py-3 bg-slate-700 text-white rounded-xl"><- Back</button>
+          <button id="backToWeekDayBtn" class="px-6 py-3 bg-slate-700 text-white rounded-xl">← Back</button>
         </div>
       </div>
     `;
@@ -308,7 +311,7 @@ export function renderFlashcard(app) {
   const marking = getMarking(app.markings, word);
   const markInfo = MARKING_CATEGORIES[marking] || MARKING_CATEGORIES[0];
   const levelColor = LEVEL_COLORS[word.level] || LEVEL_COLORS['ALL'];
-  const kanjiEsc = escapeKanji(word.kanji);
+  const kanjiEsc = escapeHtml(word.kanji || word.raw);
   
   const ctxBefore = word.sentence_before || word.supporting_word_1 || '';
   const ctxAfter = word.sentence_after || word.supporting_word_2 || '';
@@ -316,8 +319,9 @@ export function renderFlashcard(app) {
   
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Header -->
       <div class="bg-slate-800 px-4 py-3 flex items-center justify-between">
-        <button id="backToWeekDayBtn" class="text-white hover:bg-slate-700 px-3 py-2 rounded-lg"><- Back</button>
+        <button id="backToWeekDayBtn" class="text-white hover:bg-slate-700 px-3 py-2 rounded-lg">← Back</button>
         <div class="text-center">
           <div class="flex items-center justify-center gap-2">
             <span class="px-2 py-1 ${levelColor.bg} text-white text-xs rounded font-bold">${word.level || 'Self'}</span>
@@ -330,20 +334,23 @@ export function renderFlashcard(app) {
         </div>
       </div>
       
+      <!-- Test Type Selector -->
       <div class="bg-slate-800 px-4 py-2 border-b border-slate-700">
         <div class="flex justify-center gap-2">
           ${Object.entries(TEST_TYPES).map(([key, t]) => `
             <button data-test-type="${key}" class="px-3 py-1 rounded-lg text-sm transition-all ${app.selectedTestType === key ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
-              ${t.icon} ${t.label}
+              ${t.icon} ${t.label.split(' ')[0]}
             </button>
           `).join('')}
         </div>
       </div>
       
-      <main class="flex-1 flex flex-col items-center justify-start p-4 overflow-auto">
+      <!-- Card Content -->
+      <div class="flex-1 flex flex-col items-center justify-start p-4 overflow-auto">
         <div class="w-full max-w-2xl">
           ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter)}
           
+          <!-- Marking Buttons -->
           <div class="bg-slate-800 rounded-xl p-3 mb-4">
             <p class="text-slate-400 text-xs text-center mb-2">Change Rating</p>
             <div class="flex justify-center gap-2">
@@ -356,23 +363,19 @@ export function renderFlashcard(app) {
             </div>
           </div>
           
+          <!-- Navigation -->
           <div class="flex gap-3">
-            <button id="prevWordBtn" class="flex-1 py-4 bg-slate-700 text-white rounded-xl hover:bg-slate-600 disabled:opacity-50" ${app.currentIndex === 0 ? 'disabled' : ''}>
-              <- Prev
-            </button>
-            <button id="randomWordBtn" class="px-6 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-500">
-              Rand
-            </button>
-            <button id="nextWordBtn" class="flex-1 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50" ${app.currentIndex >= app.studyWords.length - 1 ? 'disabled' : ''}>
-              Next ->
-            </button>
+            <button id="prevWordBtn" class="flex-1 py-4 bg-slate-700 text-white rounded-xl hover:bg-slate-600 disabled:opacity-50" ${app.currentIndex === 0 ? 'disabled' : ''}>← Prev</button>
+            <button id="randomWordBtn" class="px-6 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-500">🎲</button>
+            <button id="nextWordBtn" class="flex-1 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50" ${app.currentIndex >= app.studyWords.length - 1 ? 'disabled' : ''}>Next →</button>
           </div>
           
+          <!-- Progress -->
           <div class="mt-4 bg-slate-700 rounded-full h-2 overflow-hidden">
             <div class="bg-emerald-500 h-full transition-all" style="width: ${((app.currentIndex + 1) / app.studyWords.length) * 100}%"></div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   `;
 }
@@ -391,7 +394,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       </div>
       ${app.revealStep < 4 ? `
         <button id="revealNextBtn" class="w-full py-4 bg-blue-500 text-white font-bold rounded-xl mb-4 hover:bg-blue-600">
-          Reveal ${['Hint', 'Context', 'Reading', 'Meaning'][app.revealStep]} ->
+          Reveal ${['Hint', 'Context', 'Reading', 'Meaning'][app.revealStep]} →
         </button>
       ` : ''}
     `;
@@ -406,11 +409,12 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       </div>
       ${app.revealStep < 3 ? `
         <button id="revealNextBtn" class="w-full py-4 bg-blue-500 text-white font-bold rounded-xl mb-4 hover:bg-blue-600">
-          Reveal ${['Hint', 'Context', 'Kanji'][app.revealStep]} ->
+          Reveal ${['Hint', 'Context', 'Kanji'][app.revealStep]} →
         </button>
       ` : ''}
     `;
   } else {
+    // Writing test
     return `
       <div class="sentence-box rounded-2xl p-6 mb-4 text-center">
         <p class="meaning-display text-amber-800 mb-3">${word.meaning}</p>
@@ -432,31 +436,29 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
         </div>
       ` : `
         <button id="revealNextBtn" class="w-full py-4 bg-blue-500 text-white font-bold rounded-xl mb-4 hover:bg-blue-600">
-          Reveal ${['Hint', 'Context', 'Answer'][app.revealStep]} ->
+          Reveal ${['Hint', 'Context', 'Answer'][app.revealStep]} →
         </button>
       `}
     `;
   }
 }
 
-// ===== KANJI TAB (PLACEHOLDER) =====
+// ===== KANJI PLACEHOLDER =====
 
 export function renderKanjiPlaceholder() {
   return `
     <div class="flex-1 flex items-center justify-center p-4">
       <div class="text-center max-w-md">
-        <div class="text-6xl mb-4">Under Construction</div>
+        <div class="text-6xl mb-4">🚧</div>
         <h2 class="text-xl font-bold text-white mb-2">Kanji Section Coming Soon</h2>
-        <p class="text-slate-400 mb-4">
-          The Kanji database with 9,397 words from your textbooks is ready to be connected.
-        </p>
+        <p class="text-slate-400 mb-4">The Kanji database with 9,397 words from your textbooks is ready to be connected.</p>
         <div class="bg-slate-800 rounded-xl p-4 text-left">
           <p class="text-slate-300 text-sm mb-2">Available Books:</p>
           <ul class="text-slate-400 text-sm space-y-1">
-            <li>- Kanji Master N3 (210 words)</li>
-            <li>- Kanji Diploma N3 (2,060 words)</li>
-            <li>- Manabou N2 (600 words)</li>
-            <li>- Kanji Diploma N2 (6,527 words)</li>
+            <li>• Kanji Master N3 (210 words)</li>
+            <li>• Kanji Diploma N3 (2,060 words)</li>
+            <li>• Manabou N2 (600 words)</li>
+            <li>• Kanji Diploma N2 (6,527 words)</li>
           </ul>
         </div>
       </div>
@@ -464,7 +466,7 @@ export function renderKanjiPlaceholder() {
   `;
 }
 
-// ===== SELF STUDY TAB =====
+// ===== SELF STUDY =====
 
 export function renderSelfStudyTopics(app) {
   return `
@@ -482,7 +484,7 @@ export function renderSelfStudyTopics(app) {
         
         ${app.selfStudyTopics.length === 0 ? `
           <div class="text-center py-12">
-            <div class="text-6xl mb-4">Notes</div>
+            <div class="text-6xl mb-4">📝</div>
             <p class="text-slate-400 mb-2">No topics yet</p>
             <p class="text-slate-500 text-sm">Create your first topic to start adding vocabulary!</p>
           </div>
@@ -494,13 +496,13 @@ export function renderSelfStudyTopics(app) {
                 <button data-topic-id="${topic.id}" class="w-full p-4 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all text-left group">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-4">
-                      <div class="w-12 h-12 bg-${topic.topic_color || 'blue'}-500 rounded-xl flex items-center justify-center text-2xl">${topic.topic_icon || 'Ic'}</div>
+                      <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center text-2xl">${topic.topic_icon || '📚'}</div>
                       <div>
                         <h3 class="text-base font-bold text-gray-800">${topic.topic_name}</h3>
                         <p class="text-gray-500 text-sm">${wordCount} words</p>
                       </div>
                     </div>
-                    <span class="text-xl text-gray-400 group-hover:translate-x-1 transition-transform">-></span>
+                    <span class="text-xl text-gray-400 group-hover:translate-x-1 transition-transform">→</span>
                   </div>
                 </button>
               `;
@@ -519,8 +521,8 @@ export function renderSelfStudyWordList(app) {
     <div class="flex-1 flex flex-col overflow-hidden">
       <div class="bg-slate-800 p-4">
         <div class="flex items-center gap-3 mb-4">
-          <button id="backToTopicsBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg"><- Back</button>
-          <div class="w-10 h-10 bg-${app.selectedTopic.topic_color || 'blue'}-500 rounded-xl flex items-center justify-center text-xl">${app.selectedTopic.topic_icon || 'Ic'}</div>
+          <button id="backToTopicsBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg">← Back</button>
+          <div class="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center text-xl">${app.selectedTopic.topic_icon || '📚'}</div>
           <div>
             <h2 class="text-white font-bold">${app.selectedTopic.topic_name}</h2>
             <p class="text-slate-400 text-sm">${words.length} words</p>
@@ -528,51 +530,36 @@ export function renderSelfStudyWordList(app) {
         </div>
         
         <div class="flex gap-2">
-          <button id="addWordBtn" class="flex-1 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600">
-            + Add Word
-          </button>
-          ${words.length > 0 ? `
-            <button id="startSelfStudyBtn" class="flex-1 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600">
-              Study
-            </button>
-          ` : ''}
+          <button id="addWordBtn" class="flex-1 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600">+ Add Word</button>
+          ${words.length > 0 ? `<button id="startSelfStudyBtn" class="flex-1 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600">▶ Study</button>` : ''}
         </div>
       </div>
       
-      <main class="flex-1 overflow-auto hide-scrollbar p-4">
+      <div class="flex-1 overflow-auto hide-scrollbar p-4">
         ${words.length === 0 ? `
           <div class="text-center py-12">
-            <div class="text-4xl mb-2">Notes</div>
+            <div class="text-4xl mb-2">📝</div>
             <p class="text-slate-400">No words yet</p>
             <p class="text-slate-500 text-sm">Add your first word!</p>
           </div>
         ` : `
           <div class="space-y-2">
-            ${words.map(w => {
-              const m = w.marking || 0;
-              const mInfo = MARKING_CATEGORIES[m];
-              return `
-                <div class="bg-white rounded-xl p-4 shadow ${mInfo.border} border-l-4">
-                  <div class="flex items-center justify-between">
-                    <div class="flex-1">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class="text-xl font-bold text-gray-800">${w.kanji}</span>
-                        <span class="text-gray-500">${w.hiragana || ''}</span>
-                      </div>
-                      <p class="text-sm text-gray-600">${w.meaning_en || ''}</p>
+            ${words.map(w => `
+              <div class="bg-white rounded-xl p-4 shadow border-l-4 border-blue-400">
+                <div class="flex items-center justify-between">
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-xl font-bold text-gray-800">${w.kanji}</span>
+                      <span class="text-gray-500">${w.hiragana || ''}</span>
                     </div>
+                    <p class="text-sm text-gray-600">${w.meaning_en || ''}</p>
                   </div>
                 </div>
-              `;
-            }).join('')}
+              </div>
+            `).join('')}
           </div>
         `}
-      </main>
+      </div>
     </div>
   `;
 }
-
-// Export other tab renders are in separate files:
-// - render-srs.js
-// - render-stories.js  
-// - render-similar.js

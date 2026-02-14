@@ -58,12 +58,18 @@ export function getAvailableWeekDays(vocabulary, level) {
 /**
  * Escape kanji for HTML attributes
  */
-export function escapeKanji(kanji) {
-  return (kanji || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
+export function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 /**
- * Parse kanji list from database format
+ * Parse kanji list from database format (e.g., "{漢,字,列}")
  */
 export function parseKanjiList(kanjiList) {
   if (!kanjiList) return [];
@@ -74,7 +80,7 @@ export function parseKanjiList(kanjiList) {
 }
 
 /**
- * Shuffle array (Fisher-Yates)
+ * Shuffle array (Fisher-Yates algorithm)
  */
 export function shuffleArray(array) {
   const arr = [...array];
@@ -90,4 +96,32 @@ export function shuffleArray(array) {
  */
 export function sampleArray(array, n) {
   return shuffleArray(array).slice(0, n);
+}
+
+/**
+ * Debounce function
+ */
+export function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Format date for display
+ */
+export function formatDate(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
 }

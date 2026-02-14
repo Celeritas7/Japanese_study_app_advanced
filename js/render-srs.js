@@ -1,6 +1,6 @@
 // JLPT Vocabulary Master - SRS Tab Render Functions
 
-import { MARKING_CATEGORIES, LEVEL_COLORS } from './config.js';
+import { LEVEL_COLORS, MARKING_CATEGORIES } from './config.js';
 
 export function renderSRSTab(app) {
   switch (app.srsView) {
@@ -18,31 +18,33 @@ function renderSRSSetup(app) {
   const total = app.srsConfig.n1Count + app.srsConfig.n2Count + app.srsConfig.n3Count;
   
   return `
-    <div class="p-4 animate-fadeIn">
+    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
       <div class="max-w-md mx-auto pt-4">
         <div class="text-center mb-6">
           <h1 class="text-xl font-bold text-white mb-1">SRS Review</h1>
           <p class="text-slate-400 text-sm">Test your vocabulary knowledge</p>
         </div>
         
+        <!-- Test Type Selection -->
         <div class="bg-slate-800 rounded-xl p-4 mb-4">
           <h3 class="text-sm text-slate-400 mb-3">Test Type</h3>
           <div class="grid grid-cols-3 gap-2">
-            <button data-srs-test-type="hiragana_to_kanji" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'hiragana_to_kanji' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}">
-              <span class="text-xl block mb-1">Hi->Ka</span>
+            <button data-srs-test-type="hiragana_to_kanji" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'hiragana_to_kanji' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
+              <span class="text-lg block mb-1">あ→漢</span>
               <span class="text-xs">Hiragana to Kanji</span>
             </button>
-            <button data-srs-test-type="kanji_to_hiragana" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'kanji_to_hiragana' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}">
-              <span class="text-xl block mb-1">Ka->Hi</span>
+            <button data-srs-test-type="kanji_to_hiragana" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'kanji_to_hiragana' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
+              <span class="text-lg block mb-1">漢→あ</span>
               <span class="text-xs">Kanji to Hiragana</span>
             </button>
-            <button data-srs-test-type="writing" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'writing' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}">
-              <span class="text-xl block mb-1">Wr</span>
+            <button data-srs-test-type="writing" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'writing' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
+              <span class="text-lg block mb-1">✍</span>
               <span class="text-xs">Writing Test</span>
             </button>
           </div>
         </div>
         
+        <!-- Word Count Selection -->
         <div class="bg-white rounded-xl p-4 shadow-lg mb-4">
           <h3 class="text-sm text-slate-600 mb-3">Number of Words</h3>
           
@@ -96,7 +98,6 @@ function renderSRSTest(app) {
   if (app.srsConfig.testType === 'writing') {
     return renderSRSWritingTest(app, word, levelColor, progress);
   }
-  
   return renderSRSMCQTest(app, word, levelColor, progress);
 }
 
@@ -107,6 +108,7 @@ function renderSRSMCQTest(app, word, levelColor, progress) {
   
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Header -->
       <div class="bg-slate-800 px-4 py-3 flex items-center justify-between">
         <button id="backToSRSSetupBtn" class="text-white hover:bg-slate-700 px-3 py-2 rounded-lg">Exit</button>
         <div class="text-center">
@@ -116,11 +118,13 @@ function renderSRSMCQTest(app, word, levelColor, progress) {
         <div class="w-16"></div>
       </div>
       
+      <!-- Progress Bar -->
       <div class="bg-slate-700 h-1">
         <div class="bg-emerald-500 h-full transition-all" style="width: ${progress}%"></div>
       </div>
       
-      <main class="flex-1 flex flex-col items-center justify-center p-4">
+      <!-- Question -->
+      <div class="flex-1 flex flex-col items-center justify-center p-4">
         <div class="w-full max-w-md">
           <div class="bg-white rounded-2xl p-6 mb-6 text-center shadow-lg">
             <p class="text-sm text-gray-500 mb-2">${isH2K ? 'What is the kanji for:' : 'What is the reading for:'}</p>
@@ -128,10 +132,10 @@ function renderSRSMCQTest(app, word, levelColor, progress) {
             <p class="text-gray-600 mt-2">${word.meaning}</p>
           </div>
           
+          <!-- Options -->
           <div class="grid grid-cols-2 gap-3">
             ${app.srsOptions.map((opt, idx) => {
               let btnClass = 'bg-slate-700 text-white hover:bg-slate-600';
-              
               if (app.srsShowResult) {
                 if (opt === correctAnswer) {
                   btnClass = 'bg-emerald-500 text-white';
@@ -143,7 +147,6 @@ function renderSRSMCQTest(app, word, levelColor, progress) {
               } else if (app.srsSelectedAnswer === idx) {
                 btnClass = 'bg-blue-500 text-white ring-2 ring-blue-300';
               }
-              
               return `
                 <button data-srs-option="${idx}" class="p-4 rounded-xl text-xl font-bold transition-all ${btnClass}" ${app.srsShowResult ? 'disabled' : ''}>
                   ${opt}
@@ -158,11 +161,11 @@ function renderSRSMCQTest(app, word, levelColor, progress) {
             </button>
           ` : `
             <button id="srsNextBtn" class="w-full mt-4 py-4 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600">
-              ${app.srsCurrentIndex < app.srsWords.length - 1 ? 'Next Question ->' : 'See Results'}
+              ${app.srsCurrentIndex < app.srsWords.length - 1 ? 'Next Question →' : 'See Results'}
             </button>
           `}
         </div>
-      </main>
+      </div>
     </div>
   `;
 }
@@ -170,6 +173,7 @@ function renderSRSMCQTest(app, word, levelColor, progress) {
 function renderSRSWritingTest(app, word, levelColor, progress) {
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Header -->
       <div class="bg-slate-800 px-4 py-3 flex items-center justify-between">
         <button id="backToSRSSetupBtn" class="text-white hover:bg-slate-700 px-3 py-2 rounded-lg">Exit</button>
         <div class="text-center">
@@ -179,11 +183,13 @@ function renderSRSWritingTest(app, word, levelColor, progress) {
         <div class="w-16"></div>
       </div>
       
+      <!-- Progress Bar -->
       <div class="bg-slate-700 h-1">
         <div class="bg-emerald-500 h-full transition-all" style="width: ${progress}%"></div>
       </div>
       
-      <main class="flex-1 flex flex-col items-center justify-center p-4">
+      <!-- Writing Test -->
+      <div class="flex-1 flex flex-col items-center justify-center p-4">
         <div class="w-full max-w-md">
           <div class="bg-white rounded-2xl p-6 mb-4 text-center shadow-lg">
             <p class="text-sm text-gray-500 mb-2">Write the kanji for:</p>
@@ -191,6 +197,7 @@ function renderSRSWritingTest(app, word, levelColor, progress) {
             <p class="text-gray-600">${word.meaning}</p>
           </div>
           
+          <!-- Canvas -->
           <div class="canvas-container mb-4">
             <canvas id="srsWritingCanvas" width="400" height="200" class="w-full bg-white rounded-xl"></canvas>
             <div class="canvas-controls">
@@ -205,12 +212,8 @@ function renderSRSWritingTest(app, word, levelColor, progress) {
             </div>
             
             <div class="grid grid-cols-2 gap-3">
-              <button id="srsMarkWrongBtn" class="py-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600">
-                X Wrong
-              </button>
-              <button id="srsMarkCorrectBtn" class="py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600">
-                V Correct
-              </button>
+              <button id="srsMarkWrongBtn" class="py-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600">✗ Wrong</button>
+              <button id="srsMarkCorrectBtn" class="py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600">✓ Correct</button>
             </div>
           ` : `
             <button id="srsRevealWritingBtn" class="w-full py-4 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600">
@@ -218,7 +221,7 @@ function renderSRSWritingTest(app, word, levelColor, progress) {
             </button>
           `}
         </div>
-      </main>
+      </div>
     </div>
   `;
 }
@@ -230,14 +233,16 @@ function renderSRSResults(app) {
   const wrongAnswers = app.srsAnswers.filter(a => !a.correct);
   
   return `
-    <div class="p-4 animate-fadeIn">
+    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
       <div class="max-w-md mx-auto pt-4">
+        <!-- Score -->
         <div class="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl p-6 text-white text-center mb-6">
           <div class="text-5xl font-bold mb-2">${percentage}%</div>
           <p class="text-xl">${correct} / ${total} Correct</p>
         </div>
         
         ${wrongAnswers.length > 0 ? `
+          <!-- Wrong Answers Review -->
           <div class="bg-slate-800 rounded-xl p-4 mb-4">
             <h3 class="text-white font-bold mb-3">Review Mistakes (${wrongAnswers.length})</h3>
             <div class="space-y-2 max-h-64 overflow-auto">
@@ -263,8 +268,9 @@ function renderSRSResults(app) {
           </div>
         ` : `
           <div class="bg-slate-800 rounded-xl p-6 text-center mb-4">
-            <div class="text-4xl mb-2">Perfect!</div>
-            <p class="text-emerald-400">You got everything right!</p>
+            <div class="text-4xl mb-2">🎉</div>
+            <p class="text-emerald-400 font-bold">Perfect Score!</p>
+            <p class="text-slate-400 text-sm">You got everything right!</p>
           </div>
         `}
         
