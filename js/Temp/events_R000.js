@@ -5,7 +5,6 @@ import { initCanvas, clearCanvas } from './canvas.js';
 export function attachEventListeners(app) {
   // ===== AUTH =====
   document.getElementById('loginBtn')?.addEventListener('click', () => app.signInWithGoogle());
-  document.getElementById('guestModeBtn')?.addEventListener('click', () => app.enterGuestMode());
   document.getElementById('signOutBtn')?.addEventListener('click', () => app.signOut());
   
   // ===== MAIN TABS =====

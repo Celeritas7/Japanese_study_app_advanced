@@ -1,13 +1,12 @@
 // JLPT Vocabulary Master - Main Application
-// Version 10.0 with Guest Mode
+// Version 10.0
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { getMarking, sampleArray, shuffleArray } from './utils.js';
 import { 
   loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
-  updateMarkingInDB, addTopic, addSelfStudyWord,
-  loadMarkingCategories, DEFAULT_MARKING_CATEGORIES
+  updateMarkingInDB, addTopic, addSelfStudyWord
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
@@ -20,22 +19,17 @@ import { renderStoriesTab } from './render-stories.js';
 import { renderSimilarTab } from './render-similar.js';
 import { attachEventListeners } from './events.js';
 
-// Guest user ID for testing (your actual user ID)
-const GUEST_USER_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
-
 class JLPTStudyApp {
   constructor() {
     this.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     window.sb = this.supabase;
     
     this.user = null;
-    this.isGuestMode = false;
     this.loading = true;
     this.syncing = false;
     
     this.vocabulary = [];
     this.markings = {};
-    this.markingCategories = { ...DEFAULT_MARKING_CATEGORIES };
     this.storyGroups = [];
     this.stories = [];
     this.similarGroups = [];
@@ -83,22 +77,12 @@ class JLPTStudyApp {
     
     this.supabase.auth.onAuthStateChange((event, session) => {
       this.user = session?.user || null;
-      this.isGuestMode = false;
       if (event === 'SIGNED_IN') this.loadAllData();
       this.render();
     });
     
     if (this.user) await this.loadAllData();
     this.loading = false;
-    this.render();
-  }
-  
-  // Guest mode - skip login and use hardcoded user ID
-  async enterGuestMode() {
-    this.isGuestMode = true;
-    this.user = { id: GUEST_USER_ID, email: 'guest@example.com' };
-    console.log('Entering guest mode with user ID:', GUEST_USER_ID);
-    await this.loadAllData();
     this.render();
   }
   
@@ -111,13 +95,6 @@ class JLPTStudyApp {
   }
   
   async signOut() {
-    if (this.isGuestMode) {
-      this.isGuestMode = false;
-      this.user = null;
-      this.markings = {};
-      this.render();
-      return;
-    }
     await this.supabase.auth.signOut();
     this.user = null;
     this.currentTab = 'study';
@@ -130,13 +107,9 @@ class JLPTStudyApp {
     this.render();
     
     const userId = this.user?.id;
-    console.log('loadAllData: Full user object:', this.user);
-    console.log('loadAllData: userId:', userId);
-    
-    const [vocabulary, markings, markingCategories, storyGroups, stories, similarGroups, topics, words] = await Promise.all([
+    const [vocabulary, markings, storyGroups, stories, similarGroups, topics, words] = await Promise.all([
       loadVocabulary(this.supabase),
       loadMarkings(this.supabase, userId),
-      loadMarkingCategories(this.supabase, userId),
       loadStoryGroups(this.supabase),
       loadStories(this.supabase),
       loadSimilarGroups(this.supabase),
@@ -146,7 +119,6 @@ class JLPTStudyApp {
     
     this.vocabulary = vocabulary;
     this.markings = markings;
-    this.markingCategories = markingCategories;
     this.storyGroups = storyGroups;
     this.stories = stories;
     this.similarGroups = similarGroups;

@@ -1,6 +1,6 @@
 // JLPT Vocabulary Master - Render Functions (Study Tab)
 
-import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
+import { LEVEL_COLORS, MARKING_CATEGORIES, TEST_TYPES, TAB_ICONS } from './config.js';
 import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml } from './utils.js';
 
 // ===== COMMON RENDERS =====
@@ -41,22 +41,6 @@ export function renderLogin() {
             </svg>
             <span class="font-medium text-gray-700">Continue with Google</span>
           </button>
-          
-          <div class="relative my-4">
-            <div class="absolute inset-0 flex items-center">
-              <div class="w-full border-t border-slate-300"></div>
-            </div>
-            <div class="relative flex justify-center text-sm">
-              <span class="px-2 bg-white text-slate-500">or</span>
-            </div>
-          </div>
-          
-          <button id="guestModeBtn" class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-100 border-2 border-slate-200 rounded-xl hover:bg-slate-200 transition-all">
-            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-            </svg>
-            <span class="font-medium text-slate-700">Continue as Guest</span>
-          </button>
         </div>
       </div>
     </div>
@@ -64,7 +48,6 @@ export function renderLogin() {
 }
 
 export function renderHeader(app) {
-  const modeLabel = app.isGuestMode ? ' • Guest Mode' : '';
   return `
     <header class="bg-slate-800 px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -73,10 +56,10 @@ export function renderHeader(app) {
         </div>
         <div>
           <h1 class="text-white font-bold">JLPT Vocabulary</h1>
-          <p class="text-slate-400 text-xs">${app.vocabulary.length} words${app.syncing ? ' • Syncing...' : ''}${modeLabel}</p>
+          <p class="text-slate-400 text-xs">${app.vocabulary.length} words${app.syncing ? ' • Syncing...' : ''}</p>
         </div>
       </div>
-      <button id="signOutBtn" class="text-slate-400 hover:text-white p-2" title="${app.isGuestMode ? 'Exit Guest Mode' : 'Sign Out'}">
+      <button id="signOutBtn" class="text-slate-400 hover:text-white p-2" title="Sign Out">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
         </svg>
@@ -140,7 +123,7 @@ export function renderLevelSelector(app) {
         
         <div class="space-y-3">
           ${levels.map(level => {
-            const stats = getStatsByLevel(app.vocabulary, app.markings, level, app.markingCategories);
+            const stats = getStatsByLevel(app.vocabulary, app.markings, level);
             const color = LEVEL_COLORS[level];
             return `
               <button data-level="${level}" class="w-full p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all text-left group">
@@ -179,7 +162,7 @@ export function renderLevelSelector(app) {
 // ===== WEEK/DAY SELECTOR =====
 
 export function renderWeekDaySelector(app) {
-  const stats = getStatsByLevel(app.vocabulary, app.markings, app.selectedLevel, app.markingCategories);
+  const stats = getStatsByLevel(app.vocabulary, app.markings, app.selectedLevel);
   const weekDays = getAvailableWeekDays(app.vocabulary, app.selectedLevel);
   const levelColor = LEVEL_COLORS[app.selectedLevel] || LEVEL_COLORS['ALL'];
   
@@ -214,7 +197,7 @@ export function renderWeekDaySelector(app) {
         <div class="bg-slate-800 rounded-xl p-4 mb-4">
           <h3 class="text-sm text-slate-400 mb-3">Filter by Category</h3>
           <div class="flex flex-wrap gap-2 justify-center">
-            ${Object.entries(app.markingCategories).map(([k, v]) => `
+            ${Object.entries(MARKING_CATEGORIES).map(([k, v]) => `
               <button data-category="${k}" class="category-btn flex flex-col items-center p-2 rounded-xl min-w-[50px] ${app.selectedCategory === parseInt(k) ? v.color + ' text-white' : 'bg-slate-700 text-slate-300'}">
                 <span class="text-lg">${v.icon}</span>
                 <span class="text-xs mt-1">${stats[k] || 0}</span>
@@ -247,7 +230,7 @@ export function renderWordList(app) {
   if (app.selectedWeekDay) words = words.filter(w => w.weekDayLabel === app.selectedWeekDay);
   if (app.selectedCategory !== null) words = words.filter(w => getMarking(app.markings, w) === app.selectedCategory);
   
-  const catInfo = app.selectedCategory !== null ? app.markingCategories[app.selectedCategory] : { label: 'All', icon: '📋', color: 'bg-slate-500' };
+  const catInfo = app.selectedCategory !== null ? MARKING_CATEGORIES[app.selectedCategory] : { label: 'All', icon: '📋', color: 'bg-slate-500' };
   
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
@@ -279,7 +262,7 @@ export function renderWordList(app) {
           <div class="space-y-2">
             ${words.map(w => {
               const m = getMarking(app.markings, w);
-              const mInfo = app.markingCategories[m];
+              const mInfo = MARKING_CATEGORIES[m];
               const kanjiEsc = escapeHtml(w.kanji || w.raw);
               return `
                 <div class="bg-white rounded-xl p-4 shadow ${mInfo.border} border-l-4">
@@ -292,7 +275,7 @@ export function renderWordList(app) {
                       <p class="text-sm text-gray-600 truncate">${w.meaning}</p>
                     </div>
                     <div class="flex gap-1 ml-2">
-                      ${Object.entries(app.markingCategories).map(([k, v]) => `
+                      ${Object.entries(MARKING_CATEGORIES).map(([k, v]) => `
                         <button data-mark-kanji="${kanjiEsc}" data-mark-value="${m === parseInt(k) ? 0 : parseInt(k)}" 
                           class="w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all ${m === parseInt(k) ? v.color + ' text-white ring-2 ring-gray-400' : 'bg-gray-100 hover:bg-gray-200'}">
                           ${v.icon}
@@ -326,7 +309,7 @@ export function renderFlashcard(app) {
   
   const word = app.studyWords[app.currentIndex];
   const marking = getMarking(app.markings, word);
-  const markInfo = app.markingCategories[marking] || app.markingCategories[0];
+  const markInfo = MARKING_CATEGORIES[marking] || MARKING_CATEGORIES[0];
   const levelColor = LEVEL_COLORS[word.level] || LEVEL_COLORS['ALL'];
   const kanjiEsc = escapeHtml(word.kanji || word.raw);
   
@@ -371,7 +354,7 @@ export function renderFlashcard(app) {
           <div class="bg-slate-800 rounded-xl p-3 mb-4">
             <p class="text-slate-400 text-xs text-center mb-2">Change Rating</p>
             <div class="flex justify-center gap-2">
-              ${Object.entries(app.markingCategories).map(([k, v]) => `
+              ${Object.entries(MARKING_CATEGORIES).map(([k, v]) => `
                 <button data-mark-kanji="${kanjiEsc}" data-mark-value="${marking === parseInt(k) ? 0 : parseInt(k)}" 
                   class="w-10 h-10 rounded-xl flex items-center justify-center transition-all ${marking === parseInt(k) ? v.color + ' text-white ring-2 ring-white scale-110' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}">
                   <span class="text-base">${v.icon}</span>
