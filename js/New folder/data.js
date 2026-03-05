@@ -442,33 +442,3 @@ export async function saveSRSMistake(supabase, userId, word, testType) {
     console.error('saveSRSMistake exception:', err);
   }
 }
-
-/**
- * Save story alert/flag
- */
-export async function saveStoryAlert(supabase, userId, alertData) {
-  if (!userId) return { success: false, error: 'Not logged in' };
-  
-  try {
-    const { error } = await supabase
-      .from('japanese_story_alerts')
-      .insert({
-        user_id: userId,
-        kanji: alertData.kanji,
-        group_kanji: alertData.groupKanji || null,
-        alert_type: alertData.alertType,
-        comment: alertData.comment?.trim() || '',
-        source: alertData.source || 'overlay',
-        created_at: new Date().toISOString()
-      });
-    
-    if (error) {
-      console.error('Story alert save error:', error);
-      return { success: false, error: error.message };
-    }
-    return { success: true };
-  } catch (err) {
-    console.error('Story alert exception:', err);
-    return { success: false, error: err.message };
-  }
-}

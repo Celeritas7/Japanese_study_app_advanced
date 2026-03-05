@@ -65,9 +65,6 @@ export function renderLogin() {
 
 export function renderHeader(app) {
   const modeLabel = app.isGuestMode ? ' • Guest Mode' : '';
-  const authDot = app.user 
-    ? `<span class="text-emerald-400 text-[10px]">● ${app.user.email?.split('@')[0] || 'logged in'}</span>` 
-    : '<span class="text-red-400 text-[10px]">● not logged in</span>';
   return `
     <header class="bg-slate-800 px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -76,7 +73,7 @@ export function renderHeader(app) {
         </div>
         <div>
           <h1 class="text-white font-bold">JLPT Vocabulary</h1>
-          <p class="text-slate-400 text-xs">${app.vocabulary.length} words${app.syncing ? ' • Syncing...' : ''}${modeLabel} ${authDot}</p>
+          <p class="text-slate-400 text-xs">${app.vocabulary.length} words${app.syncing ? ' • Syncing...' : ''}${modeLabel}</p>
         </div>
       </div>
       <button id="signOutBtn" class="text-slate-400 hover:text-white p-2" title="${app.isGuestMode ? 'Exit Guest Mode' : 'Sign Out'}">
@@ -234,16 +231,6 @@ export function renderWeekDaySelector(app) {
             ${weekDays.map(wd => `<option value="${wd.label}">${wd.label} (${wd.count} words)</option>`).join('')}
           </select>
           
-          <!-- Word Limit -->
-          <div class="mt-4 flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-            <div class="flex-1">
-              <div class="text-sm font-medium text-gray-700">Word Limit</div>
-              <div class="text-xs text-gray-400">0 = study all words</div>
-            </div>
-            <input type="number" id="studyWordLimit" min="0" max="${stats.total}" value="${app.studyWordLimit || 0}" 
-              class="w-24 p-2 text-center border-2 border-slate-300 rounded-lg font-bold text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0">
-          </div>
-          
           <button id="startStudyBtn" class="w-full mt-4 py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all">
             Start Study
           </button>
@@ -301,7 +288,6 @@ export function renderWordList(app) {
                       <div class="flex items-center gap-2 mb-1">
                         <span class="text-xl font-bold text-gray-800">${w.kanji || w.raw}</span>
                         <span class="text-gray-500">${w.hiragana || ''}</span>
-                        <button data-open-story="${kanjiEsc}" data-story-hiragana="${w.hiragana || ''}" data-story-meaning="${escapeHtml(w.meaning)}" class="text-purple-500 hover:text-purple-700 text-xs px-1.5 py-0.5 rounded bg-purple-50 border border-purple-200">📖</button>
                       </div>
                       <p class="text-sm text-gray-600 truncate">${w.meaning}</p>
                     </div>
@@ -380,12 +366,6 @@ export function renderFlashcard(app) {
       <div class="flex-1 flex flex-col items-center justify-start p-4 overflow-auto">
         <div class="w-full max-w-2xl">
           ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter)}
-          
-          <!-- Story Button -->
-          <button data-open-story="${kanjiEsc}" data-story-hiragana="${word.hiragana || ''}" data-story-meaning="${escapeHtml(word.meaning)}" 
-            class="w-full py-3 mb-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all story-btn hover:opacity-80">
-            📖 Kanji Story
-          </button>
           
           <!-- Marking Buttons -->
           <div class="bg-slate-800 rounded-xl p-3 mb-4">

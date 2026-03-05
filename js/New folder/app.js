@@ -2,12 +2,12 @@
 // Version 10.0 with Guest Mode
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js';
+import { getMarking, sampleArray, shuffleArray } from './utils.js';
 import { 
   loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
-  loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert
+  loadMarkingCategories, DEFAULT_MARKING_CATEGORIES
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
@@ -16,7 +16,7 @@ import {
   renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList
 } from './render.js';
 import { renderSRSTab } from './render-srs.js';
-import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
+import { renderStoriesTab } from './render-stories.js';
 import { renderSimilarTab } from './render-similar.js';
 import { attachEventListeners } from './events.js';
 
@@ -58,29 +58,11 @@ class JLPTStudyApp {
     
     this.selectedStoryGroup = null;
     this.storyFilter = '';
-    this.storySearchMode = 'groups'; // 'groups', 'kanji', 'words'
     this.selectedSimilarGroup = null;
     this.similarFilter = { search: '' };
     
-    // Story overlay state
-    this.storyOverlay = null; // { word, step, expandedPart, groupKey, highlightKanji, kanjiParts }
-    
-    // Story alert state
-    this.storyAlertTarget = null; // { kanji, groupKanji, source }
-    this.storyAlertComment = '';
-    this.storyAlertType = 'incorrect';
-    this.storyAlertSaving = false;
-    
     this.srsView = 'setup';
-    this.srsConfig = { 
-      n1Count: 0, n2Count: 0, n3Count: 0, 
-      testType: 'hiragana_to_kanji',
-      selectionMode: 'level', // 'level' or 'marking'
-      markingCounts: { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3 }
-    };
-    
-    // Study word limit
-    this.studyWordLimit = 0;
+    this.srsConfig = { n1Count: 0, n2Count: 0, n3Count: 0, testType: 'hiragana_to_kanji' };
     this.srsWords = [];
     this.srsCurrentIndex = 0;
     this.srsAnswers = [];
@@ -174,7 +156,6 @@ class JLPTStudyApp {
     console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings`);
     this.syncing = false;
     this.render();
-    showToast(`Loaded ${vocabulary.length} words, ${Object.keys(markings).length} markings`, 'success');
   }
   
   selectTab(tab) {
@@ -231,27 +212,17 @@ class JLPTStudyApp {
     this.markings[kanji] = newMarking;
     this.render();
     
-    if (!this.user) { showToast('Not logged in — marking not saved!', 'error'); return; }
+    if (!this.user) return;
     const success = await updateMarkingInDB(this.supabase, this.user.id, kanji, newMarking);
-    if (!success) { 
-      showToast('Save failed!', 'error');
-      this.markings[kanji] = oldMarking; 
-      this.render(); 
-    } else {
-      const cat = this.markingCategories[newMarking] || this.markingCategories[0];
-      showToast(`${kanji} → ${cat.icon} saved`, 'success');
-    }
+    if (!success) { this.markings[kanji] = oldMarking; this.render(); }
   }
   
   startStudy(weekDay = null) {
-    this.studyWordLimit = parseInt(document.getElementById('studyWordLimit')?.value) || 0;
     let words = this.selectedLevel === 'ALL' ? this.vocabulary : this.vocabulary.filter(v => v.level === this.selectedLevel);
     if (weekDay) words = words.filter(w => w.weekDayLabel === weekDay);
     if (this.selectedCategory !== null) words = words.filter(w => getMarking(this.markings, w) === this.selectedCategory);
     
-    let shuffled = shuffleArray([...words]);
-    if (this.studyWordLimit > 0) shuffled = shuffled.slice(0, this.studyWordLimit);
-    this.studyWords = shuffled;
+    this.studyWords = words;
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
@@ -301,30 +272,16 @@ class JLPTStudyApp {
   }
   
   startSRSTest() {
-    let allWords = [];
+    const n1 = this.vocabulary.filter(v => v.level === 'N1');
+    const n2 = this.vocabulary.filter(v => v.level === 'N2');
+    const n3 = this.vocabulary.filter(v => v.level === 'N3');
     
-    if (this.srsConfig.selectionMode === 'marking') {
-      for (let k = 1; k <= 5; k++) {
-        this.srsConfig.markingCounts[k] = parseInt(document.getElementById(`srsMarkCount${k}`)?.value) || 0;
-      }
-      for (let k = 1; k <= 5; k++) {
-        const count = this.srsConfig.markingCounts[k];
-        if (count <= 0) continue;
-        const pool = this.vocabulary.filter(w => getMarking(this.markings, w) === k);
-        allWords.push(...sampleArray(pool, count));
-      }
-    } else {
-      const n1 = this.vocabulary.filter(v => v.level === 'N1');
-      const n2 = this.vocabulary.filter(v => v.level === 'N2');
-      const n3 = this.vocabulary.filter(v => v.level === 'N3');
-      allWords = [
-        ...sampleArray(n1, this.srsConfig.n1Count),
-        ...sampleArray(n2, this.srsConfig.n2Count),
-        ...sampleArray(n3, this.srsConfig.n3Count)
-      ];
-    }
+    this.srsWords = shuffleArray([
+      ...sampleArray(n1, this.srsConfig.n1Count),
+      ...sampleArray(n2, this.srsConfig.n2Count),
+      ...sampleArray(n3, this.srsConfig.n3Count)
+    ]);
     
-    this.srsWords = shuffleArray(allWords);
     this.srsCurrentIndex = 0;
     this.srsAnswers = [];
     this.srsSelectedAnswer = null;
@@ -342,100 +299,9 @@ class JLPTStudyApp {
     
     const isH2K = this.srsConfig.testType === 'hiragana_to_kanji';
     const correct = isH2K ? (word.kanji || word.raw) : word.hiragana;
-    
-    let options;
-    if (isH2K) {
-      options = this.generateH2KOptions(word, correct);
-    } else {
-      options = this.generateK2HOptions(word, correct);
-    }
-    
-    this.srsOptions = shuffleArray([correct, ...options.slice(0, 3)]);
-  }
-  
-  generateH2KOptions(word, correct) {
-    const all = this.vocabulary;
-    const kanjiLen = [...(correct || '')].length;
-    const distractors = [];
-    
-    // P1: Homophones
-    const homophones = all.filter(v => v.hiragana === word.hiragana && (v.kanji || v.raw) !== correct);
-    distractors.push(...homophones.map(v => v.kanji || v.raw));
-    if (distractors.length >= 3) return shuffleArray([...new Set(distractors)]);
-    
-    // P2: Same length + shared kanji
-    const correctChars = [...(correct || '')];
-    const sameLenKanji = all.filter(v => {
-      const k = v.kanji || v.raw;
-      return k !== correct && [...k].length === kanjiLen;
-    });
-    
-    // Sub-priority: last kanji match, first match, any match
-    for (const pos of ['last', 'first', 'any']) {
-      const matches = sameLenKanji.filter(v => {
-        const chars = [...(v.kanji || v.raw)];
-        if (pos === 'last') return chars[chars.length - 1] === correctChars[correctChars.length - 1];
-        if (pos === 'first') return chars[0] === correctChars[0];
-        return chars.some(c => correctChars.includes(c) && /[\u4e00-\u9faf]/.test(c));
-      });
-      distractors.push(...matches.map(v => v.kanji || v.raw));
-      if ([...new Set(distractors)].filter(d => d !== correct).length >= 3) break;
-    }
-    if ([...new Set(distractors)].filter(d => d !== correct).length >= 3) {
-      return shuffleArray([...new Set(distractors)].filter(d => d !== correct));
-    }
-    
-    // P3: Semantic proximity (shared meaning keywords)
-    const meaningWords = (word.meaning || '').toLowerCase().split(/[\s,;/]+/).filter(w => w.length > 2);
-    if (meaningWords.length > 0) {
-      const semantic = all.filter(v => {
-        if ((v.kanji || v.raw) === correct) return false;
-        const m = (v.meaning || '').toLowerCase();
-        return meaningWords.some(w => m.includes(w));
-      });
-      distractors.push(...semantic.map(v => v.kanji || v.raw));
-    }
-    
-    // Fallback: same level then random
-    const unique = [...new Set(distractors)].filter(d => d !== correct);
-    if (unique.length < 3) {
-      const levelPool = all.filter(v => v.level === word.level && (v.kanji || v.raw) !== correct);
-      unique.push(...sampleArray(levelPool, 6).map(v => v.kanji || v.raw));
-    }
-    if ([...new Set(unique)].length < 3) {
-      unique.push(...sampleArray(all, 6).map(v => v.kanji || v.raw));
-    }
-    return [...new Set(unique)].filter(d => d !== correct);
-  }
-  
-  generateK2HOptions(word, correct) {
-    const all = this.vocabulary;
-    const distractors = [];
-    const correctKanji = word.kanji || word.raw;
-    const kanjiChars = [...(correctKanji || '')].filter(c => /[\u4e00-\u9faf]/.test(c));
-    
-    // P2: Shared kanji (onyomi match proxy)
-    if (kanjiChars.length > 0) {
-      const sharedKanji = all.filter(v => {
-        if (v.hiragana === correct) return false;
-        const k = v.kanji || v.raw || '';
-        return kanjiChars.some(c => k.includes(c));
-      });
-      distractors.push(...sharedKanji.map(v => v.hiragana));
-    }
-    
-    // P3: Pronunciation mutations
-    const mutations = generatePronunciationMutations(correct);
-    const mutationMatches = all.filter(v => mutations.includes(v.hiragana) && v.hiragana !== correct);
-    distractors.push(...mutationMatches.map(v => v.hiragana));
-    
-    // Fallback
-    const unique = [...new Set(distractors)].filter(d => d && d !== correct);
-    if (unique.length < 3) {
-      const pool = all.filter(v => v.hiragana !== correct);
-      unique.push(...sampleArray(pool, 6).map(v => v.hiragana));
-    }
-    return [...new Set(unique)].filter(d => d && d !== correct);
+    const pool = this.vocabulary.filter(v => (isH2K ? (v.kanji || v.raw) : v.hiragana) !== correct);
+    const wrong = sampleArray(pool, 3).map(v => isH2K ? (v.kanji || v.raw) : v.hiragana);
+    this.srsOptions = shuffleArray([correct, ...wrong]);
   }
   
   selectSRSOption(idx) { this.srsSelectedAnswer = idx; this.render(); }
@@ -522,100 +388,6 @@ class JLPTStudyApp {
     else alert('Failed to add word');
   }
   
-  // ===== STORY OVERLAY =====
-  openStoryOverlay(word) {
-    if (this.selectedTestType === 'writing' || this.srsConfig.testType === 'writing') {
-      this.canvasImageData = saveCanvasData('writingCanvas') || saveCanvasData('srsWritingCanvas');
-    }
-    const kanjiChars = [...(word.kanji || '')].filter(c => /[\u4e00-\u9faf]/.test(c));
-    this.storyOverlay = {
-      word, step: kanjiChars.length > 0 ? 2 : 1,
-      expandedPart: kanjiChars[0] || null,
-      groupKey: null, highlightKanji: null, kanjiParts: kanjiChars
-    };
-    this.render();
-  }
-  
-  closeStoryOverlay() { this.storyOverlay = null; this.storyAlertTarget = null; this.render(); }
-  
-  storyGoGroup(groupKanji, highlightKanji) {
-    if (!this.storyOverlay) return;
-    this.storyOverlay.step = 3;
-    this.storyOverlay.groupKey = groupKanji;
-    this.storyOverlay.highlightKanji = highlightKanji;
-    this.render();
-  }
-  
-  storyBackToBreakdown() {
-    if (!this.storyOverlay) return;
-    this.storyOverlay.step = 2;
-    this.storyOverlay.groupKey = null;
-    this.render();
-  }
-  
-  storySelectPart(kanjiChar) {
-    if (!this.storyOverlay) return;
-    this.storyOverlay.expandedPart = kanjiChar;
-    this.render();
-  }
-  
-  findStoryForKanji(kanjiChar) {
-    return this.stories.find(s => s.kanji === kanjiChar) || null;
-  }
-  
-  findGroupForKanji(kanjiChar) {
-    const story = this.findStoryForKanji(kanjiChar);
-    if (!story || !story.group_kanji) return null;
-    return this.storyGroups.find(g => g.group_kanji === story.group_kanji) || null;
-  }
-  
-  getGroupMembersForKanji(groupKanji) {
-    return this.stories.filter(s => s.group_kanji === groupKanji);
-  }
-  
-  // ===== STORY ALERT =====
-  openStoryAlert(kanji, groupKanji, source) {
-    this.storyAlertTarget = { kanji, groupKanji, source };
-    this.storyAlertComment = '';
-    this.storyAlertType = 'incorrect';
-    this.storyAlertSaving = false;
-    this.render();
-  }
-  
-  closeStoryAlert() { this.storyAlertTarget = null; this.render(); }
-  
-  async submitStoryAlert() {
-    if (!this.storyAlertTarget || !this.user) return;
-    this.storyAlertSaving = true;
-    this.render();
-    
-    const result = await saveStoryAlert(this.supabase, this.user.id, {
-      kanji: this.storyAlertTarget.kanji,
-      groupKanji: this.storyAlertTarget.groupKanji,
-      alertType: this.storyAlertType,
-      comment: this.storyAlertComment,
-      source: this.storyAlertTarget.source
-    });
-    
-    this.storyAlertSaving = false;
-    if (result.success) {
-      this.storyAlertTarget = null;
-      this.render();
-      showToast('⚠️ Story alert saved!', 'success');
-    } else {
-      showToast(`Alert save failed: ${result.error}`, 'error');
-    }
-  }
-  
-  // ===== HELPERS =====
-  getMarkingStats() {
-    const stats = {};
-    for (let k = 0; k <= 5; k++) {
-      stats[k] = this.vocabulary.filter(w => getMarking(this.markings, w) === k).length;
-    }
-    return stats;
-  }
-  
   render() {
     const app = document.getElementById('app');
     
@@ -636,8 +408,6 @@ class JLPTStudyApp {
       ${renderTabs(this.currentTab)}
       <main class="flex-1 flex flex-col overflow-hidden">${content}</main>
       ${this.renderModals()}
-      ${renderStoryOverlay(this)}
-      ${renderStoryAlertForm(this)}
     `;
     
     attachEventListeners(this);

@@ -119,15 +119,7 @@ export function attachEventListeners(app) {
     });
   });
   
-  // SRS Selection Mode Toggle
-  document.querySelectorAll('[data-srs-sel-mode]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      app.srsConfig.selectionMode = btn.dataset.srsSelMode;
-      app.render();
-    });
-  });
-  
-  // SRS Word Count Inputs — Level mode
+  // SRS Word Count Inputs
   document.getElementById('srsN1Count')?.addEventListener('input', (e) => {
     app.srsConfig.n1Count = parseInt(e.target.value) || 0;
     updateSRSButton(app);
@@ -142,16 +134,6 @@ export function attachEventListeners(app) {
     app.srsConfig.n3Count = parseInt(e.target.value) || 0;
     updateSRSButton(app);
   });
-  
-  // SRS Word Count Inputs — Marking mode
-  for (let k = 1; k <= 5; k++) {
-    document.getElementById(`srsMarkCount${k}`)?.addEventListener('input', (e) => {
-      app.srsConfig.markingCounts[k] = parseInt(e.target.value) || 0;
-      const total = Object.values(app.srsConfig.markingCounts).reduce((a, b) => a + b, 0);
-      const btn = document.getElementById('startSRSTestBtn');
-      if (btn) { btn.disabled = total === 0; btn.textContent = `Start Test (${total} words)`; }
-    });
-  }
   
   document.getElementById('startSRSTestBtn')?.addEventListener('click', () => app.startSRSTest());
   document.getElementById('backToSRSSetupBtn')?.addEventListener('click', () => app.resetSRS());
@@ -189,69 +171,8 @@ export function attachEventListeners(app) {
   
   document.getElementById('storySearchInput')?.addEventListener('input', (e) => {
     app.storyFilter = e.target.value;
-    if (!e.target.value) app.storySearchMode = 'groups';
     app.render();
   });
-  
-  // ===== STORY SEARCH MODE =====
-  document.querySelectorAll('[data-story-search-mode]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      app.storySearchMode = btn.dataset.storySearchMode;
-      app.render();
-    });
-  });
-  
-  // ===== STORY OVERLAY =====
-  // Open story from any 📖 button
-  document.querySelectorAll('[data-open-story]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const kanji = btn.dataset.openStory;
-      const hiragana = btn.dataset.storyHiragana || '';
-      const meaning = btn.dataset.storyMeaning || '';
-      const word = app.vocabulary.find(w => w.kanji === kanji) || { kanji, hiragana, meaning };
-      app.openStoryOverlay(word);
-    });
-  });
-  
-  // Close story overlay
-  document.getElementById('closeStoryOverlayBtn')?.addEventListener('click', () => app.closeStoryOverlay());
-  document.getElementById('storyOverlayBg')?.addEventListener('click', (e) => {
-    if (e.target.id === 'storyOverlayBg') app.closeStoryOverlay();
-  });
-  
-  // Story part tabs
-  document.querySelectorAll('[data-story-part]').forEach(btn => {
-    btn.addEventListener('click', () => app.storySelectPart(btn.dataset.storyPart));
-  });
-  
-  // Story go to group
-  document.querySelectorAll('[data-story-go-group]').forEach(btn => {
-    btn.addEventListener('click', () => app.storyGoGroup(btn.dataset.storyGoGroup, btn.dataset.storyHighlight));
-  });
-  
-  // Story back to breakdown
-  document.getElementById('storyBackToBreakdownBtn')?.addEventListener('click', () => app.storyBackToBreakdown());
-  
-  // ===== STORY ALERT =====
-  document.querySelectorAll('[data-flag-story]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      app.openStoryAlert(btn.dataset.flagStory, btn.dataset.flagGroup || '', 'overlay');
-    });
-  });
-  
-  document.getElementById('closeStoryAlertBtn')?.addEventListener('click', () => app.closeStoryAlert());
-  document.getElementById('storyAlertOverlayBg')?.addEventListener('click', (e) => {
-    if (e.target.id === 'storyAlertOverlayBg') app.closeStoryAlert();
-  });
-  document.querySelectorAll('[data-alert-type]').forEach(btn => {
-    btn.addEventListener('click', () => { app.storyAlertType = btn.dataset.alertType; app.render(); });
-  });
-  document.getElementById('storyAlertCommentInput')?.addEventListener('input', (e) => {
-    app.storyAlertComment = e.target.value;
-  });
-  document.getElementById('submitStoryAlertBtn')?.addEventListener('click', () => app.submitStoryAlert());
   
   // ===== SIMILAR KANJI =====
   document.querySelectorAll('[data-similar-group-id]').forEach(btn => {

@@ -170,22 +170,3 @@ ruby rt {
   background: #10b981;
   transition: width 0.3s ease;
 }
-
-/* Toast Notifications */
-.toast-container { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 9999; pointer-events: none; }
-.toast { padding: 10px 20px; border-radius: 12px; color: white; font-size: 13px; font-weight: 600; margin-top: 8px; animation: toastIn 0.3s ease, toastOut 0.3s ease 2s forwards; pointer-events: auto; text-align: center; max-width: 90vw; }
-.toast-success { background: #059669; }
-.toast-error { background: #dc2626; }
-.toast-warn { background: #d97706; }
-@keyframes toastIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-@keyframes toastOut { from { opacity:1; } to { opacity:0; } }
-
-/* Story Overlay */
-.story-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.story-comp-group { background: rgba(251,191,36,0.13); border: 1.5px solid #fbbf24; color: #fcd34d; padding: 2px 7px; border-radius: 6px; font-weight: 700; }
-.story-comp-other { background: rgba(51,65,85,0.3); border: 1.5px solid #334155; color: #94a3b8; padding: 2px 7px; border-radius: 6px; font-weight: 700; }
-.story-member-current { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 2px solid #818cf8; }
-.story-member-other { background: #1e293b; border: 2px solid #334155; }
-.story-studying-tag { position: absolute; top: -9px; right: 14px; font-size: 10px; padding: 2px 10px; border-radius: 10px; background: #818cf8; color: white; font-weight: 700; }
-.story-btn { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(236,72,153,0.15)); border: 1.5px solid rgba(168,85,247,0.4); color: #d8b4fe; }
-.story-btn:hover { background: linear-gradient(135deg, rgba(168,85,247,0.25), rgba(236,72,153,0.25)); }
