@@ -235,13 +235,18 @@ export function renderWeekDaySelector(app) {
           </select>
           
           <!-- Word Limit -->
-          <div class="mt-4 flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-            <div class="flex-1">
-              <div class="text-sm font-medium text-gray-700">Word Limit</div>
-              <div class="text-xs text-gray-400">0 = study all words</div>
+          <div class="mt-4 p-3 bg-slate-50 rounded-xl">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <div class="text-sm font-medium text-gray-700">Word Limit</div>
+                <div class="text-xs text-gray-400">0 = all words</div>
+              </div>
+              <input type="number" id="studyWordLimit" min="0" max="${stats.total}" value="${app.studyWordLimit || 0}" 
+                class="w-20 p-2 text-center border-2 border-slate-300 rounded-lg font-bold text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0">
             </div>
-            <input type="number" id="studyWordLimit" min="0" max="${stats.total}" value="${app.studyWordLimit || 0}" 
-              class="w-24 p-2 text-center border-2 border-slate-300 rounded-lg font-bold text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0">
+            <div class="flex gap-1.5 flex-wrap">
+              ${[0,5,10,15,20,30,50].map(n => `<button data-study-limit-chip="${n}" class="px-3 py-1.5 text-xs font-bold rounded-lg ${(app.studyWordLimit || 0) === n ? 'bg-emerald-500 text-white' : 'bg-white text-gray-600 hover:bg-emerald-100'} border transition-all">${n === 0 ? 'All' : n}</button>`).join('')}
+            </div>
           </div>
           
           <button id="startStudyBtn" class="w-full mt-4 py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all">

@@ -49,6 +49,21 @@ export function attachEventListeners(app) {
     app.startStudy(weekDay);
   });
   
+  // Study word limit chips
+  document.querySelectorAll('[data-study-limit-chip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.dataset.studyLimitChip);
+      app.studyWordLimit = val;
+      const input = document.getElementById('studyWordLimit');
+      if (input) input.value = val;
+      // Update chip highlight
+      document.querySelectorAll('[data-study-limit-chip]').forEach(b => {
+        b.className = b.className.replace(/bg-emerald-500 text-white|bg-white text-gray-600/g, '');
+        b.classList.add(parseInt(b.dataset.studyLimitChip) === val ? 'bg-emerald-500' : 'bg-white', parseInt(b.dataset.studyLimitChip) === val ? 'text-white' : 'text-gray-600');
+      });
+    });
+  });
+  
   document.getElementById('studyFilteredBtn')?.addEventListener('click', () => {
     app.startStudy(app.selectedWeekDay);
   });
@@ -146,6 +161,27 @@ export function attachEventListeners(app) {
     updateSRSButton(app);
   });
   
+  // SRS Level chips (per row: 0, 5, 10, 15)
+  document.querySelectorAll('[data-srs-chip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const level = btn.dataset.srsChip; // N1, N2, N3
+      const val = parseInt(btn.dataset.srsChipVal);
+      const input = document.getElementById(`srs${level}Count`);
+      if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
+    });
+  });
+  
+  // SRS Level "All X" chips (set same value for all levels)
+  document.querySelectorAll('[data-srs-level-all]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.dataset.srsLevelAll);
+      ['N1','N2','N3'].forEach(level => {
+        const input = document.getElementById(`srs${level}Count`);
+        if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
+      });
+    });
+  });
+  
   // SRS Word Count Inputs — Marking mode
   for (let k = 1; k <= 5; k++) {
     document.getElementById(`srsMarkCount${k}`)?.addEventListener('input', (e) => {
@@ -155,6 +191,27 @@ export function attachEventListeners(app) {
       if (btn) { btn.disabled = total === 0; btn.textContent = `Start Test (${total} words)`; }
     });
   }
+  
+  // SRS Marking chips (per row: 0, 1, 3, 5, 10)
+  document.querySelectorAll('[data-srs-mark-chip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.srsMarkChip;
+      const val = parseInt(btn.dataset.srsMarkChipVal);
+      const input = document.getElementById(`srsMarkCount${k}`);
+      if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
+    });
+  });
+  
+  // SRS Marking "All X" chips (set same value for all categories)
+  document.querySelectorAll('[data-srs-mark-all]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.dataset.srsMarkAll);
+      for (let k = 1; k <= 5; k++) {
+        const input = document.getElementById(`srsMarkCount${k}`);
+        if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
+      }
+    });
+  });
   
   document.getElementById('startSRSTestBtn')?.addEventListener('click', () => app.startSRSTest());
   document.getElementById('backToSRSSetupBtn')?.addEventListener('click', () => app.resetSRS());
