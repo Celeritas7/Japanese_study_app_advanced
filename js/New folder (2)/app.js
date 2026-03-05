@@ -174,7 +174,7 @@ class JLPTStudyApp {
     console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings`);
     this.syncing = false;
     this.render();
-    showToast(`${vocabulary.length} words, ${Object.keys(markings).length} markings (${this.user?.id?.slice(0,8) || 'no-id'})`, 'success');
+    showToast(`Loaded ${vocabulary.length} words, ${Object.keys(markings).length} markings`, 'success');
   }
   
   selectTab(tab) {
@@ -288,8 +288,6 @@ class JLPTStudyApp {
   }
   
   revealNext() {
-    const maxSteps = this.selectedTestType === 'reading' ? 3 : 4;
-    if (this.revealStep >= maxSteps) return;
     if (this.selectedTestType === 'writing') this.canvasImageData = saveCanvasData('writingCanvas');
     this.revealStep++;
     this.render();

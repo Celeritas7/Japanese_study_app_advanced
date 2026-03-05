@@ -421,99 +421,61 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
   const type = app.selectedTestType;
   
   if (type === 'kanji') {
-    // Kanji Recognition: Kanji → Hint → Context → Hiragana → Meaning
     return `
-      <!-- Sentence Box: Kanji always visible, context grows in -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex items-center justify-center">
-        <p class="text-center leading-relaxed">
-          ${app.revealStep >= 2 && ctxBefore ? `<span class="context-text">${ctxBefore}</span>` : ''}
-          <span class="kanji-highlight mx-1">${word.kanji || word.raw}</span>
-          ${app.revealStep >= 2 && ctxAfter ? `<span class="context-text">${ctxAfter}</span>` : ''}
-        </p>
+      <div class="sentence-box rounded-2xl p-6 mb-4 text-center">
+        <p class="kanji-highlight mb-2">${word.kanji || word.raw}</p>
+        ${app.revealStep >= 1 ? `<p class="hint-text mb-2">Hint: ${word.hint || 'No hint'}</p>` : ''}
+        ${app.revealStep >= 2 && hasContext ? `<p class="context-text">${ctxBefore}<span class="font-bold text-red-600">${word.kanji || word.raw}</span>${ctxAfter}</p>` : ''}
+        ${app.revealStep >= 3 ? `<p class="reading-display text-blue-600 mt-3">${word.hiragana || ''}</p>` : ''}
+        ${app.revealStep >= 4 ? `<p class="meaning-display text-amber-800 mt-2">${word.meaning}</p>` : ''}
       </div>
-      
-      <!-- Reveal Box (tappable) -->
-      <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
-        <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
-          ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
-          ${app.revealStep >= 3 ? `<p class="text-2xl text-blue-600 mb-3 animate-fadeIn">${word.hiragana || ''}</p>` : ''}
-          ${app.revealStep >= 4 ? `<p class="text-xl text-emerald-700 font-medium animate-fadeIn">${word.meaning}</p>` : ''}
-          ${app.revealStep < 4 ? `
-            <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : app.revealStep === 2 ? 'reading' : 'meaning'}
-            </p>
-          ` : ''}
-        </div>
-      </div>
+      ${app.revealStep < 4 ? `
+        <button id="revealNextBtn" class="w-full py-4 bg-blue-500 text-white font-bold rounded-xl mb-4 hover:bg-blue-600">
+          Reveal ${['Hint', 'Context', 'Reading', 'Meaning'][app.revealStep]} →
+        </button>
+      ` : ''}
     `;
   } else if (type === 'reading') {
-    // Reading Recognition: Hiragana+Meaning → Hint → Context → Kanji
     return `
-      <!-- Sentence Box: Hiragana + Meaning always visible -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex flex-col items-center justify-center">
-        <p class="reading-display text-blue-700 font-bold mb-2">${word.hiragana || ''}</p>
-        <p class="meaning-display text-amber-800">${word.meaning}</p>
-        ${app.revealStep >= 2 && hasContext ? `
-          <div class="mt-3 text-center animate-fadeIn">
-            <span class="context-text">${ctxBefore}</span>
-            <span class="text-red-500 font-bold mx-1">\uFF1F</span>
-            <span class="context-text">${ctxAfter}</span>
-          </div>
-        ` : ''}
+      <div class="sentence-box rounded-2xl p-6 mb-4 text-center">
+        <p class="reading-display text-blue-600 mb-2">${word.hiragana || ''}</p>
+        <p class="meaning-display text-amber-800 mb-3">${word.meaning}</p>
+        ${app.revealStep >= 1 ? `<p class="hint-text mb-2">Hint: ${word.hint || 'No hint'}</p>` : ''}
+        ${app.revealStep >= 2 && hasContext ? `<p class="context-text">${ctxBefore}<span class="font-bold">___</span>${ctxAfter}</p>` : ''}
+        ${app.revealStep >= 3 ? `<p class="kanji-highlight mt-3">${word.kanji || word.raw}</p>` : ''}
       </div>
-      
-      <!-- Reveal Box (tappable) -->
-      <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
-        <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
-          ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
-          ${app.revealStep >= 3 ? `<p class="kanji-highlight animate-fadeIn">${word.kanji || word.raw}</p>` : ''}
-          ${app.revealStep < 3 ? `
-            <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : 'kanji'}
-            </p>
-          ` : ''}
-        </div>
-      </div>
+      ${app.revealStep < 3 ? `
+        <button id="revealNextBtn" class="w-full py-4 bg-blue-500 text-white font-bold rounded-xl mb-4 hover:bg-blue-600">
+          Reveal ${['Hint', 'Context', 'Kanji'][app.revealStep]} →
+        </button>
+      ` : ''}
     `;
   } else {
-    // Writing Test: Meaning → Canvas → Hint → Context → Hiragana → Kanji
+    // Writing test
     return `
-      <!-- Sentence Box: Meaning always visible -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[100px] flex items-center justify-center">
-        <p class="meaning-display text-amber-800 font-bold text-center">${word.meaning}</p>
+      <div class="sentence-box rounded-2xl p-6 mb-4 text-center">
+        <p class="meaning-display text-amber-800 mb-3">${word.meaning}</p>
+        ${app.revealStep >= 1 ? `<p class="hint-text mb-2">Hint: ${word.hint || 'No hint'}</p>` : ''}
+        ${app.revealStep >= 2 && hasContext ? `<p class="context-text">${ctxBefore}<span class="font-bold">___</span>${ctxAfter}</p>` : ''}
       </div>
       
-      <!-- Writing Canvas -->
       <div class="canvas-container mb-4">
         <canvas id="writingCanvas" width="400" height="200" class="w-full bg-white rounded-xl"></canvas>
         <div class="canvas-controls">
           <button id="clearCanvasBtn" class="px-3 py-1 bg-slate-600 text-white text-sm rounded-lg hover:bg-slate-500">Clear</button>
         </div>
-        <div class="absolute bottom-2 left-3 text-slate-400 text-xs">\u270D\uFE0F Draw kanji here</div>
       </div>
       
-      <!-- Reveal Box (tappable) -->
-      <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
-        <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
-          ${app.revealStep >= 2 && hasContext ? `
-            <div class="mb-3 animate-fadeIn">
-              <span class="context-text">${ctxBefore}</span>
-              <span class="text-red-500 font-bold mx-1">\uFF1F</span>
-              <span class="context-text">${ctxAfter}</span>
-            </div>
-          ` : ''}
-          ${app.revealStep >= 3 ? `<p class="text-2xl text-blue-600 mb-3 animate-fadeIn">${word.hiragana || ''}</p>` : ''}
-          ${app.revealStep >= 4 ? `<p class="kanji-highlight animate-fadeIn">${word.kanji || word.raw}</p>` : ''}
-          ${app.revealStep < 4 ? `
-            <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : app.revealStep === 2 ? 'reading' : 'kanji'}
-            </p>
-          ` : ''}
+      ${app.revealStep >= 3 ? `
+        <div class="bg-white rounded-xl p-4 mb-4 text-center">
+          <p class="reading-display text-blue-600 mb-1">${word.hiragana || ''}</p>
+          <p class="kanji-highlight">${word.kanji || word.raw}</p>
         </div>
-      </div>
+      ` : `
+        <button id="revealNextBtn" class="w-full py-4 bg-blue-500 text-white font-bold rounded-xl mb-4 hover:bg-blue-600">
+          Reveal ${['Hint', 'Context', 'Answer'][app.revealStep]} →
+        </button>
+      `}
     `;
   }
 }

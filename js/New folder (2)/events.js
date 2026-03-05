@@ -59,9 +59,6 @@ export function attachEventListeners(app) {
   document.getElementById('randomWordBtn')?.addEventListener('click', () => app.randomWord());
   document.getElementById('revealNextBtn')?.addEventListener('click', () => app.revealNext());
   
-  // Tap-to-reveal box (new two-box flashcard layout)
-  document.getElementById('revealBox')?.addEventListener('click', () => app.revealNext());
-  
   // ===== CANVAS =====
   document.getElementById('clearCanvasBtn')?.addEventListener('click', () => {
     clearCanvas('writingCanvas');
