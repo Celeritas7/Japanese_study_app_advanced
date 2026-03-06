@@ -7,14 +7,13 @@ import {
   loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
-  loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert
+  loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
-  renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList,
-  renderWordAlertForm
+  renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList
 } from './render.js';
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
@@ -71,12 +70,6 @@ class JLPTStudyApp {
     this.storyAlertComment = '';
     this.storyAlertType = 'incorrect';
     this.storyAlertSaving = false;
-    
-    // Word alert state
-    this.wordAlertTarget = null; // { kanji, hiragana, meaning, source }
-    this.wordAlertComment = '';
-    this.wordAlertType = 'wrong_reading';
-    this.wordAlertSaving = false;
     
     this.srsView = 'setup';
     this.srsConfig = { 
@@ -616,46 +609,6 @@ class JLPTStudyApp {
     }
   }
   
-  // ===== WORD ALERT =====
-  openWordAlert(word, source = 'flashcard') {
-    this.wordAlertTarget = { 
-      kanji: word.kanji || word.raw, 
-      hiragana: word.hiragana || '', 
-      meaning: word.meaning || '',
-      source 
-    };
-    this.wordAlertComment = '';
-    this.wordAlertType = 'wrong_reading';
-    this.wordAlertSaving = false;
-    this.render();
-  }
-  
-  closeWordAlert() { this.wordAlertTarget = null; this.render(); }
-  
-  async submitWordAlert() {
-    if (!this.wordAlertTarget || !this.user) return;
-    this.wordAlertSaving = true;
-    this.render();
-    
-    const result = await saveWordAlert(this.supabase, this.user.id, {
-      kanji: this.wordAlertTarget.kanji,
-      hiragana: this.wordAlertTarget.hiragana,
-      meaning: this.wordAlertTarget.meaning,
-      alertType: this.wordAlertType,
-      comment: this.wordAlertComment,
-      source: this.wordAlertTarget.source
-    });
-    
-    this.wordAlertSaving = false;
-    if (result.success) {
-      this.wordAlertTarget = null;
-      this.render();
-      showToast('🚩 Word flag saved!', 'success');
-    } else {
-      showToast(`Flag save failed: ${result.error}`, 'error');
-    }
-  }
-  
   // ===== HELPERS =====
   getMarkingStats() {
     const stats = {};
@@ -687,7 +640,6 @@ class JLPTStudyApp {
       ${this.renderModals()}
       ${renderStoryOverlay(this)}
       ${renderStoryAlertForm(this)}
-      ${renderWordAlertForm(this)}
     `;
     
     attachEventListeners(this);

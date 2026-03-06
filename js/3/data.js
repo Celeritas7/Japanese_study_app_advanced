@@ -472,34 +472,3 @@ export async function saveStoryAlert(supabase, userId, alertData) {
     return { success: false, error: err.message };
   }
 }
-
-/**
- * Save word alert/flag (wrong hiragana, bad sentence, etc.)
- */
-export async function saveWordAlert(supabase, userId, alertData) {
-  if (!userId) return { success: false, error: 'Not logged in' };
-  
-  try {
-    const { error } = await supabase
-      .from('japanese_word_alerts')
-      .insert({
-        user_id: userId,
-        kanji: alertData.kanji,
-        hiragana: alertData.hiragana || null,
-        meaning: alertData.meaning || null,
-        alert_type: alertData.alertType,
-        comment: alertData.comment?.trim() || '',
-        source: alertData.source || 'flashcard',
-        created_at: new Date().toISOString()
-      });
-    
-    if (error) {
-      console.error('Word alert save error:', error);
-      return { success: false, error: error.message };
-    }
-    return { success: true };
-  } catch (err) {
-    console.error('Word alert exception:', err);
-    return { success: false, error: err.message };
-  }
-}

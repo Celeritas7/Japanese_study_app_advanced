@@ -3,64 +3,6 @@
 import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
 import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml } from './utils.js';
 
-// ===== WORD ALERT FORM =====
-
-export function renderWordAlertForm(app) {
-  if (!app.wordAlertTarget) return '';
-  const { kanji, hiragana, meaning } = app.wordAlertTarget;
-  
-  const types = [
-    { key: 'wrong_reading', icon: 'あ', label: 'Wrong Reading', desc: 'Hiragana is wrong' },
-    { key: 'wrong_meaning', icon: '英', label: 'Wrong Meaning', desc: 'Meaning is wrong' },
-    { key: 'bad_sentence', icon: '文', label: 'Bad Sentence', desc: 'Context/sentence issue' },
-    { key: 'not_a_word', icon: '✕', label: 'Not a Word', desc: 'This is a sentence, not a word' },
-  ];
-  
-  return `
-    <div class="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4" id="wordAlertOverlayBg">
-      <div class="bg-slate-800 rounded-2xl p-5 w-full max-w-sm animate-slideIn border border-slate-600">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-white font-bold text-lg">\uD83D\uDEA9 Flag Word Issue</h3>
-          <button id="closeWordAlertBtn" class="text-slate-400 hover:text-white text-xl">\u2715</button>
-        </div>
-        
-        <div class="bg-slate-900 rounded-xl p-3 mb-4">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl font-bold text-white">${kanji}</span>
-            <span class="text-blue-400">${hiragana}</span>
-          </div>
-          <div class="text-amber-300 text-sm mt-1">${meaning}</div>
-        </div>
-        
-        <div class="mb-4">
-          <label class="text-slate-400 text-xs block mb-2">Issue Type</label>
-          <div class="grid grid-cols-2 gap-2">
-            ${types.map(t => `
-              <button data-word-alert-type="${t.key}" class="p-2 rounded-lg text-center transition-all text-xs ${
-                app.wordAlertType === t.key ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }">
-                <div class="text-base mb-0.5">${t.icon}</div>
-                <div class="font-bold">${t.label}</div>
-                <div class="opacity-70 text-[10px]">${t.desc}</div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-        
-        <div class="mb-4">
-          <label class="text-slate-400 text-xs block mb-2">Comment (what's wrong?)</label>
-          <textarea id="wordAlertCommentInput" rows="3" placeholder="e.g. Reading should be すじがうかぶ not すじがうかぶ..."
-            class="w-full bg-slate-900 text-white px-3 py-2 rounded-xl border border-slate-600 focus:border-red-500 focus:outline-none text-sm resize-none">${app.wordAlertComment || ''}</textarea>
-        </div>
-        
-        <button id="submitWordAlertBtn" class="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 disabled:opacity-50" ${app.wordAlertSaving ? 'disabled' : ''}>
-          ${app.wordAlertSaving ? 'Saving...' : '\uD83D\uDEA9 Submit Flag'}
-        </button>
-      </div>
-    </div>
-  `;
-}
-
 // ===== COMMON RENDERS =====
 
 export function renderLoading() {
@@ -365,7 +307,6 @@ export function renderWordList(app) {
                         <span class="text-xl font-bold text-gray-800">${w.kanji || w.raw}</span>
                         <span class="text-gray-500">${w.hiragana || ''}</span>
                         <button data-open-story="${kanjiEsc}" data-story-hiragana="${w.hiragana || ''}" data-story-meaning="${escapeHtml(w.meaning)}" class="text-purple-500 hover:text-purple-700 text-xs px-1.5 py-0.5 rounded bg-purple-50 border border-purple-200">📖</button>
-                        <button data-flag-word="${kanjiEsc}" data-flag-word-hiragana="${w.hiragana || ''}" data-flag-word-meaning="${escapeHtml(w.meaning)}" class="text-red-400 hover:text-red-600 text-xs px-1.5 py-0.5 rounded bg-red-50 border border-red-200">🚩</button>
                       </div>
                       <p class="text-sm text-gray-600 truncate">${w.meaning}</p>
                     </div>
@@ -445,17 +386,11 @@ export function renderFlashcard(app) {
         <div class="w-full max-w-2xl">
           ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter)}
           
-          <!-- Story + Flag Buttons -->
-          <div class="flex gap-2 mb-3">
-            <button data-open-story="${kanjiEsc}" data-story-hiragana="${word.hiragana || ''}" data-story-meaning="${escapeHtml(word.meaning)}" 
-              class="flex-1 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all story-btn hover:opacity-80">
-              📖 Kanji Story
-            </button>
-            <button data-flag-word="${kanjiEsc}" data-flag-word-hiragana="${word.hiragana || ''}" data-flag-word-meaning="${escapeHtml(word.meaning)}"
-              class="px-4 py-3 rounded-xl font-semibold flex items-center justify-center transition-all bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20">
-              🚩
-            </button>
-          </div>
+          <!-- Story Button -->
+          <button data-open-story="${kanjiEsc}" data-story-hiragana="${word.hiragana || ''}" data-story-meaning="${escapeHtml(word.meaning)}" 
+            class="w-full py-3 mb-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all story-btn hover:opacity-80">
+            📖 Kanji Story
+          </button>
           
           <!-- Marking Buttons -->
           <div class="bg-slate-800 rounded-xl p-3 mb-4">

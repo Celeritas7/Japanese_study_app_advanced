@@ -313,31 +313,6 @@ export function attachEventListeners(app) {
   });
   document.getElementById('submitStoryAlertBtn')?.addEventListener('click', () => app.submitStoryAlert());
   
-  // ===== WORD ALERT =====
-  document.querySelectorAll('[data-flag-word]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const word = {
-        kanji: btn.dataset.flagWord,
-        hiragana: btn.dataset.flagWordHiragana || '',
-        meaning: btn.dataset.flagWordMeaning || ''
-      };
-      app.openWordAlert(word, 'wordlist');
-    });
-  });
-  
-  document.getElementById('closeWordAlertBtn')?.addEventListener('click', () => app.closeWordAlert());
-  document.getElementById('wordAlertOverlayBg')?.addEventListener('click', (e) => {
-    if (e.target.id === 'wordAlertOverlayBg') app.closeWordAlert();
-  });
-  document.querySelectorAll('[data-word-alert-type]').forEach(btn => {
-    btn.addEventListener('click', () => { app.wordAlertType = btn.dataset.wordAlertType; app.render(); });
-  });
-  document.getElementById('wordAlertCommentInput')?.addEventListener('input', (e) => {
-    app.wordAlertComment = e.target.value;
-  });
-  document.getElementById('submitWordAlertBtn')?.addEventListener('click', () => app.submitWordAlert());
-  
   // ===== SIMILAR KANJI =====
   document.querySelectorAll('[data-similar-group-id]').forEach(btn => {
     btn.addEventListener('click', () => {
