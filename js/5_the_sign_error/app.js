@@ -1,25 +1,25 @@
 // JLPT Vocabulary Master - Main Application
 // Version 12.0
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=13';
+import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js?v=13';
 import { 
   loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert
-} from './data.js';
-import { saveCanvasData, restoreCanvasData } from './canvas.js';
+} from './data.js?v=13';
+import { saveCanvasData, restoreCanvasData } from './canvas.js?v=13';
 import { 
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
   renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList,
   renderWordAlertForm
-} from './render.js';
-import { renderSRSTab } from './render-srs.js';
-import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
-import { renderSimilarTab } from './render-similar.js';
-import { attachEventListeners } from './events.js';
+} from './render.js?v=13';
+import { renderSRSTab } from './render-srs.js?v=13';
+import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js?v=13';
+import { renderSimilarTab } from './render-similar.js?v=13';
+import { attachEventListeners } from './events.js?v=13';
 
 // Guest user ID for testing (your actual user ID)
 const GUEST_USER_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
