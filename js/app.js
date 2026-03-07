@@ -323,6 +323,13 @@ class JLPTStudyApp {
     // Try loading sentences for context
     try {
       const sentenceMap = await loadSentencesForWords(this.supabase, wordIds);
+
+      console.log(`Sentences: ${Object.keys(sentenceMap).length}/${wordIds.length} words have sentences`);
+      
+      words.forEach(w => {
+          if (sentenceMap[w.id]) console.log(`  ✓ ${w.kanji}: "${sentenceMap[w.id][0]?.sentence?.substring(0, 40)}..."`);
+      });
+      
       words = words.map(w => {
         const sentences = sentenceMap[w.id];
         if (sentences && sentences.length > 0) {
