@@ -306,7 +306,11 @@ export function attachEventListeners(app) {
   document.getElementById('storySearchInput')?.addEventListener('input', (e) => {
     app.storyFilter = e.target.value;
     if (!e.target.value) app.storySearchMode = 'groups';
+    const cursorPos = e.target.selectionStart;
     app.render();
+    // Restore focus after render
+    const input = document.getElementById('storySearchInput');
+    if (input) { input.focus(); input.setSelectionRange(cursorPos, cursorPos); }
   });
   
   // ===== STORY SEARCH MODE =====
@@ -410,7 +414,10 @@ export function attachEventListeners(app) {
   
   document.getElementById('similarSearchInput')?.addEventListener('input', (e) => {
     app.similarFilter.search = e.target.value;
+    const cursorPos = e.target.selectionStart;
     app.render();
+    const input = document.getElementById('similarSearchInput');
+    if (input) { input.focus(); input.setSelectionRange(cursorPos, cursorPos); }
   });
   
   // ===== MODALS =====

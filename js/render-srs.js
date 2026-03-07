@@ -79,7 +79,7 @@ function renderSRSSetup(app) {
           <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Words per level</div>
           <div class="flex gap-2">
             ${presets.map(n => `
-              <button data-srs-preset="${n}" class="flex-1 py-3 rounded-xl font-extrabold text-lg transition-all ${
+              <button data-srs-preset="${n}" class="flex-1 py-2.5 rounded-xl font-bold text-base transition-all ${
                 app.srsConfig.levelPreset === n 
                   ? 'bg-blue-500 text-white shadow-lg ring-2 ring-blue-400' 
                   : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
