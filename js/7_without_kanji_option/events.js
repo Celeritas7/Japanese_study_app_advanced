@@ -212,44 +212,6 @@ export function attachEventListeners(app) {
     app.render();
   });
   
-  // ===== KANJI SUB-TAB =====
-  // Book selection
-  document.querySelectorAll('[data-book-code]').forEach(btn => {
-    btn.addEventListener('click', () => app.selectBook(btn.dataset.bookCode));
-  });
-  
-  // Chapter selection
-  document.querySelectorAll('[data-chapter-name]').forEach(btn => {
-    btn.addEventListener('click', () => app.selectChapter(btn.dataset.chapterName));
-  });
-  
-  // Kanji back buttons
-  document.getElementById('backToBooksBtn')?.addEventListener('click', () => app.backToBooks());
-  document.getElementById('backToChaptersBtn')?.addEventListener('click', () => app.backToChapters());
-  
-  // Kanji study start
-  document.getElementById('startKanjiStudyAllBtn')?.addEventListener('click', () => app.startKanjiStudy(true));
-  document.getElementById('startKanjiStudyBtn')?.addEventListener('click', () => app.startKanjiStudy(false));
-  
-  // Kanji word limit input
-  document.getElementById('kanjiWordLimitInput')?.addEventListener('input', (e) => {
-    app.studyWordLimit = parseInt(e.target.value) || 0;
-  });
-  
-  // Kanji marking category filter
-  document.querySelectorAll('[data-kanji-category]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const val = btn.dataset.kanjiCategory;
-      if (val === 'clear') {
-        app.selectedCategory = null;
-      } else {
-        const cat = parseInt(val);
-        app.selectedCategory = app.selectedCategory === cat ? null : cat;
-      }
-      app.render();
-    });
-  });
-  
   // ===== SRS =====
   document.querySelectorAll('[data-srs-test-type]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -422,9 +384,7 @@ export function attachEventListeners(app) {
       const kanji = btn.dataset.openStory;
       const hiragana = btn.dataset.storyHiragana || '';
       const meaning = btn.dataset.storyMeaning || '';
-      const word = app.vocabulary.find(w => w.kanji === kanji) 
-        || app.kanjiWords.find(w => w.kanji === kanji)
-        || { kanji, hiragana, meaning };
+      const word = app.vocabulary.find(w => w.kanji === kanji) || { kanji, hiragana, meaning };
       app.openStoryOverlay(word);
     });
   });

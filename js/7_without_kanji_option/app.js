@@ -7,20 +7,18 @@ import {
   loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
-  loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert,
-  loadUnifiedWords, loadUnifiedWordBooks, loadSentencesForWords
+  loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
-  renderSelfStudyTopics, renderSelfStudyWordList,
+  renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList,
   renderWordAlertForm
 } from './render.js';
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderSimilarTab } from './render-similar.js';
-import { renderKanjiTab } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
 // Guest user ID for testing (your actual user ID)
@@ -44,13 +42,6 @@ class JLPTStudyApp {
     this.similarGroups = [];
     this.selfStudyTopics = [];
     this.selfStudyWords = [];
-    
-    // Unified kanji data
-    this.kanjiWords = [];      // from japanese_unified_words
-    this.kanjiWordBooks = [];  // from japanese_unified_word_books
-    this.kanjiView = 'books';  // 'books', 'chapters', 'wordlist', 'flashcard'
-    this.selectedBook = null;     // book_code
-    this.selectedChapter = null;  // chapter name
     
     this.currentTab = 'study';
     this.studySubTab = 'goi';
@@ -176,7 +167,7 @@ class JLPTStudyApp {
     console.log('loadAllData: Full user object:', this.user);
     console.log('loadAllData: userId:', userId);
     
-    const [vocabulary, markings, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks] = await Promise.all([
+    const [vocabulary, markings, markingCategories, storyGroups, stories, similarGroups, topics, words] = await Promise.all([
       loadVocabulary(this.supabase),
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
@@ -184,9 +175,7 @@ class JLPTStudyApp {
       loadStories(this.supabase),
       loadSimilarGroups(this.supabase),
       loadSelfStudyTopics(this.supabase, userId),
-      loadSelfStudyWords(this.supabase, userId),
-      loadUnifiedWords(this.supabase),
-      loadUnifiedWordBooks(this.supabase)
+      loadSelfStudyWords(this.supabase, userId)
     ]);
     
     this.vocabulary = vocabulary;
@@ -197,10 +186,8 @@ class JLPTStudyApp {
     this.similarGroups = similarGroups;
     this.selfStudyTopics = topics;
     this.selfStudyWords = words;
-    this.kanjiWords = kanjiWords;
-    this.kanjiWordBooks = kanjiWordBooks;
     
-    console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings, ${kanjiWords.length} kanji words, ${kanjiWordBooks.length} word-book links`);
+    console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings`);
     this.syncing = false;
     this.render();
   }
@@ -218,11 +205,6 @@ class JLPTStudyApp {
     this.studyView = 'level';
     this.selectedLevel = null;
     this.selectedTopic = null;
-    // Reset kanji state when switching sub-tabs
-    this.kanjiView = 'books';
-    this.selectedBook = null;
-    this.selectedChapter = null;
-    this.selectedCategory = null;
     this.render();
   }
   
@@ -240,121 +222,15 @@ class JLPTStudyApp {
   }
   
   backToLevel() {
-    if (this.studySubTab === 'kanji') {
-      // From kanji chapters → back to book list
-      this.kanjiView = 'books';
-      this.selectedBook = null;
-      this.selectedChapter = null;
-      this.selectedCategory = null;
-    } else {
-      this.selectedLevel = null;
-      this.selectedTopic = null;
-      this.studyView = 'level';
-    }
+    this.selectedLevel = null;
+    this.selectedTopic = null;
+    this.studyView = 'level';
     this.render();
   }
   
   backToWeekDay() {
-    if (this.studySubTab === 'kanji') {
-      // From kanji flashcard → back to word list (or chapters if no chapter selected)
-      this.kanjiView = this.selectedChapter ? 'wordlist' : 'chapters';
-      this.selectedCategory = null;
-    } else {
-      this.studyView = 'weekday';
-      this.selectedCategory = null;
-    }
-    this.render();
-  }
-  
-  // ===== KANJI SUB-TAB NAVIGATION =====
-  
-  selectBook(bookCode) {
-    this.selectedBook = bookCode;
-    this.selectedChapter = null;
+    this.studyView = 'weekday';
     this.selectedCategory = null;
-    this.kanjiView = 'chapters';
-    this.render();
-  }
-  
-  selectChapter(chapterName) {
-    this.selectedChapter = chapterName;
-    this.selectedCategory = null;
-    this.kanjiView = 'wordlist';
-    this.render();
-  }
-  
-  backToBooks() {
-    this.selectedBook = null;
-    this.selectedChapter = null;
-    this.selectedCategory = null;
-    this.kanjiView = 'books';
-    this.render();
-  }
-  
-  backToChapters() {
-    this.selectedChapter = null;
-    this.selectedCategory = null;
-    this.kanjiView = 'chapters';
-    this.render();
-  }
-  
-  async startKanjiStudy(allInBook = false) {
-    // Determine which word IDs to study
-    let bookEntries;
-    if (allInBook) {
-      bookEntries = this.kanjiWordBooks.filter(wb => wb.book_code === this.selectedBook);
-    } else {
-      bookEntries = this.kanjiWordBooks.filter(wb =>
-        wb.book_code === this.selectedBook && wb.chapter === this.selectedChapter
-      );
-    }
-    
-    const wordIds = [...new Set(bookEntries.map(wb => wb.word_id))];
-    let words = wordIds.map(id => this.kanjiWords.find(w => w.id === id)).filter(Boolean);
-    
-    // Apply marking category filter if set
-    if (this.selectedCategory !== null && this.selectedCategory !== undefined) {
-      words = words.filter(w => getMarking(this.markings, w) === this.selectedCategory);
-    }
-    
-    // Read word limit from input
-    this.studyWordLimit = parseInt(document.getElementById('kanjiWordLimitInput')?.value) || 0;
-    
-    // Try loading sentences for context
-    try {
-      const sentenceMap = await loadSentencesForWords(this.supabase, wordIds);
-      words = words.map(w => {
-        const sentences = sentenceMap[w.id];
-        if (sentences && sentences.length > 0) {
-          const best = sentences[0]; // highest rated
-          const sentText = best.sentence || '';
-          const idx = sentText.indexOf(w.kanji);
-          if (idx >= 0) {
-            return {
-              ...w,
-              sentence_before: sentText.substring(0, idx),
-              sentence_after: sentText.substring(idx + w.kanji.length),
-              supporting_word_1: sentText.substring(0, idx),
-              supporting_word_2: sentText.substring(idx + w.kanji.length),
-            };
-          }
-          return { ...w, sentence: sentText };
-        }
-        return w;
-      });
-    } catch (err) {
-      console.warn('Sentences load skipped:', err);
-    }
-    
-    // Apply word limit then shuffle
-    let shuffled = shuffleArray([...words]);
-    if (this.studyWordLimit > 0) shuffled = shuffled.slice(0, this.studyWordLimit);
-    
-    this.studyWords = shuffled;
-    this.currentIndex = 0;
-    this.revealStep = 0;
-    this.canvasImageData = null;
-    this.kanjiView = 'flashcard';
     this.render();
   }
   
@@ -881,11 +757,7 @@ class JLPTStudyApp {
         default: content = renderLevelSelector(this);
       }
     } else if (this.studySubTab === 'kanji') {
-      if (this.kanjiView === 'flashcard') {
-        content = renderFlashcard(this);
-      } else {
-        content = renderKanjiTab(this);
-      }
+      content = renderKanjiPlaceholder();
     } else {
       if (this.studyView === 'wordlist' && this.selectedTopic) content = renderSelfStudyWordList(this);
       else if (this.studyView === 'flashcard' && this.selectedTopic) content = renderFlashcard(this);
