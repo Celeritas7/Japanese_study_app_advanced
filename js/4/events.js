@@ -43,50 +43,6 @@ export function attachEventListeners(app) {
   document.getElementById('backToTopicsBtn')?.addEventListener('click', () => app.backToLevel());
   
   // ===== STUDY START =====
-  // Study mode toggle (All / Custom)
-  document.querySelectorAll('[data-study-mode]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      app.studyMode = btn.dataset.studyMode;
-      if (app.studyMode === 'all') {
-        // Apply current preset to all levels
-        app.studyLevelCounts = { N1: app.studyPreset, N2: app.studyPreset, N3: app.studyPreset };
-      }
-      app.render();
-    });
-  });
-  
-  // Study preset chips (All Equal mode)
-  document.querySelectorAll('[data-study-preset]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const n = parseInt(btn.dataset.studyPreset);
-      app.studyPreset = n;
-      app.studyLevelCounts = { N1: n, N2: n, N3: n };
-      app.render();
-    });
-  });
-  
-  // Study per-level chips (Custom mode)
-  document.querySelectorAll('[data-study-level-chip]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const level = btn.dataset.studyLevelChip;
-      const val = parseInt(btn.dataset.studyLevelVal);
-      app.studyLevelCounts[level] = val;
-      const input = document.getElementById(`studyLevel${level}`);
-      if (input) input.value = val;
-      app.render();
-    });
-  });
-  
-  // Study per-level inputs (Custom mode)
-  ['N1', 'N2', 'N3'].forEach(level => {
-    document.getElementById(`studyLevel${level}`)?.addEventListener('input', (e) => {
-      app.studyLevelCounts[level] = parseInt(e.target.value) || 0;
-    });
-  });
-  
-  // Quick start button
-  document.getElementById('startStudyQuickBtn')?.addEventListener('click', () => app.startStudyQuick());
-  
   document.getElementById('startStudyBtn')?.addEventListener('click', () => {
     const weekDay = document.getElementById('weekDaySelect')?.value || null;
     app.selectedWeekDay = weekDay;

@@ -189,104 +189,48 @@ export function renderStudySubTabs(currentSubTab) {
 // ===== LEVEL SELECTOR =====
 
 export function renderLevelSelector(app) {
-  const levels = [
-    { id: 'N1', bg: 'bg-rose-500', chipBg: 'bg-rose-100 text-rose-700', border: 'border-rose-400', words: app.vocabulary.filter(v => v.level === 'N1').length },
-    { id: 'N2', bg: 'bg-amber-500', chipBg: 'bg-amber-100 text-amber-700', border: 'border-amber-400', words: app.vocabulary.filter(v => v.level === 'N2').length },
-    { id: 'N3', bg: 'bg-emerald-500', chipBg: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-400', words: app.vocabulary.filter(v => v.level === 'N3').length },
-  ];
-  const isAll = app.studyMode === 'all';
-  const total = Object.values(app.studyLevelCounts).reduce((a, b) => a + b, 0);
-  const presets = [5, 10, 15, 20, 30];
+  const levels = ['N1', 'N2', 'N3'];
   
   return `
     <div class="p-4 animate-fadeIn flex-1 overflow-auto">
-      <div class="max-w-md mx-auto">
-        
-        <!-- Test Type -->
-        <div class="bg-slate-800 rounded-xl p-4 mb-4">
-          <h3 class="text-sm text-slate-400 mb-3">Test Type</h3>
-          <div class="grid grid-cols-3 gap-2">
-            ${Object.entries(TEST_TYPES).map(([key, t]) => `
-              <button data-test-type="${key}" class="p-3 rounded-xl text-center transition-all ${app.selectedTestType === key ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
-                <span class="text-xl block mb-1">${t.icon}</span>
-                <span class="text-xs">${t.label.split(' ')[0]}</span>
-              </button>
-            `).join('')}
-          </div>
+      <div class="max-w-md mx-auto pt-4">
+        <div class="text-center mb-6">
+          <h1 class="text-xl font-bold text-white mb-1">Select Level</h1>
+          <p class="text-slate-400 text-sm">${app.vocabulary.length} total words</p>
         </div>
         
-        <!-- Mode Toggle -->
-        <div class="bg-slate-800 rounded-2xl p-1.5 flex gap-1.5 mb-4">
-          <button data-study-mode="all" class="flex-1 py-3 rounded-xl font-bold text-sm transition-all ${isAll ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
-            \u26A1 All Equal
-          </button>
-          <button data-study-mode="custom" class="flex-1 py-3 rounded-xl font-bold text-sm transition-all ${!isAll ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
-            \uD83C\uDFDB Custom
-          </button>
-        </div>
-        
-        ${isAll ? `
-        <!-- ALL MODE: Preset Chips -->
-        <div class="bg-slate-800 rounded-xl p-4 mb-4">
-          <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Words per level</div>
-          <div class="flex gap-2">
-            ${presets.map(n => `
-              <button data-study-preset="${n}" class="flex-1 py-4 rounded-xl font-extrabold text-xl transition-all ${
-                app.studyPreset === n 
-                  ? 'bg-blue-500 text-white shadow-lg ring-2 ring-blue-400' 
-                  : 'bg-slate-900 text-slate-300 border-2 border-slate-700 hover:border-slate-500'
-              }">${n}</button>
-            `).join('')}
-          </div>
-        </div>
-        ` : ''}
-        
-        <!-- Level Cards -->
-        <div class="space-y-2.5 mb-4">
-          ${levels.map(l => `
-            <div class="bg-slate-800 rounded-xl p-3.5 flex items-center gap-3 border border-slate-700">
-              <div class="w-12 h-12 ${l.bg} rounded-xl flex items-center justify-center text-white font-extrabold text-base flex-shrink-0 shadow-lg">${l.id}</div>
-              <div class="flex-1">
-                <div class="text-white font-bold text-base">JLPT ${l.id}</div>
-                <div class="text-slate-500 text-xs">${l.words} words</div>
-              </div>
-              ${isAll ? `
-                <div class="bg-slate-900 rounded-xl px-4 py-2.5 min-w-[52px] text-center">
-                  <span class="text-white font-extrabold text-xl">${app.studyLevelCounts[l.id]}</span>
-                </div>
-              ` : `
-                <div class="flex flex-col items-end gap-1.5">
-                  <div class="flex gap-1">
-                    ${[0, 5, 10, 15, 20].map(n => `
-                      <button data-study-level-chip="${l.id}" data-study-level-val="${n}" class="w-7 h-6 rounded-md font-bold text-xs transition-all ${
-                        app.studyLevelCounts[l.id] === n ? l.bg + ' text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                      }">${n}</button>
-                    `).join('')}
+        <div class="space-y-3">
+          ${levels.map(level => {
+            const stats = getStatsByLevel(app.vocabulary, app.markings, level, app.markingCategories);
+            const color = LEVEL_COLORS[level];
+            return `
+              <button data-level="${level}" class="w-full p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all text-left group">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 ${color.bg} rounded-xl flex items-center justify-center text-white text-xl font-bold">${level}</div>
+                    <div>
+                      <h3 class="text-lg font-bold text-gray-800">JLPT ${level}</h3>
+                      <p class="text-gray-500 text-sm">${stats.total} words</p>
+                    </div>
                   </div>
-                  <input type="number" id="studyLevel${l.id}" min="0" max="${l.words}" value="${app.studyLevelCounts[l.id]}" 
-                    class="w-16 p-1.5 rounded-lg border-2 ${l.border} bg-slate-900 text-white font-extrabold text-lg text-center focus:outline-none">
+                  <span class="text-2xl text-gray-400 group-hover:translate-x-1 transition-transform">→</span>
                 </div>
-              `}
+              </button>
+            `;
+          }).join('')}
+          
+          <button data-level="ALL" class="w-full p-5 bg-slate-700 rounded-2xl shadow-lg hover:shadow-xl transition-all text-left group">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="w-14 h-14 bg-slate-600 rounded-xl flex items-center justify-center text-white text-lg font-bold">ALL</div>
+                <div>
+                  <h3 class="text-lg font-bold text-white">All Levels</h3>
+                  <p class="text-slate-400 text-sm">${app.vocabulary.length} words</p>
+                </div>
+              </div>
+              <span class="text-2xl text-slate-400 group-hover:translate-x-1 transition-transform">→</span>
             </div>
-          `).join('')}
-        </div>
-        
-        <!-- Start Button -->
-        <button id="startStudyQuickBtn" class="w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 ${
-          total === 0 ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90 shadow-lg'
-        }" ${total === 0 ? 'disabled' : ''}>
-          \u25B6 Start Study
-          <span class="bg-white/20 rounded-lg px-2.5 py-0.5 text-sm">${total} words</span>
-        </button>
-        
-        <!-- Browse by Chapter link -->
-        <div class="text-center mt-4">
-          <p class="text-slate-500 text-xs mb-2">Or browse by chapter:</p>
-          <div class="flex gap-2 justify-center">
-            ${levels.map(l => `
-              <button data-level="${l.id}" class="px-4 py-2 rounded-lg ${l.bg} text-white text-sm font-bold hover:opacity-80 transition-all">${l.id}</button>
-            `).join('')}
-          </div>
+          </button>
         </div>
       </div>
     </div>

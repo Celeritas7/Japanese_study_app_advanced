@@ -1,25 +1,25 @@
 // JLPT Vocabulary Master - Main Application
-// Version 12.0
+// Version 10.0 with Guest Mode
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=12';
-import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js?v=12';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js';
 import { 
   loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert
-} from './data.js?v=12';
-import { saveCanvasData, restoreCanvasData } from './canvas.js?v=12';
+} from './data.js';
+import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
   renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList,
   renderWordAlertForm
-} from './render.js?v=12';
-import { renderSRSTab } from './render-srs.js?v=12';
-import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js?v=12';
-import { renderSimilarTab } from './render-similar.js?v=12';
-import { attachEventListeners } from './events.js?v=12';
+} from './render.js';
+import { renderSRSTab } from './render-srs.js';
+import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
+import { renderSimilarTab } from './render-similar.js';
+import { attachEventListeners } from './events.js';
 
 // Guest user ID for testing (your actual user ID)
 const GUEST_USER_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
@@ -51,11 +51,6 @@ class JLPTStudyApp {
     this.selectedCategory = null;
     this.selectedTestType = 'kanji';
     this.selectedTopic = null;
-    
-    // Study level selector
-    this.studyMode = 'all'; // 'all' or 'custom'
-    this.studyPreset = 10;
-    this.studyLevelCounts = { N1: 10, N2: 10, N3: 10 };
     
     this.studyWords = [];
     this.currentIndex = 0;
@@ -112,8 +107,6 @@ class JLPTStudyApp {
     if (session) this.user = session.user;
     
     this.supabase.auth.onAuthStateChange((event, session) => {
-      // Skip INITIAL_SESSION to avoid double-load
-      if (event === 'INITIAL_SESSION') return;
       this.user = session?.user || null;
       this.isGuestMode = false;
       if (event === 'SIGNED_IN') this.loadAllData();
@@ -188,6 +181,7 @@ class JLPTStudyApp {
     console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings`);
     this.syncing = false;
     this.render();
+    showToast(`${vocabulary.length} words, ${Object.keys(markings).length} markings (${this.user?.id?.slice(0,8) || 'no-id'})`, 'success');
   }
   
   selectTab(tab) {
@@ -250,6 +244,9 @@ class JLPTStudyApp {
       showToast('Save failed!', 'error');
       this.markings[kanji] = oldMarking; 
       this.render(); 
+    } else {
+      const cat = this.markingCategories[newMarking] || this.markingCategories[0];
+      showToast(`${kanji} → ${cat.icon} saved`, 'success');
     }
   }
   
@@ -262,30 +259,6 @@ class JLPTStudyApp {
     let shuffled = shuffleArray([...words]);
     if (this.studyWordLimit > 0) shuffled = shuffled.slice(0, this.studyWordLimit);
     this.studyWords = shuffled;
-    this.currentIndex = 0;
-    this.revealStep = 0;
-    this.canvasImageData = null;
-    this.studyView = 'flashcard';
-    this.render();
-  }
-  
-  // Quick start from level selector (All/Custom mode)
-  startStudyQuick() {
-    // Read counts from inputs or use stored values
-    for (const level of ['N1', 'N2', 'N3']) {
-      const input = document.getElementById(`studyLevel${level}`);
-      if (input) this.studyLevelCounts[level] = parseInt(input.value) || 0;
-    }
-    
-    let allWords = [];
-    for (const level of ['N1', 'N2', 'N3']) {
-      const count = this.studyLevelCounts[level];
-      if (count <= 0) continue;
-      const pool = this.vocabulary.filter(v => v.level === level);
-      allWords.push(...sampleArray(pool, count));
-    }
-    
-    this.studyWords = shuffleArray(allWords);
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
