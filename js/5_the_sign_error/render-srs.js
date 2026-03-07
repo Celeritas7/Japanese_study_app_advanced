@@ -170,6 +170,21 @@ function renderSRSSetup(app) {
     </div>
   `;
 }
+          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl mb-3 opacity-60">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-gray-400 rounded-lg flex items-center justify-center text-white text-lg">○</div>
+              <div><div class="font-medium text-gray-600 text-sm">Not Marked</div><div class="text-xs text-gray-400">${markStats[0]} words — rate these first!</div></div>
+            </div>
+            <span class="text-gray-400 text-sm font-bold px-2">—</span>
+          </div>
+          <div class="text-center text-gray-500 text-sm mb-3">Total: <span class="font-bold text-gray-800">${markingTotal}</span> words</div>
+          <button id="startSRSTestBtn" class="w-full py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50" ${markingTotal === 0 ? 'disabled' : ''}>Start Test (${markingTotal} words)</button>
+        </div>
+        `}
+      </div>
+    </div>
+  `;
+}
 
 function renderSRSTest(app) {
   if (app.srsWords.length === 0) return `<div class="p-4 text-center text-white">No words selected</div>`;
