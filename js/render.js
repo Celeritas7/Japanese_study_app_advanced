@@ -537,6 +537,9 @@ export function renderFlashcard(app) {
           <div class="mt-4 bg-slate-700 rounded-full h-2 overflow-hidden">
             <div class="bg-emerald-500 h-full transition-all" style="width: ${((app.currentIndex + 1) / app.studyWords.length) * 100}%"></div>
           </div>
+          
+          <!-- Extra content slot (sentence panel, etc.) -->
+          <div id="flashcardExtraContent"></div>
         </div>
       </div>
     </div>

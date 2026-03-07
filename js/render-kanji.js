@@ -342,3 +342,142 @@ function renderKanjiWordList(app) {
     </div>
   `;
 }
+
+// ===== SENTENCE PANEL (injected into flashcard) =====
+
+const SOURCE_ICONS = {
+  MN_N2: '📘', KD_N2: '📙', KM_N3: '📗', KD_N3: '📕', SM_N2: '📓',
+  manual: '✏️', anime: '🎌', drama: '🎬', news: '📰', train: '🚃',
+};
+
+export function renderSentencePanel(app) {
+  if (app.studySubTab !== 'kanji') return '';
+  if (!app.studyWords || app.studyWords.length === 0) return '';
+  
+  const word = app.studyWords[app.currentIndex];
+  if (!word) return '';
+  
+  // Get linked sentences for this word
+  const linked = (app.kanjiSentenceMap && app.kanjiSentenceMap[word.id]) || [];
+  
+  // Find unlinked sentences containing this word's kanji
+  const linkedSentenceIds = new Set(linked.map(l => l.sentence_id || l.id));
+  const kanjiChar = (word.kanji || '')[0] || '';
+  const unlinked = kanjiChar
+    ? (app.allUnifiedSentences || []).filter(s =>
+        !linkedSentenceIds.has(s.id) && s.sentence && s.sentence.includes(kanjiChar)
+      ).slice(0, 8)  // limit for performance
+    : [];
+  
+  const sentenceCount = linked.length;
+  const isExpanded = app.sentencePanelExpanded;
+  
+  return `
+    <div class="mt-4">
+      <!-- Toggle Button -->
+      <button id="toggleSentencePanelBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+        sentenceCount > 0 
+          ? 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25'
+          : 'bg-slate-700/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+      }">
+        💬 Sentences ${sentenceCount > 0 ? `(${sentenceCount} linked)` : '(none linked)'}
+        <span class="text-xs">${isExpanded ? '▲' : '▼'}</span>
+      </button>
+      
+      ${isExpanded ? `
+        <div class="mt-3 space-y-3 animate-fadeIn">
+          
+          <!-- Linked Sentences -->
+          ${linked.length > 0 ? `
+            <div class="space-y-2">
+              ${linked.map(item => {
+                const sentText = item.sentence || '';
+                const rating = item.rating;
+                const linkId = item.link_id;
+                
+                // Highlight the kanji in the sentence
+                const parts = sentText.split(new RegExp(`(${escapeRegex(word.kanji || '')})`));
+                const highlightedSentence = parts.map(part => 
+                  part === (word.kanji || '')
+                    ? `<span class="text-indigo-400 font-bold bg-indigo-500/15 px-0.5 rounded">${escapeHtml(part)}</span>`
+                    : escapeHtml(part)
+                ).join('');
+                
+                const sourceIcon = SOURCE_ICONS[item.source] || '📄';
+                
+                return `
+                  <div class="p-3 rounded-xl border transition-all ${
+                    rating && rating >= 2
+                      ? 'bg-indigo-500/5 border-indigo-500/20'
+                      : 'bg-slate-800/60 border-slate-700'
+                  }">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex-1 min-w-0">
+                        <div class="text-sm leading-relaxed text-slate-200">${highlightedSentence}</div>
+                        ${item.meaning_en ? `<div class="text-xs text-slate-500 mt-1">${escapeHtml(item.meaning_en)}</div>` : ''}
+                        <div class="flex items-center gap-2 mt-1.5">
+                          <span class="text-[10px] text-slate-600">${sourceIcon} ${escapeHtml(item.source || '')}</span>
+                          ${item.jlpt_level ? `<span class="text-[10px] text-slate-600">• ${item.jlpt_level}</span>` : ''}
+                        </div>
+                      </div>
+                      
+                      <!-- Star Rating -->
+                      <div class="flex gap-0.5 shrink-0">
+                        ${[1, 2, 3].map(r => `
+                          <button data-rate-link="${linkId}" data-rate-value="${r}"
+                            class="w-7 h-7 rounded-lg text-xs transition-all ${
+                              rating && rating >= r
+                                ? 'bg-amber-500/30 text-amber-300'
+                                : 'bg-slate-800 text-slate-600 hover:bg-slate-700 hover:text-slate-400'
+                            }">★</button>
+                        `).join('')}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div class="text-center py-4 text-slate-600 text-sm">No sentences linked yet</div>
+          `}
+          
+          <!-- Unlinked Sentences Discovery -->
+          ${unlinked.length > 0 ? `
+            <div class="pt-3 border-t border-slate-700/50">
+              <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(kanjiChar)}」</div>
+              <div class="space-y-1.5">
+                ${unlinked.map(s => {
+                  // Highlight the kanji character
+                  const parts = s.sentence.split(new RegExp(`(${escapeRegex(kanjiChar)})`));
+                  const highlighted = parts.map(part =>
+                    part === kanjiChar
+                      ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>`
+                      : escapeHtml(part)
+                  ).join('');
+                  
+                  return `
+                    <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                      <div class="flex-1 min-w-0 mr-2">
+                        <div class="text-xs text-slate-400 leading-relaxed">${highlighted}</div>
+                        ${s.meaning_en ? `<div class="text-[10px] text-slate-600 mt-0.5 truncate">${escapeHtml(s.meaning_en)}</div>` : ''}
+                      </div>
+                      <button data-link-sentence="${s.id}" data-link-word="${word.id}"
+                        class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 text-xs font-medium hover:bg-indigo-500/30 transition-all shrink-0 border border-indigo-500/20">
+                        + Link
+                      </button>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Helper: escape regex special chars
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

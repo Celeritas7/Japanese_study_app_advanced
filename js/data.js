@@ -602,7 +602,7 @@ export async function loadSentencesForWords(supabase, wordIds) {
       const batch = wordIds.slice(i, i + batchSize);
       const { data, error } = await supabase
         .from('japanese_unified_word_sentences')
-        .select('word_id, sentence_id, rating')
+        .select('id, word_id, sentence_id, rating')
         .in('word_id', batch);
       
       if (error) { console.error('Word-sentences link error:', error); continue; }
@@ -637,7 +637,12 @@ export async function loadSentencesForWords(supabase, wordIds) {
       if (!result[link.word_id]) result[link.word_id] = [];
       const sent = sentenceMap[link.sentence_id];
       if (sent) {
-        result[link.word_id].push({ ...sent, rating: link.rating });
+        result[link.word_id].push({
+          ...sent,
+          link_id: link.id,
+          sentence_id: link.sentence_id,
+          rating: link.rating
+        });
       }
     });
     
@@ -650,5 +655,104 @@ export async function loadSentencesForWords(supabase, wordIds) {
   } catch (err) {
     console.error('loadSentencesForWords exception:', err);
     return {};
+  }
+}
+
+/**
+ * Load ALL unified sentences (for unlinked sentence discovery)
+ */
+export async function loadAllUnifiedSentences(supabase) {
+  try {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    
+    while (true) {
+      const { data, error } = await supabase
+        .from('japanese_unified_sentences')
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+        .order('id');
+      
+      if (error) {
+        console.error('All sentences load error:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      page++;
+    }
+    
+    return allData;
+  } catch (err) {
+    console.error('loadAllUnifiedSentences exception:', err);
+    return [];
+  }
+}
+
+/**
+ * Update a sentence rating in word_sentences link table
+ * Toggle: if same rating clicked again, set to null
+ */
+export async function updateSentenceRating(supabase, linkId, newRating) {
+  try {
+    // First read current rating to support toggle
+    const { data: current, error: readErr } = await supabase
+      .from('japanese_unified_word_sentences')
+      .select('rating')
+      .eq('id', linkId)
+      .single();
+    
+    if (readErr) {
+      console.error('Read sentence rating error:', readErr);
+      return { success: false, error: readErr.message };
+    }
+    
+    const finalRating = (current?.rating === newRating) ? null : newRating;
+    
+    const { error } = await supabase
+      .from('japanese_unified_word_sentences')
+      .update({ rating: finalRating })
+      .eq('id', linkId);
+    
+    if (error) {
+      console.error('Update sentence rating error:', error);
+      return { success: false, error: error.message, rating: null };
+    }
+    return { success: true, rating: finalRating };
+  } catch (err) {
+    console.error('updateSentenceRating exception:', err);
+    return { success: false, error: err.message, rating: null };
+  }
+}
+
+/**
+ * Link an existing sentence to a word
+ */
+export async function linkSentenceToWord(supabase, wordId, sentenceId, userId) {
+  try {
+    const insertData = {
+      word_id: wordId,
+      sentence_id: sentenceId,
+      rating: null,
+      created_at: new Date().toISOString()
+    };
+    if (userId) insertData.user_id = userId;
+    
+    const { data, error } = await supabase
+      .from('japanese_unified_word_sentences')
+      .insert(insertData)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Link sentence error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, link: data };
+  } catch (err) {
+    console.error('linkSentenceToWord exception:', err);
+    return { success: false, error: err.message };
   }
 }

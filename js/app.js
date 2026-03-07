@@ -8,7 +8,8 @@ import {
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert,
-  loadUnifiedWords, loadUnifiedWordBooks, loadSentencesForWords
+  loadUnifiedWords, loadUnifiedWordBooks, loadSentencesForWords,
+  loadAllUnifiedSentences, updateSentenceRating, linkSentenceToWord
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
@@ -20,7 +21,7 @@ import {
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderSimilarTab } from './render-similar.js';
-import { renderKanjiTab } from './render-kanji.js';
+import { renderKanjiTab, renderSentencePanel } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
 // Guest user ID for testing (your actual user ID)
@@ -51,6 +52,9 @@ class JLPTStudyApp {
     this.kanjiView = 'books';  // 'books', 'chapters', 'wordlist', 'flashcard'
     this.selectedBook = null;     // book_code
     this.selectedChapter = null;  // chapter name
+    this.kanjiSentenceMap = {};   // word_id → [{ link_id, sentence_id, sentence, meaning_en, rating, source, jlpt_level }]
+    this.allUnifiedSentences = [];  // all sentences for discovery
+    this.sentencePanelExpanded = false;
     
     this.currentTab = 'study';
     this.studySubTab = 'goi';
@@ -176,7 +180,7 @@ class JLPTStudyApp {
     console.log('loadAllData: Full user object:', this.user);
     console.log('loadAllData: userId:', userId);
     
-    const [vocabulary, markings, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks] = await Promise.all([
+    const [vocabulary, markings, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences] = await Promise.all([
       loadVocabulary(this.supabase),
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
@@ -186,7 +190,8 @@ class JLPTStudyApp {
       loadSelfStudyTopics(this.supabase, userId),
       loadSelfStudyWords(this.supabase, userId),
       loadUnifiedWords(this.supabase),
-      loadUnifiedWordBooks(this.supabase)
+      loadUnifiedWordBooks(this.supabase),
+      loadAllUnifiedSentences(this.supabase)
     ]);
     
     this.vocabulary = vocabulary;
@@ -199,8 +204,9 @@ class JLPTStudyApp {
     this.selfStudyWords = words;
     this.kanjiWords = kanjiWords;
     this.kanjiWordBooks = kanjiWordBooks;
+    this.allUnifiedSentences = allSentences;
     
-    console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings, ${kanjiWords.length} kanji words, ${kanjiWordBooks.length} word-book links`);
+    console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings, ${kanjiWords.length} kanji words, ${kanjiWordBooks.length} word-book links, ${allSentences.length} sentences`);
     this.syncing = false;
     this.render();
   }
@@ -320,16 +326,14 @@ class JLPTStudyApp {
     // Read word limit from input
     this.studyWordLimit = parseInt(document.getElementById('kanjiWordLimitInput')?.value) || 0;
     
-    // Try loading sentences for context
+    // Load sentences for context AND for the sentence panel
     try {
       const sentenceMap = await loadSentencesForWords(this.supabase, wordIds);
-
-      console.log(`Sentences: ${Object.keys(sentenceMap).length}/${wordIds.length} words have sentences`);
       
-      words.forEach(w => {
-          if (sentenceMap[w.id]) console.log(`  ✓ ${w.kanji}: "${sentenceMap[w.id][0]?.sentence?.substring(0, 40)}..."`);
-      });
+      // Store raw sentence map for the sentence panel (with link_id for rating)
+      this.kanjiSentenceMap = sentenceMap;
       
+      // Enrich words with best sentence context for flashcard display
       words = words.map(w => {
         const sentences = sentenceMap[w.id];
         if (sentences && sentences.length > 0) {
@@ -351,6 +355,7 @@ class JLPTStudyApp {
       });
     } catch (err) {
       console.warn('Sentences load skipped:', err);
+      this.kanjiSentenceMap = {};
     }
     
     // Apply word limit then shuffle
@@ -361,8 +366,84 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentencePanelExpanded = false;
     this.kanjiView = 'flashcard';
     this.render();
+  }
+  
+  toggleSentencePanel() {
+    this.sentencePanelExpanded = !this.sentencePanelExpanded;
+    // Surgical update — only re-render the sentence panel div
+    const container = document.getElementById('flashcardExtraContent');
+    if (container) {
+      container.innerHTML = renderSentencePanel(this);
+      this.attachSentencePanelListeners();
+    }
+  }
+  
+  async rateSentence(linkId, newRating) {
+    const result = await updateSentenceRating(this.supabase, linkId, newRating);
+    if (result.success) {
+      // Update local sentence map
+      for (const wordId of Object.keys(this.kanjiSentenceMap)) {
+        const arr = this.kanjiSentenceMap[wordId];
+        const item = arr.find(s => s.link_id === linkId);
+        if (item) {
+          item.rating = result.rating;
+          break;
+        }
+      }
+      // Surgical re-render of sentence panel
+      const container = document.getElementById('flashcardExtraContent');
+      if (container) {
+        container.innerHTML = renderSentencePanel(this);
+        this.attachSentencePanelListeners();
+      }
+      showToast(result.rating ? `Rated ★${result.rating}` : 'Rating cleared', 'success');
+    } else {
+      showToast('Rating failed', 'error');
+    }
+  }
+  
+  async linkSentence(wordId, sentenceId) {
+    const userId = this.user?.id || null;
+    const result = await linkSentenceToWord(this.supabase, wordId, sentenceId, userId);
+    if (result.success) {
+      // Add to local sentence map
+      const sentence = this.allUnifiedSentences.find(s => s.id === sentenceId);
+      if (sentence) {
+        if (!this.kanjiSentenceMap[wordId]) this.kanjiSentenceMap[wordId] = [];
+        this.kanjiSentenceMap[wordId].push({
+          ...sentence,
+          link_id: result.link.id,
+          sentence_id: sentenceId,
+          rating: null,
+        });
+      }
+      // Surgical re-render
+      const container = document.getElementById('flashcardExtraContent');
+      if (container) {
+        container.innerHTML = renderSentencePanel(this);
+        this.attachSentencePanelListeners();
+      }
+      showToast('Sentence linked!', 'success');
+    } else {
+      showToast('Link failed: ' + result.error, 'error');
+    }
+  }
+  
+  attachSentencePanelListeners() {
+    document.getElementById('toggleSentencePanelBtn')?.addEventListener('click', () => this.toggleSentencePanel());
+    document.querySelectorAll('[data-rate-link]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.rateSentence(parseInt(btn.dataset.rateLink), parseInt(btn.dataset.rateValue));
+      });
+    });
+    document.querySelectorAll('[data-link-sentence]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.linkSentence(parseInt(btn.dataset.linkWord), parseInt(btn.dataset.linkSentence));
+      });
+    });
   }
   
   setTestType(type) {
@@ -873,6 +954,15 @@ class JLPTStudyApp {
     `;
     
     attachEventListeners(this);
+    
+    // Inject sentence panel into flashcard if in kanji study mode
+    if (this.studySubTab === 'kanji' && this.kanjiView === 'flashcard') {
+      const container = document.getElementById('flashcardExtraContent');
+      if (container) {
+        container.innerHTML = renderSentencePanel(this);
+        this.attachSentencePanelListeners();
+      }
+    }
   }
   
   renderStudyTab() {
