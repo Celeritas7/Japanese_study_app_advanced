@@ -1,6 +1,45 @@
 // JLPT Vocabulary Master - Event Listeners
 
 import { initCanvas, clearCanvas } from './canvas.js';
+import { renderStorySearchResults } from './render-stories.js';
+
+// Helper: attach listeners to story search results (after surgical update)
+function attachStoryResultListeners(app) {
+  const container = document.getElementById('storySearchResults');
+  if (!container) return;
+  
+  // Story group buttons
+  container.querySelectorAll('[data-story-group-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const groupId = parseInt(btn.dataset.storyGroupId);
+      app.selectedStoryGroup = app.storyGroups.find(g => g.id === groupId);
+      app.render();
+    });
+  });
+  
+  // Search mode toggle
+  container.querySelectorAll('[data-story-search-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      app.storySearchMode = btn.dataset.storySearchMode;
+      // Surgical update again
+      const resultsDiv = document.getElementById('storySearchResults');
+      if (resultsDiv) {
+        resultsDiv.innerHTML = renderStorySearchResults(app);
+        attachStoryResultListeners(app);
+      }
+    });
+  });
+  
+  // Open story overlay from word results
+  container.querySelectorAll('[data-open-story]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const kanji = btn.dataset.openStory;
+      const word = app.vocabulary.find(w => w.kanji === kanji) || { kanji, hiragana: btn.dataset.storyHiragana || '', meaning: btn.dataset.storyMeaning || '' };
+      app.openStoryOverlay(word);
+    });
+  });
+}
 
 export function attachEventListeners(app) {
   // ===== AUTH =====
@@ -303,21 +342,37 @@ export function attachEventListeners(app) {
     app.render();
   });
   
-  document.getElementById('storySearchInput')?.addEventListener('input', (e) => {
-    app.storyFilter = e.target.value;
-    if (!e.target.value) app.storySearchMode = 'groups';
-    const cursorPos = e.target.selectionStart;
-    app.render();
-    // Restore focus after render
-    const input = document.getElementById('storySearchInput');
-    if (input) { input.focus(); input.setSelectionRange(cursorPos, cursorPos); }
-  });
+  // Story search — surgical DOM update, never destroys the input
+  const storyInput = document.getElementById('storySearchInput');
+  if (storyInput) {
+    let debounceTimer = null;
+    
+    const updateResults = () => {
+      const resultsDiv = document.getElementById('storySearchResults');
+      if (resultsDiv) {
+        resultsDiv.innerHTML = renderStorySearchResults(app);
+        attachStoryResultListeners(app);
+      }
+    };
+    
+    storyInput.addEventListener('input', (e) => {
+      app.storyFilter = e.target.value;
+      if (!e.target.value) app.storySearchMode = 'groups';
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(updateResults, 300);
+    });
+  }
   
-  // ===== STORY SEARCH MODE =====
+  // ===== STORY SEARCH MODE (handled in attachStoryResultListeners for surgical updates) =====
+  // Initial page load mode toggle (before any search is done)
   document.querySelectorAll('[data-story-search-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
       app.storySearchMode = btn.dataset.storySearchMode;
-      app.render();
+      const resultsDiv = document.getElementById('storySearchResults');
+      if (resultsDiv) {
+        resultsDiv.innerHTML = renderStorySearchResults(app);
+        attachStoryResultListeners(app);
+      }
     });
   });
   
@@ -412,13 +467,35 @@ export function attachEventListeners(app) {
     app.render();
   });
   
-  document.getElementById('similarSearchInput')?.addEventListener('input', (e) => {
-    app.similarFilter.search = e.target.value;
-    const cursorPos = e.target.selectionStart;
-    app.render();
-    const input = document.getElementById('similarSearchInput');
-    if (input) { input.focus(); input.setSelectionRange(cursorPos, cursorPos); }
-  });
+  // Similar search — IME-safe with debounce
+  const similarInput = document.getElementById('similarSearchInput');
+  if (similarInput) {
+    let composing = false;
+    let debounceTimer = null;
+    
+    similarInput.addEventListener('compositionstart', () => { composing = true; });
+    similarInput.addEventListener('compositionend', (e) => {
+      composing = false;
+      app.similarFilter.search = e.target.value;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        app.render();
+        const el = document.getElementById('similarSearchInput');
+        if (el) el.focus();
+      }, 100);
+    });
+    
+    similarInput.addEventListener('input', (e) => {
+      if (composing) return;
+      app.similarFilter.search = e.target.value;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        app.render();
+        const el = document.getElementById('similarSearchInput');
+        if (el) el.focus();
+      }, 300);
+    });
+  }
   
   // ===== MODALS =====
   document.getElementById('closeModalBtn')?.addEventListener('click', () => {

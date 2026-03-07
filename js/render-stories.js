@@ -8,8 +8,26 @@ export function renderStoriesTab(app) {
 }
 
 function renderStoryList(app) {
-  let groups = app.storyGroups;
+  return `
+    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
+      <div class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-5 mb-4 text-white">
+        <h2 class="text-xl font-bold mb-1">📖 Kanji Stories</h2>
+        <p class="opacity-80 text-sm">${app.storyGroups.length} groups • ${app.stories.length} stories</p>
+      </div>
+      <div class="mb-3">
+        <input type="text" id="storySearchInput" autocomplete="off" placeholder="Search kanji, word, reading, or meaning..." value="${app.storyFilter || ''}" class="w-full p-3 rounded-xl bg-slate-800 text-white border border-slate-600 focus:border-purple-500 focus:outline-none">
+      </div>
+      <div id="storySearchResults">
+        ${renderStorySearchResults(app)}
+      </div>
+    </div>
+  `;
+}
+
+// Exported so events.js can call it for surgical DOM update
+export function renderStorySearchResults(app) {
   const searchTerm = app.storyFilter;
+  let groups = app.storyGroups;
   if (searchTerm) {
     const search = searchTerm.toLowerCase();
     groups = groups.filter(g => g.group_kanji?.includes(searchTerm) || g.group_meaning?.toLowerCase().includes(search));
@@ -28,14 +46,6 @@ function renderStoryList(app) {
   const showMode = hasSearch ? app.storySearchMode : 'groups';
 
   return `
-    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
-      <div class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-5 mb-4 text-white">
-        <h2 class="text-xl font-bold mb-1">📖 Kanji Stories</h2>
-        <p class="opacity-80 text-sm">${app.storyGroups.length} groups • ${app.stories.length} stories</p>
-      </div>
-      <div class="mb-3">
-        <input type="text" id="storySearchInput" placeholder="Search kanji, word, reading, or meaning..." value="${app.storyFilter || ''}" class="w-full p-3 rounded-xl bg-slate-800 text-white border border-slate-600 focus:border-purple-500 focus:outline-none">
-      </div>
       ${hasSearch ? `
         <div class="flex gap-2 mb-4">
           <button data-story-search-mode="groups" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${showMode === 'groups' ? 'bg-purple-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}">Groups (${groups.length})</button>
@@ -46,7 +56,6 @@ function renderStoryList(app) {
       ${showMode === 'groups' ? renderGroupResults(groups, app) : ''}
       ${showMode === 'kanji' ? renderKanjiResults(kanjiResults, app) : ''}
       ${showMode === 'words' ? renderWordResults(wordResults, app) : ''}
-    </div>
   `;
 }
 
