@@ -227,14 +227,14 @@ export function renderLevelSelector(app) {
         
         ${isAll ? `
         <!-- ALL MODE: Preset Chips -->
-        <div class="bg-slate-800 rounded-xl p-4 mb-4">
-          <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Words per level</div>
+        <div class="bg-slate-800 rounded-xl p-3 mb-3">
+          <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Words per level</div>
           <div class="flex gap-2">
             ${presets.map(n => `
-              <button data-study-preset="${n}" class="flex-1 py-4 rounded-xl font-extrabold text-xl transition-all ${
+              <button data-study-preset="${n}" class="flex-1 py-3 rounded-xl font-extrabold text-lg transition-all ${
                 app.studyPreset === n 
                   ? 'bg-blue-500 text-white shadow-lg ring-2 ring-blue-400' 
-                  : 'bg-slate-900 text-slate-300 border-2 border-slate-700 hover:border-slate-500'
+                  : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
               }">${n}</button>
             `).join('')}
           </div>

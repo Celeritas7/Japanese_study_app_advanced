@@ -1,25 +1,25 @@
 // JLPT Vocabulary Master - Main Application
 // Version 12.0
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=12';
-import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js?v=12';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=13';
+import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js?v=13';
 import { 
   loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert
-} from './data.js?v=12';
-import { saveCanvasData, restoreCanvasData } from './canvas.js?v=12';
+} from './data.js?v=13';
+import { saveCanvasData, restoreCanvasData } from './canvas.js?v=13';
 import { 
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
   renderKanjiPlaceholder, renderSelfStudyTopics, renderSelfStudyWordList,
   renderWordAlertForm
-} from './render.js?v=12';
-import { renderSRSTab } from './render-srs.js?v=12';
-import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js?v=12';
-import { renderSimilarTab } from './render-similar.js?v=12';
-import { attachEventListeners } from './events.js?v=12';
+} from './render.js?v=13';
+import { renderSRSTab } from './render-srs.js?v=13';
+import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js?v=13';
+import { renderSimilarTab } from './render-similar.js?v=13';
+import { attachEventListeners } from './events.js?v=13';
 
 // Guest user ID for testing (your actual user ID)
 const GUEST_USER_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
@@ -88,7 +88,9 @@ class JLPTStudyApp {
       n1Count: 0, n2Count: 0, n3Count: 0, 
       testType: 'hiragana_to_kanji',
       selectionMode: 'level', // 'level' or 'marking'
-      markingCounts: { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3 }
+      markingCounts: { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3 },
+      levelMode: 'all', // 'all' or 'custom' (within By Level)
+      levelPreset: 5
     };
     
     // Study word limit
@@ -350,6 +352,11 @@ class JLPTStudyApp {
         allWords.push(...sampleArray(pool, count));
       }
     } else {
+      // Level mode: read from inputs (works for both all/custom)
+      for (const level of ['N1', 'N2', 'N3']) {
+        const input = document.getElementById(`srs${level}Count`);
+        if (input) this.srsConfig[`${level.toLowerCase()}Count`] = parseInt(input.value) || 0;
+      }
       const n1 = this.vocabulary.filter(v => v.level === 'N1');
       const n2 = this.vocabulary.filter(v => v.level === 'N2');
       const n3 = this.vocabulary.filter(v => v.level === 'N3');
@@ -376,17 +383,27 @@ class JLPTStudyApp {
     const word = this.srsWords[this.srsCurrentIndex];
     if (!word) return;
     
-    const isH2K = this.srsConfig.testType === 'hiragana_to_kanji';
-    const correct = isH2K ? (word.kanji || word.raw) : word.hiragana;
+    const testType = this.srsConfig.testType;
     
-    let options;
-    if (isH2K) {
-      options = this.generateH2KOptions(word, correct);
+    if (testType === 'kanji_recognition') {
+      // Kanji Recognition: show kanji, choose meaning
+      const correct = word.meaning;
+      const pool = this.vocabulary.filter(v => v.meaning !== correct && v.meaning);
+      const wrong = sampleArray(pool, 3).map(v => v.meaning);
+      this.srsOptions = shuffleArray([correct, ...wrong]);
     } else {
-      options = this.generateK2HOptions(word, correct);
+      const isH2K = testType === 'hiragana_to_kanji';
+      const correct = isH2K ? (word.kanji || word.raw) : word.hiragana;
+      
+      let options;
+      if (isH2K) {
+        options = this.generateH2KOptions(word, correct);
+      } else {
+        options = this.generateK2HOptions(word, correct);
+      }
+      
+      this.srsOptions = shuffleArray([correct, ...options.slice(0, 3)]);
     }
-    
-    this.srsOptions = shuffleArray([correct, ...options.slice(0, 3)]);
   }
   
   generateH2KOptions(word, correct) {
@@ -478,8 +495,15 @@ class JLPTStudyApp {
   
   submitSRSAnswer() {
     const word = this.srsWords[this.srsCurrentIndex];
-    const isH2K = this.srsConfig.testType === 'hiragana_to_kanji';
-    const correct = isH2K ? (word.kanji || word.raw) : word.hiragana;
+    const testType = this.srsConfig.testType;
+    let correct;
+    if (testType === 'kanji_recognition') {
+      correct = word.meaning;
+    } else if (testType === 'hiragana_to_kanji') {
+      correct = word.kanji || word.raw;
+    } else {
+      correct = word.hiragana;
+    }
     const user = this.srsOptions[this.srsSelectedAnswer];
     this.srsAnswers.push({ word, correct: user === correct, userAnswer: user, correctAnswer: correct });
     this.srsShowResult = true;

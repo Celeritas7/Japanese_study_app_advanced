@@ -13,95 +13,163 @@ export function renderSRSTab(app) {
 }
 
 function renderSRSSetup(app) {
-  const n1Count = app.vocabulary.filter(v => v.level === 'N1').length;
-  const n2Count = app.vocabulary.filter(v => v.level === 'N2').length;
-  const n3Count = app.vocabulary.filter(v => v.level === 'N3').length;
+  const levels = [
+    { id: 'N1', bg: 'bg-rose-500', border: 'border-rose-400', words: app.vocabulary.filter(v => v.level === 'N1').length },
+    { id: 'N2', bg: 'bg-amber-500', border: 'border-amber-400', words: app.vocabulary.filter(v => v.level === 'N2').length },
+    { id: 'N3', bg: 'bg-emerald-500', border: 'border-emerald-400', words: app.vocabulary.filter(v => v.level === 'N3').length },
+  ];
   const markStats = app.getMarkingStats();
   const isLevelMode = app.srsConfig.selectionMode === 'level';
   const isMarkingMode = app.srsConfig.selectionMode === 'marking';
+  const isAllMode = app.srsConfig.levelMode === 'all';
   const levelTotal = app.srsConfig.n1Count + app.srsConfig.n2Count + app.srsConfig.n3Count;
   const markingTotal = Object.values(app.srsConfig.markingCounts).reduce((a, b) => a + b, 0);
+  const activeTotal = isLevelMode ? levelTotal : markingTotal;
+  const presets = [5, 10, 15, 20];
   
   return `
     <div class="p-4 animate-fadeIn flex-1 overflow-auto">
-      <div class="max-w-md mx-auto pt-4">
-        <div class="text-center mb-6">
+      <div class="max-w-md mx-auto">
+        <div class="text-center mb-5">
           <h1 class="text-xl font-bold text-white mb-1">SRS Review</h1>
           <p class="text-slate-400 text-sm">Test your vocabulary knowledge</p>
         </div>
         
         <!-- Test Type -->
-        <div class="bg-slate-800 rounded-xl p-4 mb-4">
+        <div class="bg-slate-800 rounded-xl p-4 mb-3">
           <h3 class="text-sm text-slate-400 mb-3">Test Type</h3>
-          <div class="grid grid-cols-3 gap-2">
-            <button data-srs-test-type="hiragana_to_kanji" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'hiragana_to_kanji' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
-              <span class="text-lg block mb-1">あ→漢</span><span class="text-xs">H→K</span>
-            </button>
-            <button data-srs-test-type="kanji_to_hiragana" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'kanji_to_hiragana' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
-              <span class="text-lg block mb-1">漢→あ</span><span class="text-xs">K→H</span>
-            </button>
-            <button data-srs-test-type="writing" class="p-3 rounded-xl text-center transition-all ${app.srsConfig.testType === 'writing' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
-              <span class="text-lg block mb-1">✍</span><span class="text-xs">Writing</span>
-            </button>
+          <div class="grid grid-cols-2 gap-2">
+            ${[
+              { key: 'hiragana_to_kanji', icon: '\u3042\u2192\u6F22', label: 'H\u2192K' },
+              { key: 'kanji_to_hiragana', icon: '\u6F22\u2192\u3042', label: 'K\u2192H' },
+              { key: 'kanji_recognition', icon: '\u6F22', label: 'Kanji' },
+              { key: 'writing', icon: '\u270D', label: 'Writing' },
+            ].map(t => `
+              <button data-srs-test-type="${t.key}" class="p-2.5 rounded-xl text-center transition-all ${app.srsConfig.testType === t.key ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
+                <span class="text-lg block mb-0.5">${t.icon}</span><span class="text-xs">${t.label}</span>
+              </button>
+            `).join('')}
           </div>
         </div>
         
-        <!-- Selection Mode Toggle -->
-        <div class="bg-slate-800 rounded-xl p-4 mb-4">
-          <h3 class="text-sm text-slate-400 mb-3">Word Selection Mode</h3>
-          <div class="grid grid-cols-2 gap-2">
-            <button data-srs-sel-mode="level" class="p-3 rounded-xl text-center transition-all ${isLevelMode ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
-              <div class="text-lg font-bold mb-0.5">📊 By Level</div><div class="text-xs opacity-70">N1 / N2 / N3</div>
-            </button>
-            <button data-srs-sel-mode="marking" class="p-3 rounded-xl text-center transition-all ${isMarkingMode ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}">
-              <div class="text-lg font-bold mb-0.5">🎯 By Marking</div><div class="text-xs opacity-70">Priority-weighted</div>
-            </button>
-          </div>
+        <!-- Selection Mode -->
+        <div class="bg-slate-800 rounded-2xl p-1.5 flex gap-1.5 mb-3">
+          <button data-srs-sel-mode="level" class="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${isLevelMode ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+            \uD83D\uDCCA By Level
+          </button>
+          <button data-srs-sel-mode="marking" class="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${isMarkingMode ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+            \uD83C\uDFAF By Marking
+          </button>
         </div>
         
         ${isLevelMode ? `
-        <div class="bg-white rounded-xl p-4 shadow-lg mb-4">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm text-slate-600">Number of Words</h3>
-            <div class="flex gap-1">
-              ${[5,10,15,20].map(n => `<button data-srs-level-all="${n}" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all">All ${n}</button>`).join('')}
-            </div>
-          </div>
-          <div class="space-y-3">
-            ${[{id:'N1',color:'bg-rose-500',chipColor:'bg-rose-100 text-rose-700 hover:bg-rose-200',max:n1Count,val:app.srsConfig.n1Count},{id:'N2',color:'bg-amber-500',chipColor:'bg-amber-100 text-amber-700 hover:bg-amber-200',max:n2Count,val:app.srsConfig.n2Count},{id:'N3',color:'bg-emerald-500',chipColor:'bg-emerald-100 text-emerald-700 hover:bg-emerald-200',max:n3Count,val:app.srsConfig.n3Count}].map(l => `
-              <div class="flex items-center gap-2">
-                <div class="w-10 h-10 ${l.color} rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0">${l.id}</div>
-                <div class="flex gap-1 flex-wrap flex-1">
-                  ${[0,5,10,15].map(n => `<button data-srs-chip="${l.id}" data-srs-chip-val="${n}" class="px-2 py-1 text-xs font-bold rounded-md ${l.chipColor} transition-all">${n}</button>`).join('')}
-                </div>
-                <input type="number" id="srs${l.id}Count" min="0" max="${l.max}" value="${l.val}" class="w-16 p-2 border rounded-lg text-center text-sm font-bold flex-shrink-0" placeholder="0">
-              </div>
+        <!-- LEVEL MODE: All / Custom toggle -->
+        <div class="bg-slate-800 rounded-2xl p-1.5 flex gap-1.5 mb-3">
+          <button data-srs-level-mode="all" class="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${isAllMode ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+            \u26A1 All Equal
+          </button>
+          <button data-srs-level-mode="custom" class="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${!isAllMode ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+            \uD83C\uDFDB Custom
+          </button>
+        </div>
+        
+        ${isAllMode ? `
+        <!-- Presets -->
+        <div class="bg-slate-800 rounded-xl p-3 mb-3">
+          <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Words per level</div>
+          <div class="flex gap-2">
+            ${presets.map(n => `
+              <button data-srs-preset="${n}" class="flex-1 py-3 rounded-xl font-extrabold text-lg transition-all ${
+                app.srsConfig.levelPreset === n 
+                  ? 'bg-blue-500 text-white shadow-lg ring-2 ring-blue-400' 
+                  : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
+              }">${n}</button>
             `).join('')}
           </div>
-          <div class="text-center text-gray-500 text-sm my-3">Total: <span class="font-bold text-gray-800">${levelTotal}</span> words</div>
-          <button id="startSRSTestBtn" class="w-full py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-50" ${levelTotal === 0 ? 'disabled' : ''}>Start Test (${levelTotal} words)</button>
         </div>
+        ` : ''}
+        
+        <!-- Level cards -->
+        <div class="space-y-2 mb-3">
+          ${levels.map(l => `
+            <div class="bg-slate-800 rounded-xl p-3 flex items-center gap-3 border border-slate-700">
+              <div class="w-10 h-10 ${l.bg} rounded-xl flex items-center justify-center text-white font-extrabold text-sm flex-shrink-0">${l.id}</div>
+              <div class="flex-1">
+                <div class="text-white font-bold text-sm">JLPT ${l.id}</div>
+                <div class="text-slate-500 text-xs">${l.words} words</div>
+              </div>
+              ${isAllMode ? `
+                <div class="bg-slate-900 rounded-xl px-3 py-2 min-w-[44px] text-center">
+                  <span class="text-white font-extrabold text-lg">${app.srsConfig[l.id.toLowerCase() + 'Count']}</span>
+                </div>
+              ` : `
+                <div class="flex flex-col items-end gap-1">
+                  <div class="flex gap-1">
+                    ${[0, 5, 10, 15, 20].map(n => `
+                      <button data-srs-chip="${l.id}" data-srs-chip-val="${n}" class="w-6 h-5 rounded text-[10px] font-bold transition-all ${
+                        app.srsConfig[l.id.toLowerCase() + 'Count'] === n ? l.bg + ' text-white' : 'bg-slate-700 text-slate-400'
+                      }">${n}</button>
+                    `).join('')}
+                  </div>
+                  <input type="number" id="srs${l.id}Count" min="0" max="${l.words}" value="${app.srsConfig[l.id.toLowerCase() + 'Count']}" 
+                    class="w-14 p-1 rounded-lg border-2 ${l.border} bg-slate-900 text-white font-extrabold text-base text-center focus:outline-none">
+                </div>
+              `}
+            </div>
+          `).join('')}
+        </div>
+        
+        <button id="startSRSTestBtn" class="w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 ${
+          levelTotal === 0 ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90 shadow-lg'
+        }" ${levelTotal === 0 ? 'disabled' : ''}>
+          \u25B6 Start Test <span class="bg-white/20 rounded-lg px-2.5 py-0.5 text-sm">${levelTotal} words</span>
+        </button>
         ` : `
-        <div class="bg-white rounded-xl p-4 shadow-lg mb-4">
+        <!-- MARKING MODE -->
+        <div class="bg-slate-800 rounded-xl p-3 mb-3">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm text-slate-600">Words per marking category</h3>
+            <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Words per category</div>
             <div class="flex gap-1">
-              ${[3,5,10].map(n => `<button data-srs-mark-all="${n}" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all">All ${n}</button>`).join('')}
+              ${[3,5,10].map(n => `<button data-srs-mark-all="${n}" class="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all">All ${n}</button>`).join('')}
             </div>
           </div>
-          <p class="text-xs text-gray-400 mb-3">Drawn from all levels based on rating</p>
           ${[1,2,3,4,5].map(k => {
             const cat = app.markingCategories[k];
             const avail = markStats[k];
             const curVal = app.srsConfig.markingCounts[k] || 0;
-            return `<div class="flex items-center gap-2 mb-2 p-2 ${cat.lightColor} rounded-xl">
-              <div class="w-9 h-9 ${cat.color} rounded-lg flex items-center justify-center text-white text-base flex-shrink-0">${cat.icon}</div>
-              <div class="flex gap-1 flex-wrap flex-1">
-                ${[0,1,3,5,10].map(n => `<button data-srs-mark-chip="${k}" data-srs-mark-chip-val="${n}" class="px-2 py-0.5 text-xs font-bold rounded-md ${n <= avail ? 'bg-white/70 text-gray-700 hover:bg-white' : 'bg-gray-100 text-gray-400'} transition-all">${n}</button>`).join('')}
+            return `<div class="flex items-center gap-2 mb-2 p-2 bg-slate-700/50 rounded-lg">
+              <div class="w-8 h-8 ${cat.color} rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">${cat.icon}</div>
+              <div class="flex-1 min-w-0">
+                <div class="text-white text-xs font-semibold">${cat.label}</div>
+                <div class="text-slate-500 text-[10px]">${avail} words</div>
               </div>
-              <input type="number" id="srsMarkCount${k}" min="0" max="${avail}" value="${curVal}" class="w-14 p-1.5 text-center border-2 ${cat.border} rounded-lg font-bold text-sm flex-shrink-0 focus:outline-none focus:ring-2">
+              <div class="flex gap-0.5">
+                ${[0,1,3,5,10].map(n => `<button data-srs-mark-chip="${k}" data-srs-mark-chip-val="${n}" class="w-6 h-5 rounded text-[10px] font-bold transition-all ${
+                  curVal === n ? cat.color + ' text-white' : (n <= avail ? 'bg-slate-600 text-slate-300' : 'bg-slate-800 text-slate-600')
+                }">${n}</button>`).join('')}
+              </div>
+              <input type="number" id="srsMarkCount${k}" min="0" max="${avail}" value="${curVal}" 
+                class="w-12 p-1 text-center border ${cat.border} rounded-lg font-bold text-sm bg-slate-900 text-white focus:outline-none">
             </div>`;
           }).join('')}
+          
+          <div class="flex items-center gap-2 p-2 bg-slate-700/30 rounded-lg opacity-50">
+            <div class="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center text-white text-sm">\u25CB</div>
+            <div class="flex-1"><div class="text-slate-400 text-xs">Not Marked</div><div class="text-slate-600 text-[10px]">${markStats[0]} words</div></div>
+            <span class="text-slate-600 text-xs px-2">\u2014</span>
+          </div>
+        </div>
+        
+        <button id="startSRSTestBtn" class="w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 ${
+          markingTotal === 0 ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90 shadow-lg'
+        }" ${markingTotal === 0 ? 'disabled' : ''}>
+          \u25B6 Start Test <span class="bg-white/20 rounded-lg px-2.5 py-0.5 text-sm">${markingTotal} words</span>
+        </button>
+        `}
+      </div>
+    </div>
+  `;
+}
           <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl mb-3 opacity-60">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 bg-gray-400 rounded-lg flex items-center justify-center text-white text-lg">○</div>
@@ -131,9 +199,25 @@ function renderSRSTest(app) {
 }
 
 function renderSRSMCQTest(app, word, levelColor, progress, markInfo) {
-  const isH2K = app.srsConfig.testType === 'hiragana_to_kanji';
-  const question = isH2K ? word.hiragana : (word.kanji || word.raw);
-  const correctAnswer = isH2K ? (word.kanji || word.raw) : word.hiragana;
+  const testType = app.srsConfig.testType;
+  let question, correctAnswer, promptText, questionClass;
+  
+  if (testType === 'kanji_recognition') {
+    question = word.kanji || word.raw;
+    correctAnswer = word.meaning;
+    promptText = 'What is the meaning of:';
+    questionClass = 'kanji-highlight';
+  } else if (testType === 'hiragana_to_kanji') {
+    question = word.hiragana;
+    correctAnswer = word.kanji || word.raw;
+    promptText = 'What is the kanji for:';
+    questionClass = 'text-3xl text-blue-600';
+  } else {
+    question = word.kanji || word.raw;
+    correctAnswer = word.hiragana;
+    promptText = 'What is the reading for:';
+    questionClass = 'kanji-highlight';
+  }
   
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
@@ -155,11 +239,11 @@ function renderSRSMCQTest(app, word, levelColor, progress, markInfo) {
       <div class="flex-1 flex flex-col items-center justify-center p-4">
         <div class="w-full max-w-md">
           <div class="bg-white rounded-2xl p-6 mb-6 text-center shadow-lg">
-            <p class="text-sm text-gray-500 mb-2">${isH2K ? 'What is the kanji for:' : 'What is the reading for:'}</p>
-            <p class="${isH2K ? 'text-3xl text-blue-600' : 'kanji-highlight'}">${question}</p>
-            <p class="text-gray-600 mt-2">${word.meaning}</p>
+            <p class="text-sm text-gray-500 mb-2">${promptText}</p>
+            <p class="${questionClass}">${question}</p>
+            ${testType !== 'kanji_recognition' ? `<p class="text-gray-600 mt-2">${word.meaning}</p>` : `<p class="text-blue-500 mt-2">${word.hiragana || ''}</p>`}
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid ${testType === 'kanji_recognition' ? 'grid-cols-1' : 'grid-cols-2'} gap-3">
             ${app.srsOptions.map((opt, idx) => {
               let cls = 'bg-slate-700 text-white hover:bg-slate-600';
               if (app.srsShowResult) {
@@ -167,7 +251,7 @@ function renderSRSMCQTest(app, word, levelColor, progress, markInfo) {
                 else if (idx === app.srsSelectedAnswer) cls = 'bg-red-500 text-white';
                 else cls = 'bg-slate-800 text-slate-500';
               } else if (app.srsSelectedAnswer === idx) cls = 'bg-blue-500 text-white ring-2 ring-blue-300';
-              return `<button data-srs-option="${idx}" class="p-4 rounded-xl text-xl font-bold transition-all ${cls}" ${app.srsShowResult ? 'disabled' : ''}>${opt}</button>`;
+              return `<button data-srs-option="${idx}" class="p-3 rounded-xl ${testType === 'kanji_recognition' ? 'text-sm' : 'text-xl'} font-bold transition-all ${cls}" ${app.srsShowResult ? 'disabled' : ''}>${opt}</button>`;
             }).join('')}
           </div>
           ${!app.srsShowResult ? `

@@ -181,7 +181,7 @@ export function attachEventListeners(app) {
     });
   });
   
-  // SRS Selection Mode Toggle
+  // SRS Selection Mode Toggle (By Level / By Marking)
   document.querySelectorAll('[data-srs-sel-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
       app.srsConfig.selectionMode = btn.dataset.srsSelMode;
@@ -189,40 +189,48 @@ export function attachEventListeners(app) {
     });
   });
   
-  // SRS Word Count Inputs — Level mode
-  document.getElementById('srsN1Count')?.addEventListener('input', (e) => {
-    app.srsConfig.n1Count = parseInt(e.target.value) || 0;
-    updateSRSButton(app);
-  });
-  
-  document.getElementById('srsN2Count')?.addEventListener('input', (e) => {
-    app.srsConfig.n2Count = parseInt(e.target.value) || 0;
-    updateSRSButton(app);
-  });
-  
-  document.getElementById('srsN3Count')?.addEventListener('input', (e) => {
-    app.srsConfig.n3Count = parseInt(e.target.value) || 0;
-    updateSRSButton(app);
-  });
-  
-  // SRS Level chips (per row: 0, 5, 10, 15)
-  document.querySelectorAll('[data-srs-chip]').forEach(btn => {
+  // SRS Level Mode Toggle (All Equal / Custom)
+  document.querySelectorAll('[data-srs-level-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const level = btn.dataset.srsChip; // N1, N2, N3
-      const val = parseInt(btn.dataset.srsChipVal);
-      const input = document.getElementById(`srs${level}Count`);
-      if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
+      app.srsConfig.levelMode = btn.dataset.srsLevelMode;
+      if (app.srsConfig.levelMode === 'all') {
+        const n = app.srsConfig.levelPreset;
+        app.srsConfig.n1Count = n;
+        app.srsConfig.n2Count = n;
+        app.srsConfig.n3Count = n;
+      }
+      app.render();
     });
   });
   
-  // SRS Level "All X" chips (set same value for all levels)
-  document.querySelectorAll('[data-srs-level-all]').forEach(btn => {
+  // SRS Preset chips (All Equal mode)
+  document.querySelectorAll('[data-srs-preset]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const val = parseInt(btn.dataset.srsLevelAll);
-      ['N1','N2','N3'].forEach(level => {
-        const input = document.getElementById(`srs${level}Count`);
-        if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
-      });
+      const n = parseInt(btn.dataset.srsPreset);
+      app.srsConfig.levelPreset = n;
+      app.srsConfig.n1Count = n;
+      app.srsConfig.n2Count = n;
+      app.srsConfig.n3Count = n;
+      app.render();
+    });
+  });
+  
+  // SRS Level inputs (Custom mode)
+  ['N1','N2','N3'].forEach(level => {
+    document.getElementById(`srs${level}Count`)?.addEventListener('input', (e) => {
+      app.srsConfig[level.toLowerCase() + 'Count'] = parseInt(e.target.value) || 0;
+    });
+  });
+  
+  // SRS Level chips (Custom mode per-row)
+  document.querySelectorAll('[data-srs-chip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const level = btn.dataset.srsChip;
+      const val = parseInt(btn.dataset.srsChipVal);
+      app.srsConfig[level.toLowerCase() + 'Count'] = val;
+      const input = document.getElementById(`srs${level}Count`);
+      if (input) input.value = val;
+      app.render();
     });
   });
   
@@ -236,24 +244,28 @@ export function attachEventListeners(app) {
     });
   }
   
-  // SRS Marking chips (per row: 0, 1, 3, 5, 10)
+  // SRS Marking chips (per row)
   document.querySelectorAll('[data-srs-mark-chip]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const k = btn.dataset.srsMarkChip;
+      const k = parseInt(btn.dataset.srsMarkChip);
       const val = parseInt(btn.dataset.srsMarkChipVal);
+      app.srsConfig.markingCounts[k] = val;
       const input = document.getElementById(`srsMarkCount${k}`);
-      if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
+      if (input) input.value = val;
+      app.render();
     });
   });
   
-  // SRS Marking "All X" chips (set same value for all categories)
+  // SRS Marking "All X"
   document.querySelectorAll('[data-srs-mark-all]').forEach(btn => {
     btn.addEventListener('click', () => {
       const val = parseInt(btn.dataset.srsMarkAll);
       for (let k = 1; k <= 5; k++) {
+        app.srsConfig.markingCounts[k] = val;
         const input = document.getElementById(`srsMarkCount${k}`);
-        if (input) { input.value = val; input.dispatchEvent(new Event('input')); }
+        if (input) input.value = val;
       }
+      app.render();
     });
   });
   
