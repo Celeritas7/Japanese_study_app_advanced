@@ -28,12 +28,11 @@ const BOOK_COLORS = [
 
 export function renderKanjiTab(app) {
   switch (app.kanjiView) {
-    case 'books':        return renderBookSelector(app);
-    case 'chapters':     return renderChapterSelector(app);
-    case 'wordlist':     return renderKanjiWordList(app);
-    case 'bulk-linker':  return renderBulkLinker(app);
-    case 'review-queue': return renderReviewQueue(app);
-    default:             return renderBookSelector(app);
+    case 'books':       return renderBookSelector(app);
+    case 'chapters':    return renderChapterSelector(app);
+    case 'wordlist':    return renderKanjiWordList(app);
+    case 'bulk-linker': return renderBulkLinker(app);
+    default:            return renderBookSelector(app);
   }
 }
 
@@ -89,13 +88,8 @@ function renderBookSelector(app) {
         </div>
         
         <!-- Bulk Linker Button -->
-        <button id="openBulkLinkerBtn" class="w-full mb-2 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25 transition-all">
+        <button id="openBulkLinkerBtn" class="w-full mb-4 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25 transition-all">
           📝 Bulk Sentence Linker
-        </button>
-        
-        <!-- Review Queue Button -->
-        <button id="openReviewQueueBtn" class="w-full mb-4 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-all">
-          🔍 Review Queue (${(app.allUnifiedSentences || []).filter(s => (s.verified || 'unverified') === 'unverified').length} unverified)
         </button>
         
         <div class="space-y-3">
@@ -431,37 +425,23 @@ export function renderSentencePanel(app) {
                       <div class="flex-1 min-w-0">
                         <div class="text-sm leading-relaxed text-slate-200">${highlightedSentence}</div>
                         ${item.meaning_en ? `<div class="text-xs text-slate-500 mt-1">${escapeHtml(item.meaning_en)}</div>` : ''}
-                        <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                        <div class="flex items-center gap-2 mt-1.5">
                           <span class="text-[10px] text-slate-600">${sourceIcon} ${escapeHtml(item.source || '')}</span>
                           ${item.jlpt_level ? `<span class="text-[10px] text-slate-600">• ${item.jlpt_level}</span>` : ''}
-                          ${renderVerifiedBadge(item.verified)}
                         </div>
-                        ${renderTagChips(item.tags, item.sentence_id || item.id)}
                       </div>
                       
-                      <!-- Star Rating + Verify -->
-                      <div class="flex flex-col items-end gap-1 shrink-0">
-                        <div class="flex gap-0.5">
-                          ${[1, 2, 3].map(r => `
-                            <button data-rate-link="${linkId}" data-rate-value="${r}"
-                              class="w-7 h-7 rounded-lg text-xs transition-all ${
-                                rating && rating >= r
-                                  ? 'bg-amber-500/30 text-amber-300'
-                                  : 'bg-slate-800 text-slate-600 hover:bg-slate-700 hover:text-slate-400'
-                              }">★</button>
-                          `).join('')}
-                        </div>
-                        ${item.verified !== 'verified' ? `
-                          <button data-verify-sentence="${item.sentence_id || item.id}" class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all border border-emerald-500/20">✓ Verify</button>
-                        ` : ''}
+                      <!-- Star Rating -->
+                      <div class="flex gap-0.5 shrink-0">
+                        ${[1, 2, 3].map(r => `
+                          <button data-rate-link="${linkId}" data-rate-value="${r}"
+                            class="w-7 h-7 rounded-lg text-xs transition-all ${
+                              rating && rating >= r
+                                ? 'bg-amber-500/30 text-amber-300'
+                                : 'bg-slate-800 text-slate-600 hover:bg-slate-700 hover:text-slate-400'
+                            }">★</button>
+                        `).join('')}
                       </div>
-                    </div>
-                    
-                    <!-- Quick Tag Input -->
-                    <div class="mt-2 flex gap-1.5 items-center">
-                      <input type="text" data-tag-input="${item.sentence_id || item.id}" placeholder="+ tag (e.g. grammar:てform)" 
-                        class="flex-1 bg-slate-900/60 text-slate-300 text-[10px] px-2 py-1 rounded-lg border border-slate-700 focus:border-indigo-500 focus:outline-none">
-                      <button data-add-tag="${item.sentence_id || item.id}" class="px-2 py-1 rounded-lg bg-slate-700 text-slate-400 text-[10px] hover:bg-slate-600 transition-all">Add</button>
                     </div>
                   </div>
                 `;
@@ -767,212 +747,4 @@ function highlightMultipleWords(sentence, detectedWords) {
       ? `<span class="text-indigo-400 font-bold bg-indigo-500/10 px-0.5 rounded">${escapeHtml(part)}</span>`
       : escapeHtml(part)
   ).join('');
-}
-
-// ===== TAG & VERIFICATION HELPERS =====
-
-const VERIFIED_BADGES = {
-  verified:       { label: '✓ Verified', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  native_checked: { label: '✓ Native', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  rejected:       { label: '✗ Rejected', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
-};
-
-function renderVerifiedBadge(status) {
-  if (!status || status === 'unverified') {
-    return `<span class="text-[10px] px-1.5 py-0.5 rounded border bg-slate-700/50 border-slate-600 text-slate-500">unverified</span>`;
-  }
-  const badge = VERIFIED_BADGES[status] || VERIFIED_BADGES.verified;
-  return `<span class="text-[10px] px-1.5 py-0.5 rounded border ${badge.cls}">${badge.label}</span>`;
-}
-
-function renderTagChips(tags, sentenceId) {
-  if (!tags || tags.length === 0) return '';
-  
-  const TAG_COLORS = {
-    'vocab':   'bg-indigo-500/15 text-indigo-400 border-indigo-500/20',
-    'grammar': 'bg-amber-500/15 text-amber-400 border-amber-500/20',
-  };
-  
-  return `
-    <div class="flex flex-wrap gap-1 mt-1.5">
-      ${tags.map(tag => {
-        const prefix = tag.split(':')[0];
-        const colorCls = TAG_COLORS[prefix] || 'bg-slate-700/50 text-slate-400 border-slate-600';
-        return `
-          <span class="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border ${colorCls}">
-            ${escapeHtml(tag)}
-            <button data-remove-tag="${sentenceId}" data-tag-value="${escapeHtml(tag)}" class="ml-0.5 opacity-50 hover:opacity-100">×</button>
-          </span>
-        `;
-      }).join('')}
-    </div>
-  `;
-}
-
-// ===== REVIEW QUEUE =====
-
-export function renderReviewQueue(app) {
-  const filterStatus = app.reviewFilter || 'unverified';
-  const filterSource = app.reviewSourceFilter || 'all';
-  
-  // Get unique sources for filter dropdown
-  const allSources = [...new Set((app.allUnifiedSentences || []).map(s => s.source).filter(Boolean))].sort();
-  
-  // Filter sentences
-  let filtered = (app.allUnifiedSentences || []).filter(s => {
-    const status = s.verified || 'unverified';
-    if (filterStatus !== 'all' && status !== filterStatus) return false;
-    if (filterSource !== 'all' && s.source !== filterSource) return false;
-    return true;
-  });
-  
-  // Sort: unverified first, then by id desc (newest first)
-  filtered.sort((a, b) => {
-    const aV = (a.verified || 'unverified') === 'unverified' ? 0 : 1;
-    const bV = (b.verified || 'unverified') === 'unverified' ? 0 : 1;
-    if (aV !== bV) return aV - bV;
-    return (b.id || 0) - (a.id || 0);
-  });
-  
-  // Paginate (show 30 at a time)
-  const page = app.reviewPage || 0;
-  const pageSize = 30;
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const pageItems = filtered.slice(page * pageSize, (page + 1) * pageSize);
-  
-  // Count stats
-  const stats = { unverified: 0, verified: 0, rejected: 0 };
-  (app.allUnifiedSentences || []).forEach(s => {
-    const v = s.verified || 'unverified';
-    if (stats[v] !== undefined) stats[v]++;
-  });
-  
-  // Build stem map for word detection on the fly
-  const stemMap = {};
-  (app.kanjiWords || []).forEach(w => {
-    const stem = extractKanjiStem(w.kanji);
-    if (stem && stem.length >= 2) { // only compounds to reduce noise
-      if (!stemMap[stem]) stemMap[stem] = [];
-      stemMap[stem].push(w);
-    }
-  });
-  const sortedStems = Object.keys(stemMap).sort((a, b) => b.length - a.length);
-  
-  return `
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <!-- Header -->
-      <div class="bg-slate-800 p-4">
-        <div class="flex items-center gap-3 mb-3">
-          <button id="backToBooksBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg transition-colors">← Back</button>
-          <div>
-            <h2 class="text-white font-bold">Review Queue</h2>
-            <p class="text-slate-400 text-sm">${stats.unverified} unverified · ${stats.verified} verified · ${stats.rejected} rejected</p>
-          </div>
-        </div>
-        
-        <!-- Filters -->
-        <div class="flex gap-2 mb-3">
-          ${['unverified', 'verified', 'rejected', 'all'].map(status => `
-            <button data-review-filter="${status}" class="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              filterStatus === status
-                ? (status === 'unverified' ? 'bg-amber-500 text-white' : status === 'verified' ? 'bg-emerald-500 text-white' : status === 'rejected' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white')
-                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-            }">${status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)} ${status !== 'all' ? stats[status] || '' : ''}</button>
-          `).join('')}
-        </div>
-        
-        <div class="flex gap-2">
-          <select id="reviewSourceFilter" class="flex-1 bg-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 border border-slate-600">
-            <option value="all" ${filterSource === 'all' ? 'selected' : ''}>All Sources</option>
-            ${allSources.map(src => `<option value="${escapeHtml(src)}" ${filterSource === src ? 'selected' : ''}>${escapeHtml(src)}</option>`).join('')}
-          </select>
-          <div class="text-slate-500 text-xs flex items-center">${filtered.length} sentences</div>
-        </div>
-      </div>
-      
-      <!-- Sentence List -->
-      <div class="flex-1 overflow-auto hide-scrollbar p-4">
-        <div class="max-w-lg mx-auto space-y-2">
-          ${pageItems.length === 0 ? `
-            <div class="text-center py-12">
-              <div class="text-4xl mb-2">✅</div>
-              <p class="text-slate-400">No sentences match this filter</p>
-            </div>
-          ` : pageItems.map(s => {
-            const status = s.verified || 'unverified';
-            const isUnverified = status === 'unverified';
-            
-            // Detect words this sentence covers
-            const detectedWords = [];
-            const seenIds = new Set();
-            for (const stem of sortedStems) {
-              if (s.sentence && s.sentence.includes(stem)) {
-                for (const w of stemMap[stem]) {
-                  if (!seenIds.has(w.id)) { seenIds.add(w.id); detectedWords.push(w); }
-                }
-              }
-            }
-            
-            return `
-              <div class="bg-slate-800 rounded-xl p-3.5 border ${isUnverified ? 'border-amber-500/20' : status === 'verified' ? 'border-emerald-500/20' : 'border-slate-700'}">
-                <!-- Sentence text -->
-                <div class="text-sm text-slate-200 leading-relaxed mb-1.5">
-                  ${detectedWords.length > 0 ? highlightMultipleWords(s.sentence, detectedWords) : escapeHtml(s.sentence)}
-                </div>
-                ${s.meaning_en ? `<div class="text-xs text-slate-500 mb-2">${escapeHtml(s.meaning_en)}</div>` : ''}
-                
-                <!-- Meta row -->
-                <div class="flex items-center gap-2 mb-2 flex-wrap">
-                  <span class="text-[10px] text-slate-600">${SOURCE_ICONS[s.source] || '📄'} ${escapeHtml(s.source || 'unknown')}</span>
-                  ${s.jlpt_level ? `<span class="text-[10px] text-slate-600">• ${s.jlpt_level}</span>` : ''}
-                  ${renderVerifiedBadge(status)}
-                </div>
-                
-                <!-- Tags -->
-                ${renderTagChips(s.tags, s.id)}
-                
-                <!-- Detected words preview -->
-                ${detectedWords.length > 0 ? `
-                  <div class="flex flex-wrap gap-1 mt-2">
-                    ${detectedWords.slice(0, 6).map(dw => `
-                      <span class="text-[10px] px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded border border-indigo-500/15">${escapeHtml(dw.kanji)}</span>
-                    `).join('')}
-                    ${detectedWords.length > 6 ? `<span class="text-[10px] text-slate-600">+${detectedWords.length - 6}</span>` : ''}
-                  </div>
-                ` : ''}
-                
-                <!-- Tag input + Actions -->
-                <div class="mt-2.5 flex gap-1.5 items-center">
-                  <input type="text" data-tag-input="${s.id}" placeholder="+ tag (grammar:てform)" 
-                    class="flex-1 bg-slate-900/60 text-slate-300 text-[10px] px-2 py-1 rounded-lg border border-slate-700 focus:border-indigo-500 focus:outline-none">
-                  <button data-add-tag="${s.id}" class="px-2 py-1 rounded-lg bg-slate-700 text-slate-400 text-[10px] hover:bg-slate-600">Tag</button>
-                </div>
-                
-                <div class="flex gap-1.5 mt-2">
-                  ${isUnverified ? `
-                    <button data-verify-sentence="${s.id}" class="flex-1 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20 transition-all">✓ Verify</button>
-                    <button data-reject-sentence="${s.id}" class="flex-1 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/20 transition-all">✗ Reject</button>
-                  ` : status === 'verified' ? `
-                    <button data-unverify-sentence="${s.id}" class="flex-1 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-400 hover:bg-slate-600 transition-all">↩ Unverify</button>
-                    <button data-reject-sentence="${s.id}" class="flex-1 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/20 transition-all">✗ Reject</button>
-                  ` : `
-                    <button data-verify-sentence="${s.id}" class="flex-1 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20 transition-all">✓ Restore & Verify</button>
-                  `}
-                </div>
-              </div>
-            `;
-          }).join('')}
-          
-          <!-- Pagination -->
-          ${totalPages > 1 ? `
-            <div class="flex items-center justify-center gap-3 py-4">
-              <button id="reviewPrevPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page === 0 ? 'disabled' : ''}>← Prev</button>
-              <span class="text-xs text-slate-500">${page + 1} / ${totalPages}</span>
-              <button id="reviewNextPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
-            </div>
-          ` : ''}
-        </div>
-      </div>
-    </div>
-  `;
 }

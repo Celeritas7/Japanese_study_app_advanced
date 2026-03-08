@@ -10,8 +10,7 @@ import {
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert,
   loadUnifiedWords, loadUnifiedWordBooks, loadSentencesForWords,
   loadAllUnifiedSentences, updateSentenceRating, linkSentenceToWord,
-  addNewSentenceAndLink, bulkAddSentences, bulkLinkSentences,
-  updateSentenceVerified, addSentenceTag, removeSentenceTag
+  addNewSentenceAndLink, bulkAddSentences, bulkLinkSentences
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
@@ -23,7 +22,7 @@ import {
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderSimilarTab } from './render-similar.js';
-import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem } from './render-kanji.js';
+import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, extractKanjiStem } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
 // Guest user ID for testing (your actual user ID)
@@ -71,11 +70,6 @@ class JLPTStudyApp {
     this.bulkParsedResults = null; // [{ sentence, meaning, detectedWords, linkedWordIds }]
     this.bulkSaving = false;
     this.bulkResultMessage = '';
-    
-    // Review queue
-    this.reviewFilter = 'unverified';
-    this.reviewSourceFilter = 'all';
-    this.reviewPage = 0;
     
     this.currentTab = 'study';
     this.studySubTab = 'goi';
@@ -466,20 +460,6 @@ class JLPTStudyApp {
       });
     });
     document.getElementById('openAddSentenceSheetBtn')?.addEventListener('click', () => this.openAddSentenceSheet());
-    // Verify from sentence panel
-    document.querySelectorAll('#flashcardExtraContent [data-verify-sentence]').forEach(btn => {
-      btn.addEventListener('click', () => this.verifySentence(parseInt(btn.dataset.verifySentence), 'verified'));
-    });
-    // Tags from sentence panel
-    document.querySelectorAll('#flashcardExtraContent [data-add-tag]').forEach(btn => {
-      btn.addEventListener('click', () => this.addTagToSentence(parseInt(btn.dataset.addTag)));
-    });
-    document.querySelectorAll('#flashcardExtraContent [data-remove-tag]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.removeTagFromSentence(parseInt(btn.dataset.removeTag), btn.dataset.tagValue);
-      });
-    });
   }
   
   // ===== ADD SENTENCE BOTTOM SHEET =====
@@ -687,87 +667,6 @@ class JLPTStudyApp {
     this.bulkSaving = false;
     this.bulkResultMessage = `✅ ${addResult.added} sentences saved, ${linkedCount} word links created`;
     this.render();
-  }
-  
-  // ===== REVIEW QUEUE =====
-  
-  openReviewQueue() {
-    this.kanjiView = 'review-queue';
-    this.reviewFilter = 'unverified';
-    this.reviewSourceFilter = 'all';
-    this.reviewPage = 0;
-    this.render();
-  }
-  
-  setReviewFilter(status) {
-    this.reviewFilter = status;
-    this.reviewPage = 0;
-    this.render();
-  }
-  
-  setReviewSourceFilter(source) {
-    this.reviewSourceFilter = source;
-    this.reviewPage = 0;
-    this.render();
-  }
-  
-  reviewPrevPage() { if (this.reviewPage > 0) { this.reviewPage--; this.render(); } }
-  reviewNextPage() { this.reviewPage++; this.render(); }
-  
-  async verifySentence(sentenceId, status = 'verified') {
-    const result = await updateSentenceVerified(this.supabase, sentenceId, status);
-    if (result.success) {
-      // Update local data
-      const sent = this.allUnifiedSentences.find(s => s.id === sentenceId);
-      if (sent) sent.verified = status;
-      // Also update in kanjiSentenceMap if present
-      for (const arr of Object.values(this.kanjiSentenceMap)) {
-        const item = arr.find(s => (s.sentence_id || s.id) === sentenceId);
-        if (item) item.verified = status;
-      }
-      this.render();
-      const labels = { verified: '✓ Verified', rejected: '✗ Rejected', unverified: '↩ Unverified' };
-      showToast(labels[status] || status, 'success');
-    } else {
-      showToast('Update failed: ' + result.error, 'error');
-    }
-  }
-  
-  async addTagToSentence(sentenceId) {
-    const input = document.querySelector(`[data-tag-input="${sentenceId}"]`);
-    const tag = input?.value?.trim();
-    if (!tag) return;
-    
-    const result = await addSentenceTag(this.supabase, sentenceId, tag);
-    if (result.success) {
-      // Update local data
-      const sent = this.allUnifiedSentences.find(s => s.id === sentenceId);
-      if (sent) sent.tags = result.tags;
-      for (const arr of Object.values(this.kanjiSentenceMap)) {
-        const item = arr.find(s => (s.sentence_id || s.id) === sentenceId);
-        if (item) item.tags = result.tags;
-      }
-      this.render();
-      showToast(`Tag "${tag}" added`, 'success');
-    } else {
-      showToast('Tag failed: ' + result.error, 'error');
-    }
-  }
-  
-  async removeTagFromSentence(sentenceId, tag) {
-    const result = await removeSentenceTag(this.supabase, sentenceId, tag);
-    if (result.success) {
-      const sent = this.allUnifiedSentences.find(s => s.id === sentenceId);
-      if (sent) sent.tags = result.tags;
-      for (const arr of Object.values(this.kanjiSentenceMap)) {
-        const item = arr.find(s => (s.sentence_id || s.id) === sentenceId);
-        if (item) item.tags = result.tags;
-      }
-      this.render();
-      showToast(`Tag removed`, 'success');
-    } else {
-      showToast('Remove failed: ' + result.error, 'error');
-    }
   }
   
   setTestType(type) {
@@ -1304,39 +1203,6 @@ class JLPTStudyApp {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.bulkLinkSingle(parseInt(btn.dataset.bulkLinkWord), parseInt(btn.dataset.bulkLinkIdx));
-      });
-    });
-    
-    // Review queue listeners
-    document.getElementById('openReviewQueueBtn')?.addEventListener('click', () => this.openReviewQueue());
-    document.querySelectorAll('[data-review-filter]').forEach(btn => {
-      btn.addEventListener('click', () => this.setReviewFilter(btn.dataset.reviewFilter));
-    });
-    document.getElementById('reviewSourceFilter')?.addEventListener('change', (e) => {
-      this.setReviewSourceFilter(e.target.value);
-    });
-    document.getElementById('reviewPrevPageBtn')?.addEventListener('click', () => this.reviewPrevPage());
-    document.getElementById('reviewNextPageBtn')?.addEventListener('click', () => this.reviewNextPage());
-    
-    // Verify / reject / unverify
-    document.querySelectorAll('[data-verify-sentence]').forEach(btn => {
-      btn.addEventListener('click', () => this.verifySentence(parseInt(btn.dataset.verifySentence), 'verified'));
-    });
-    document.querySelectorAll('[data-reject-sentence]').forEach(btn => {
-      btn.addEventListener('click', () => this.verifySentence(parseInt(btn.dataset.rejectSentence), 'rejected'));
-    });
-    document.querySelectorAll('[data-unverify-sentence]').forEach(btn => {
-      btn.addEventListener('click', () => this.verifySentence(parseInt(btn.dataset.unverifySentence), 'unverified'));
-    });
-    
-    // Tag add / remove
-    document.querySelectorAll('[data-add-tag]').forEach(btn => {
-      btn.addEventListener('click', () => this.addTagToSentence(parseInt(btn.dataset.addTag)));
-    });
-    document.querySelectorAll('[data-remove-tag]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.removeTagFromSentence(parseInt(btn.dataset.removeTag), btn.dataset.tagValue);
       });
     });
   }
