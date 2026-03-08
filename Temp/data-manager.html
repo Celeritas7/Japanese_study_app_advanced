@@ -344,16 +344,14 @@
 
   <script type="module">
     // ========== CONFIG ==========
+    // Import from same config or hardcode for standalone deployment
     const SUPABASE_URL = 'https://jgpjicmanatlrpmqhimj.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpncGppY21hbmF0bHJwbXFoaW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1NDQyODYsImV4cCI6MjA1NzEyMDI4Nn0.JfJK1EeMGk4CAqkRjPKfBOJBhTCPeMR2J6W7u_JLvJo';
-    const ADMIN_USER_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
     
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
     // ========== STATE ==========
     const state = {
-      user: null,
-      authChecked: false,
       tab: 'sentences',    // sentences, bulk, story-flags, word-flags
       loading: true,
       
@@ -606,52 +604,6 @@
     function render() {
       const app = document.getElementById('app');
       
-      // Auth gate
-      if (!state.authChecked) {
-        app.innerHTML = `
-          <div style="min-height:100vh; display:flex; align-items:center; justify-content:center;">
-            <div style="text-align:center; color:var(--text-muted);">Checking authentication...</div>
-          </div>`;
-        return;
-      }
-      
-      if (!state.user) {
-        app.innerHTML = `
-          <div style="min-height:100vh; display:flex; align-items:center; justify-content:center;">
-            <div style="text-align:center; max-width:360px;">
-              <div style="font-size:48px; margin-bottom:16px;">🔒</div>
-              <h1 style="font-size:20px; font-weight:700; margin-bottom:8px; color:var(--text-primary);">JLPT Data Manager</h1>
-              <p style="font-size:13px; color:var(--text-muted); margin-bottom:24px;">Admin access only. Sign in to continue.</p>
-              <button id="adminLoginBtn" class="btn btn-primary" style="width:100%; padding:12px; font-size:14px;">
-                Sign in with Google
-              </button>
-            </div>
-          </div>`;
-        document.getElementById('adminLoginBtn')?.addEventListener('click', async () => {
-          await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
-        });
-        return;
-      }
-      
-      if (state.user.id !== ADMIN_USER_ID) {
-        app.innerHTML = `
-          <div style="min-height:100vh; display:flex; align-items:center; justify-content:center;">
-            <div style="text-align:center; max-width:360px;">
-              <div style="font-size:48px; margin-bottom:16px;">⛔</div>
-              <h1 style="font-size:20px; font-weight:700; margin-bottom:8px; color:var(--red);">Access Denied</h1>
-              <p style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">This tool is restricted to the admin account.</p>
-              <p style="font-size:11px; color:var(--text-muted); margin-bottom:24px;" class="mono">Signed in as: ${escapeHtml(state.user.email || state.user.id)}</p>
-              <button id="adminSignOutBtn" class="btn btn-ghost" style="width:100%; padding:10px;">Sign Out</button>
-            </div>
-          </div>`;
-        document.getElementById('adminSignOutBtn')?.addEventListener('click', async () => {
-          await sb.auth.signOut();
-          state.user = null;
-          render();
-        });
-        return;
-      }
-      
       const openStoryFlags = state.storyAlerts.filter(a => !a.resolved).length;
       const openWordFlags = state.wordAlerts.filter(a => !a.resolved).length;
       const unverified = state.sentences.filter(s => (s.verified || 'unverified') === 'unverified').length;
@@ -674,7 +626,6 @@
             <button class="tab-btn ${state.tab === 'word-flags' ? 'active' : ''}" data-tab="word-flags">
               🚩 Word Flags ${openWordFlags > 0 ? `(${openWordFlags})` : ''}
             </button>
-            <button class="tab-btn" id="adminSignOutBtn" style="margin-left:8px; color:var(--text-muted);">↩ Sign Out</button>
           </div>
         </header>
         
@@ -1044,13 +995,6 @@
         btn.addEventListener('click', () => { state.tab = btn.dataset.tab; state.flagPage = 0; state.flagFilter = 'open'; render(); });
       });
       
-      // Admin sign out
-      document.getElementById('adminSignOutBtn')?.addEventListener('click', async () => {
-        await sb.auth.signOut();
-        state.user = null;
-        render();
-      });
-      
       // Sentence filters
       document.querySelectorAll('[data-sent-filter]').forEach(btn => {
         btn.addEventListener('click', () => { state.sentFilter = btn.dataset.sentFilter; state.sentPage = 0; render(); });
@@ -1154,36 +1098,7 @@
     }
     
     // ========== INIT ==========
-    async function init() {
-      render(); // show "checking auth..."
-      
-      // Check existing session
-      const { data: { session } } = await sb.auth.getSession();
-      if (session) {
-        state.user = session.user;
-      }
-      state.authChecked = true;
-      
-      // Listen for auth changes (handles OAuth redirect)
-      sb.auth.onAuthStateChange((event, session) => {
-        if (event === 'INITIAL_SESSION') return;
-        state.user = session?.user || null;
-        state.authChecked = true;
-        if (state.user?.id === ADMIN_USER_ID && state.words.length === 0) {
-          loadAll();
-        }
-        render();
-      });
-      
-      // If already admin, load data
-      if (state.user?.id === ADMIN_USER_ID) {
-        await loadAll();
-      }
-      
-      render();
-    }
-    
-    init();
+    loadAll();
   </script>
 </body>
 </html>
