@@ -127,9 +127,9 @@ export function renderHeader(app) {
     ? `<span class="text-emerald-400 text-[10px]">● ${app.user.email?.split('@')[0] || 'logged in'}</span>` 
     : '<span class="text-red-400 text-[10px]">● not logged in</span>';
   
-  // Admin: only show for the specific admin user ID
+  // Admin: show for known admin user ID OR guest mode (same person)
   const ADMIN_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
-  const isAdmin = app.user?.id === ADMIN_ID;
+  const isAdmin = app.user?.id === ADMIN_ID || app.isGuestMode;
   
   return `
     <header class="bg-slate-800 px-4 py-3 flex items-center justify-between">

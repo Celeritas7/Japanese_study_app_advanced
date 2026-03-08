@@ -23,7 +23,7 @@ import {
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderSimilarTab } from './render-similar.js';
-import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, getCurrentStudyWord } from './render-kanji.js';
+import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
 // Guest user ID for testing (your actual user ID)
@@ -500,21 +500,11 @@ class JLPTStudyApp {
     this.render();
   }
   
-  // Find the unified word ID for any word (unified words have it directly, goi words need a lookup)
-  resolveUnifiedWordId(word) {
-    // If it's a unified word (has id and is in kanjiWords), use directly
-    if (word.id && this.kanjiWords.some(w => w.id === word.id)) return word.id;
-    // Look up by kanji text in unified words
-    const kanji = word.kanji || word.raw || '';
-    const match = this.kanjiWords.find(w => w.kanji === kanji);
-    return match?.id || null;
-  }
-  
   async submitNewSentence() {
     const sentence = document.getElementById('newSentenceTextInput')?.value?.trim();
     if (!sentence) { showToast('Please enter a sentence', 'error'); return; }
     
-    const word = getCurrentStudyWord(this);
+    const word = this.studyWords?.[this.currentIndex];
     if (!word) return;
     
     this.addSentenceSaving = true;
@@ -524,29 +514,21 @@ class JLPTStudyApp {
     const source = document.getElementById('newSentenceSourceInput')?.value?.trim() || 'manual';
     const level = document.getElementById('newSentenceLevelInput')?.value || '';
     
-    // Resolve unified word ID (Goi words don't have unified IDs directly)
-    const unifiedWordId = this.resolveUnifiedWordId(word);
-    if (!unifiedWordId) {
-      this.addSentenceSaving = false;
-      showToast('Word not found in unified database', 'error');
-      this.render();
-      return;
-    }
-    
     const result = await addNewSentenceAndLink(this.supabase, {
       sentence,
       meaning_en: meaning,
       source,
-      jlpt_level: level || word.jlpt_level || word.level || null,
-    }, unifiedWordId, this.user?.id);
+      jlpt_level: level || word.jlpt_level || null,
+    }, word.id, this.user?.id);
     
     this.addSentenceSaving = false;
     
     if (result.success) {
+      // Add to local data
       if (result.sentence) {
         this.allUnifiedSentences.push(result.sentence);
-        if (!this.kanjiSentenceMap[unifiedWordId]) this.kanjiSentenceMap[unifiedWordId] = [];
-        this.kanjiSentenceMap[unifiedWordId].push({
+        if (!this.kanjiSentenceMap[word.id]) this.kanjiSentenceMap[word.id] = [];
+        this.kanjiSentenceMap[word.id].push({
           ...result.sentence,
           link_id: result.link?.id,
           sentence_id: result.sentence.id,
@@ -1298,13 +1280,8 @@ class JLPTStudyApp {
     
     attachEventListeners(this);
     
-    // Inject sentence panel into ANY flashcard view (Goi, Kanji, SRS)
-    const isFlashcard = 
-      (this.currentTab === 'study' && this.studySubTab === 'goi' && this.studyView === 'flashcard') ||
-      (this.currentTab === 'study' && this.studySubTab === 'kanji' && this.kanjiView === 'flashcard') ||
-      (this.currentTab === 'srs' && this.srsView === 'test');
-    
-    if (isFlashcard) {
+    // Inject sentence panel into flashcard if in kanji study mode
+    if (this.studySubTab === 'kanji' && this.kanjiView === 'flashcard') {
       const container = document.getElementById('flashcardExtraContent');
       if (container) {
         container.innerHTML = renderSentencePanel(this);
@@ -1319,7 +1296,27 @@ class JLPTStudyApp {
     });
     document.getElementById('submitNewSentenceBtn')?.addEventListener('click', () => this.submitNewSentence());
     
-    // (Bulk linker and review queue moved to data-manager.html)
+    // Bulk linker listeners
+    document.getElementById('openBulkLinkerBtn')?.addEventListener('click', () => this.openBulkLinker());
+    document.getElementById('parseBulkSentencesBtn')?.addEventListener('click', () => this.parseBulkSentences());
+    document.getElementById('bulkLinkAllBtn')?.addEventListener('click', () => this.bulkSaveAndLinkAll());
+    document.querySelectorAll('[data-bulk-link-word]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.bulkLinkSingle(parseInt(btn.dataset.bulkLinkWord), parseInt(btn.dataset.bulkLinkIdx));
+      });
+    });
+    
+    // Review queue listeners
+    document.getElementById('openReviewQueueBtn')?.addEventListener('click', () => this.openReviewQueue());
+    document.querySelectorAll('[data-review-filter]').forEach(btn => {
+      btn.addEventListener('click', () => this.setReviewFilter(btn.dataset.reviewFilter));
+    });
+    document.getElementById('reviewSourceFilter')?.addEventListener('change', (e) => {
+      this.setReviewSourceFilter(e.target.value);
+    });
+    document.getElementById('reviewPrevPageBtn')?.addEventListener('click', () => this.reviewPrevPage());
+    document.getElementById('reviewNextPageBtn')?.addEventListener('click', () => this.reviewNextPage());
     
     // Verify / reject / unverify
     document.querySelectorAll('[data-verify-sentence]').forEach(btn => {

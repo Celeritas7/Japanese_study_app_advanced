@@ -88,6 +88,16 @@ function renderBookSelector(app) {
           <p class="text-slate-400 text-sm">${allWordIds.size} unique words across ${books.length} books</p>
         </div>
         
+        <!-- Bulk Linker Button -->
+        <button id="openBulkLinkerBtn" class="w-full mb-2 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25 transition-all">
+          📝 Bulk Sentence Linker
+        </button>
+        
+        <!-- Review Queue Button -->
+        <button id="openReviewQueueBtn" class="w-full mb-4 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-all">
+          🔍 Review Queue (${(app.allUnifiedSentences || []).filter(s => (s.verified || 'unverified') === 'unverified').length} unverified)
+        </button>
+        
         <div class="space-y-3">
           ${books.map((book, idx) => {
             const color = BOOK_COLORS[idx % BOOK_COLORS.length];
@@ -352,49 +362,19 @@ const SOURCE_ICONS = {
   manual: '✏️', anime: '🎌', drama: '🎬', news: '📰', train: '🚃',
 };
 
-// ===== UNIVERSAL HELPERS =====
-
-// Get the current word being studied/tested in any mode
-export function getCurrentStudyWord(app) {
-  if (app.currentTab === 'srs' && app.srsView === 'test' && app.srsWords?.length > 0) {
-    return app.srsWords[app.srsCurrentIndex] || null;
-  }
-  if (app.studyWords?.length > 0) {
-    return app.studyWords[app.currentIndex] || null;
-  }
-  return null;
-}
-
-// Look up linked sentences for a word (by unified id or kanji text)
-export function getSentencesForWord(app, word) {
-  if (!word || !app.kanjiSentenceMap) return [];
-  // Try by unified word id first
-  if (word.id && app.kanjiSentenceMap[word.id]) return app.kanjiSentenceMap[word.id];
-  // Fallback: search by kanji text across all entries
-  const kanji = word.kanji || word.raw || '';
-  if (!kanji) return [];
-  for (const arr of Object.values(app.kanjiSentenceMap)) {
-    if (arr.length > 0 && arr[0]?.sentence?.includes(kanji)) return arr;
-  }
-  return [];
-}
-
 export function renderSentencePanel(app) {
-  const word = getCurrentStudyWord(app);
+  if (app.studySubTab !== 'kanji') return '';
+  if (!app.studyWords || app.studyWords.length === 0) return '';
+  
+  const word = app.studyWords[app.currentIndex];
   if (!word) return '';
   
-  // Resolve unified word ID (works for both Goi and unified words)
-  let unifiedWordId = word.id;
-  if (app.kanjiWords && !app.kanjiWords.some(w => w.id === word.id)) {
-    const match = app.kanjiWords.find(w => w.kanji === (word.kanji || word.raw));
-    unifiedWordId = match?.id || null;
-  }
-  
-  // Look up sentences
-  const linked = getSentencesForWord(app, word);
+  // Get linked sentences for this word
+  const linked = (app.kanjiSentenceMap && app.kanjiSentenceMap[word.id]) || [];
   
   // Extract kanji stem for smarter sentence discovery
-  const wordKanji = word.kanji || word.raw || '';
+  // 喜ぶ → 喜, 禁止 → 禁止, 起きる → 起, 不自由 → 不自由, ロープ → ロープ
+  const wordKanji = word.kanji || '';
   const kanjiStem = extractKanjiStem(wordKanji);
   
   // Find unlinked sentences containing this word's kanji stem
@@ -511,8 +491,8 @@ export function renderSentencePanel(app) {
                         <div class="text-xs text-slate-400 leading-relaxed">${highlighted}</div>
                         ${s.meaning_en ? `<div class="text-[10px] text-slate-600 mt-0.5 truncate">${escapeHtml(s.meaning_en)}</div>` : ''}
                       </div>
-                      <button data-link-sentence="${s.id}" data-link-word="${unifiedWordId || 0}"
-                        class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 text-xs font-medium hover:bg-indigo-500/30 transition-all shrink-0 border border-indigo-500/20 ${!unifiedWordId ? 'opacity-30' : ''}">
+                      <button data-link-sentence="${s.id}" data-link-word="${word.id}"
+                        class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 text-xs font-medium hover:bg-indigo-500/30 transition-all shrink-0 border border-indigo-500/20">
                         + Link
                       </button>
                     </div>
@@ -586,7 +566,7 @@ function isKanji(char) {
 export function renderAddSentenceSheet(app) {
   if (!app.showAddSentenceSheet) return '';
   
-  const word = getCurrentStudyWord(app);
+  const word = app.studyWords?.[app.currentIndex];
   if (!word) return '';
   
   const isSaving = app.addSentenceSaving;
