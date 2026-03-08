@@ -128,7 +128,7 @@ export function renderHeader(app) {
     : '<span class="text-red-400 text-[10px]">● not logged in</span>';
   
   // Admin: show for known admin user ID OR guest mode (same person)
-  const ADMIN_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
+  const ADMIN_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
   const isAdmin = app.user?.id === ADMIN_ID || app.isGuestMode;
   
   return `

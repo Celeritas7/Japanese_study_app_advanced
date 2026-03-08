@@ -43,7 +43,12 @@ export async function loadMarkingCategories(supabase, userId) {
       .order('category_id');
     
     if (error) {
-      console.error('loadMarkingCategories error:', error);
+      // Table may not exist yet — fall back silently to defaults
+      if (error.code === 'PGRST205' || error.message?.includes('not find')) {
+        console.log('loadMarkingCategories: Table not found, using defaults');
+      } else {
+        console.warn('loadMarkingCategories:', error.message);
+      }
       return { ...DEFAULT_MARKING_CATEGORIES };
     }
     

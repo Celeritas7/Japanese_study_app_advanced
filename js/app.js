@@ -26,8 +26,8 @@ import { renderSimilarTab } from './render-similar.js';
 import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, getCurrentStudyWord } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
-// Guest user ID for testing (your actual user ID)
-const GUEST_USER_ID = '5817df8a-043f-4aaf-9832-59ff82a6ae2e';
+// Guest user ID for testing (matches your Google OAuth user ID)
+const GUEST_USER_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
 
 class JLPTStudyApp {
   constructor() {
@@ -809,6 +809,44 @@ class JLPTStudyApp {
     }
   }
   
+  // Shared: load sentences for any set of study words (Goi, Kanji, SRS)
+  // Maps words to unified IDs via kanji text, then loads sentences
+  async loadSentencesForStudyWords(words) {
+    if (!words || words.length === 0) return;
+    
+    // Build a kanji → unified word ID lookup
+    const kanjiToUnified = {};
+    this.kanjiWords.forEach(w => { kanjiToUnified[w.kanji] = w.id; });
+    
+    // Collect unified word IDs for the study set
+    const unifiedIds = [];
+    words.forEach(w => {
+      const kanji = w.kanji || w.raw || '';
+      const uid = w.id && this.kanjiWords.some(kw => kw.id === w.id) ? w.id : kanjiToUnified[kanji];
+      if (uid && !unifiedIds.includes(uid)) unifiedIds.push(uid);
+    });
+    
+    if (unifiedIds.length === 0) return;
+    
+    try {
+      const sentenceMap = await loadSentencesForWords(this.supabase, unifiedIds);
+      // Merge into kanjiSentenceMap (don't overwrite existing entries)
+      for (const [wid, sentences] of Object.entries(sentenceMap)) {
+        this.kanjiSentenceMap[wid] = sentences;
+      }
+      console.log(`Sentences loaded: ${Object.keys(sentenceMap).length}/${unifiedIds.length} words have sentences`);
+      
+      // Re-render sentence panel if visible
+      const container = document.getElementById('flashcardExtraContent');
+      if (container) {
+        container.innerHTML = renderSentencePanel(this);
+        this.attachSentencePanelListeners();
+      }
+    } catch (err) {
+      console.warn('Sentence loading skipped:', err);
+    }
+  }
+  
   startStudy(weekDay = null) {
     this.studyWordLimit = parseInt(document.getElementById('studyWordLimit')?.value) || 0;
     let words = this.selectedLevel === 'ALL' ? this.vocabulary : this.vocabulary.filter(v => v.level === this.selectedLevel);
@@ -821,8 +859,12 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentencePanelExpanded = false;
     this.studyView = 'flashcard';
     this.render();
+    
+    // Load sentences in background (non-blocking)
+    this.loadSentencesForStudyWords(shuffled);
   }
   
   // Quick start from level selector (All/Custom mode)
@@ -845,8 +887,12 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentencePanelExpanded = false;
     this.studyView = 'flashcard';
     this.render();
+    
+    // Load sentences in background (non-blocking)
+    this.loadSentencesForStudyWords(this.studyWords);
   }
   
   nextWord() {
@@ -927,9 +973,13 @@ class JLPTStudyApp {
     this.srsSelectedAnswer = null;
     this.srsShowResult = false;
     this.canvasImageData = null;
+    this.sentencePanelExpanded = false;
     this.generateMCQOptions();
     this.srsView = 'test';
     this.render();
+    
+    // Load sentences in background (non-blocking)
+    this.loadSentencesForStudyWords(this.srsWords);
   }
   
   generateMCQOptions() {

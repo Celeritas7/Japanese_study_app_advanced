@@ -368,14 +368,13 @@ export function getCurrentStudyWord(app) {
 // Look up linked sentences for a word (by unified id or kanji text)
 export function getSentencesForWord(app, word) {
   if (!word || !app.kanjiSentenceMap) return [];
-  // Try by unified word id first
+  // Try by word id directly (works for unified words)
   if (word.id && app.kanjiSentenceMap[word.id]) return app.kanjiSentenceMap[word.id];
-  // Fallback: search by kanji text across all entries
+  // Fallback: look up unified word by kanji text, then check its ID in the map
   const kanji = word.kanji || word.raw || '';
-  if (!kanji) return [];
-  for (const arr of Object.values(app.kanjiSentenceMap)) {
-    if (arr.length > 0 && arr[0]?.sentence?.includes(kanji)) return arr;
-  }
+  if (!kanji || !app.kanjiWords) return [];
+  const match = app.kanjiWords.find(w => w.kanji === kanji);
+  if (match && app.kanjiSentenceMap[match.id]) return app.kanjiSentenceMap[match.id];
   return [];
 }
 
