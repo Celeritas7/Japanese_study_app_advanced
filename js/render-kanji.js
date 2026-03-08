@@ -360,12 +360,16 @@ export function renderSentencePanel(app) {
   // Get linked sentences for this word
   const linked = (app.kanjiSentenceMap && app.kanjiSentenceMap[word.id]) || [];
   
-  // Find unlinked sentences containing this word (full word match, not single kanji)
-  const linkedSentenceIds = new Set(linked.map(l => l.sentence_id || l.id));
+  // Extract kanji stem for smarter sentence discovery
+  // 喜ぶ → 喜, 禁止 → 禁止, 起きる → 起, 不自由 → 不自由, ロープ → ロープ
   const wordKanji = word.kanji || '';
-  const unlinked = wordKanji
+  const kanjiStem = extractKanjiStem(wordKanji);
+  
+  // Find unlinked sentences containing this word's kanji stem
+  const linkedSentenceIds = new Set(linked.map(l => l.sentence_id || l.id));
+  const unlinked = kanjiStem
     ? (app.allUnifiedSentences || []).filter(s =>
-        !linkedSentenceIds.has(s.id) && s.sentence && s.sentence.includes(wordKanji)
+        !linkedSentenceIds.has(s.id) && s.sentence && s.sentence.includes(kanjiStem)
       ).slice(0, 8)  // limit for performance
     : [];
   
@@ -444,13 +448,13 @@ export function renderSentencePanel(app) {
           <!-- Unlinked Sentences Discovery -->
           ${unlinked.length > 0 ? `
             <div class="pt-3 border-t border-slate-700/50">
-              <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(wordKanji)}」</div>
+              <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(kanjiStem)}」</div>
               <div class="space-y-1.5">
                 ${unlinked.map(s => {
-                  // Highlight the full word in the sentence
-                  const parts = s.sentence.split(new RegExp(`(${escapeRegex(wordKanji)})`));
+                  // Highlight the kanji stem in the sentence
+                  const parts = s.sentence.split(new RegExp(`(${escapeRegex(kanjiStem)})`));
                   const highlighted = parts.map(part =>
-                    part === wordKanji
+                    part === kanjiStem
                       ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>`
                       : escapeHtml(part)
                   ).join('');
@@ -480,4 +484,46 @@ export function renderSentencePanel(app) {
 // Helper: escape regex special chars
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Extract kanji stem from a word for sentence discovery.
+ * Takes the leading kanji prefix (stops at first non-kanji character).
+ * 
+ * Examples:
+ *   喜ぶ    → 喜      (verb: kanji + okurigana)
+ *   起きる  → 起      (verb: kanji + okurigana)
+ *   禁止    → 禁止    (compound noun: all kanji)
+ *   不自由  → 不自由  (compound noun: all kanji)
+ *   申し込む → 申      (mixed: takes leading kanji prefix)
+ *   ロープ  → ロープ  (no kanji: returns full word)
+ *   おきる  → おきる  (no kanji: returns full word)
+ */
+function extractKanjiStem(word) {
+  if (!word) return '';
+  const chars = [...word];
+  
+  // Check if word contains any kanji at all
+  const hasKanji = chars.some(c => isKanji(c));
+  if (!hasKanji) return word; // katakana or all-hiragana → use full word
+  
+  // Take leading kanji characters
+  let stem = '';
+  for (const c of chars) {
+    if (isKanji(c)) {
+      stem += c;
+    } else {
+      break; // stop at first non-kanji (okurigana)
+    }
+  }
+  
+  return stem || word; // fallback to full word if extraction fails
+}
+
+// CJK Unified Ideographs range check
+function isKanji(char) {
+  const code = char.codePointAt(0);
+  return (code >= 0x4E00 && code <= 0x9FFF)   // CJK Unified
+      || (code >= 0x3400 && code <= 0x4DBF)   // CJK Extension A
+      || (code >= 0xF900 && code <= 0xFAFF);  // CJK Compatibility
 }
