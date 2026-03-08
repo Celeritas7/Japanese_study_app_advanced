@@ -360,12 +360,12 @@ export function renderSentencePanel(app) {
   // Get linked sentences for this word
   const linked = (app.kanjiSentenceMap && app.kanjiSentenceMap[word.id]) || [];
   
-  // Find unlinked sentences containing this word (full word match, not single kanji)
+  // Find unlinked sentences containing this word's kanji
   const linkedSentenceIds = new Set(linked.map(l => l.sentence_id || l.id));
-  const wordKanji = word.kanji || '';
-  const unlinked = wordKanji
+  const kanjiChar = (word.kanji || '')[0] || '';
+  const unlinked = kanjiChar
     ? (app.allUnifiedSentences || []).filter(s =>
-        !linkedSentenceIds.has(s.id) && s.sentence && s.sentence.includes(wordKanji)
+        !linkedSentenceIds.has(s.id) && s.sentence && s.sentence.includes(kanjiChar)
       ).slice(0, 8)  // limit for performance
     : [];
   
@@ -444,13 +444,13 @@ export function renderSentencePanel(app) {
           <!-- Unlinked Sentences Discovery -->
           ${unlinked.length > 0 ? `
             <div class="pt-3 border-t border-slate-700/50">
-              <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(wordKanji)}」</div>
+              <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(kanjiChar)}」</div>
               <div class="space-y-1.5">
                 ${unlinked.map(s => {
-                  // Highlight the full word in the sentence
-                  const parts = s.sentence.split(new RegExp(`(${escapeRegex(wordKanji)})`));
+                  // Highlight the kanji character
+                  const parts = s.sentence.split(new RegExp(`(${escapeRegex(kanjiChar)})`));
                   const highlighted = parts.map(part =>
-                    part === wordKanji
+                    part === kanjiChar
                       ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>`
                       : escapeHtml(part)
                   ).join('');
