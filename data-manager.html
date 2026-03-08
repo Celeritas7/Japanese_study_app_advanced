@@ -1242,7 +1242,7 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
                       </div>
                       <div class="flex-1">
                         <label>Meaning</label>
-                        <input type="text" data-goi-edit-meaning="${goiWord.id}" value="${escapeHtml(goiWord.meaning || '')}">
+                        <input type="text" data-goi-edit-meaning="${goiWord.id}" value="${escapeHtml(goiWord.meaning_en || goiWord.meaning || '')}">
                       </div>
                     </div>
                     <div class="flex gap-2 mb-2">
@@ -1394,10 +1394,10 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
           
           const kanji = document.querySelector(`[data-goi-edit-kanji="${wordId}"]`)?.value || '';
           const hiragana = document.querySelector(`[data-goi-edit-hiragana="${wordId}"]`)?.value || '';
-          const meaning = document.querySelector(`[data-goi-edit-meaning="${wordId}"]`)?.value || '';
+          const meaning_en = document.querySelector(`[data-goi-edit-meaning="${wordId}"]`)?.value || '';
           const hint = document.querySelector(`[data-goi-edit-hint="${wordId}"]`)?.value || '';
           
-          const ok = await updateGoiWord(wordId, { kanji, hiragana, meaning, hint });
+          const ok = await updateGoiWord(wordId, { kanji, hiragana, meaning_en, hint });
           if (ok && alertId) {
             await resolveAlert('japanese_word_alerts', alertId);
             const a = state.wordAlerts.find(a => a.id === alertId);
