@@ -9,8 +9,7 @@ import {
   updateMarkingInDB, addTopic, addSelfStudyWord,
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert,
   loadUnifiedWords, loadUnifiedWordBooks, loadSentencesForWords,
-  loadAllUnifiedSentences, updateSentenceRating, linkSentenceToWord,
-  addNewSentenceAndLink, bulkAddSentences, bulkLinkSentences
+  loadAllUnifiedSentences, updateSentenceRating, linkSentenceToWord
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
@@ -22,7 +21,7 @@ import {
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderSimilarTab } from './render-similar.js';
-import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, extractKanjiStem } from './render-kanji.js';
+import { renderKanjiTab, renderSentencePanel } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
 // Guest user ID for testing (your actual user ID)
@@ -56,20 +55,6 @@ class JLPTStudyApp {
     this.kanjiSentenceMap = {};   // word_id → [{ link_id, sentence_id, sentence, meaning_en, rating, source, jlpt_level }]
     this.allUnifiedSentences = [];  // all sentences for discovery
     this.sentencePanelExpanded = false;
-    
-    // Add sentence bottom sheet
-    this.showAddSentenceSheet = false;
-    this.addSentenceSaving = false;
-    this.newSentenceText = '';
-    this.newSentenceMeaning = '';
-    this.newSentenceSource = 'manual';
-    
-    // Bulk sentence linker
-    this.bulkSentenceInput = '';
-    this.bulkSource = 'manual';
-    this.bulkParsedResults = null; // [{ sentence, meaning, detectedWords, linkedWordIds }]
-    this.bulkSaving = false;
-    this.bulkResultMessage = '';
     
     this.currentTab = 'study';
     this.studySubTab = 'goi';
@@ -459,214 +444,6 @@ class JLPTStudyApp {
         this.linkSentence(parseInt(btn.dataset.linkWord), parseInt(btn.dataset.linkSentence));
       });
     });
-    document.getElementById('openAddSentenceSheetBtn')?.addEventListener('click', () => this.openAddSentenceSheet());
-  }
-  
-  // ===== ADD SENTENCE BOTTOM SHEET =====
-  
-  openAddSentenceSheet() {
-    this.showAddSentenceSheet = true;
-    this.addSentenceSaving = false;
-    this.newSentenceText = '';
-    this.newSentenceMeaning = '';
-    this.newSentenceSource = 'manual';
-    this.render();
-    // Focus the textarea after render
-    setTimeout(() => document.getElementById('newSentenceTextInput')?.focus(), 100);
-  }
-  
-  closeAddSentenceSheet() {
-    this.showAddSentenceSheet = false;
-    this.render();
-  }
-  
-  async submitNewSentence() {
-    const sentence = document.getElementById('newSentenceTextInput')?.value?.trim();
-    if (!sentence) { showToast('Please enter a sentence', 'error'); return; }
-    
-    const word = this.studyWords?.[this.currentIndex];
-    if (!word) return;
-    
-    this.addSentenceSaving = true;
-    this.render();
-    
-    const meaning = document.getElementById('newSentenceMeaningInput')?.value?.trim() || '';
-    const source = document.getElementById('newSentenceSourceInput')?.value?.trim() || 'manual';
-    const level = document.getElementById('newSentenceLevelInput')?.value || '';
-    
-    const result = await addNewSentenceAndLink(this.supabase, {
-      sentence,
-      meaning_en: meaning,
-      source,
-      jlpt_level: level || word.jlpt_level || null,
-    }, word.id, this.user?.id);
-    
-    this.addSentenceSaving = false;
-    
-    if (result.success) {
-      // Add to local data
-      if (result.sentence) {
-        this.allUnifiedSentences.push(result.sentence);
-        if (!this.kanjiSentenceMap[word.id]) this.kanjiSentenceMap[word.id] = [];
-        this.kanjiSentenceMap[word.id].push({
-          ...result.sentence,
-          link_id: result.link?.id,
-          sentence_id: result.sentence.id,
-          rating: null,
-        });
-      }
-      
-      this.showAddSentenceSheet = false;
-      this.render();
-      showToast('Sentence added & linked!', 'success');
-    } else {
-      this.render();
-      showToast('Failed: ' + (result.error || 'Unknown error'), 'error');
-    }
-  }
-  
-  // ===== BULK SENTENCE LINKER =====
-  
-  openBulkLinker() {
-    this.kanjiView = 'bulk-linker';
-    this.bulkSentenceInput = '';
-    this.bulkSource = 'manual';
-    this.bulkParsedResults = null;
-    this.bulkSaving = false;
-    this.bulkResultMessage = '';
-    this.render();
-  }
-  
-  parseBulkSentences() {
-    const text = document.getElementById('bulkSentenceInput')?.value?.trim();
-    if (!text) { showToast('Paste some sentences first', 'error'); return; }
-    
-    this.bulkSentenceInput = text;
-    this.bulkSource = document.getElementById('bulkSourceInput')?.value?.trim() || 'manual';
-    const level = document.getElementById('bulkLevelInput')?.value || '';
-    
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
-    // For each sentence, detect which words from kanjiWords it contains
-    // Build a lookup: stem → word objects
-    const stemMap = {};
-    this.kanjiWords.forEach(w => {
-      const stem = extractKanjiStem(w.kanji);
-      if (stem) {
-        if (!stemMap[stem]) stemMap[stem] = [];
-        stemMap[stem].push(w);
-      }
-    });
-    
-    // Sort stems by length descending for greedy matching
-    const sortedStems = Object.keys(stemMap).sort((a, b) => b.length - a.length);
-    
-    this.bulkParsedResults = lines.map(line => {
-      const detectedWords = [];
-      const seenWordIds = new Set();
-      
-      for (const stem of sortedStems) {
-        if (line.includes(stem)) {
-          for (const w of stemMap[stem]) {
-            if (!seenWordIds.has(w.id)) {
-              seenWordIds.add(w.id);
-              detectedWords.push(w);
-            }
-          }
-        }
-      }
-      
-      return {
-        sentence: line,
-        meaning: '', // user can add later
-        jlpt_level: level,
-        detectedWords,
-        linkedWordIds: [], // track which have been linked
-      };
-    });
-    
-    this.render();
-    showToast(`Detected words in ${lines.length} sentences`, 'success');
-  }
-  
-  async bulkLinkSingle(wordId, sentenceIdx) {
-    const result = this.bulkParsedResults?.[sentenceIdx];
-    if (!result || !result.insertedSentenceId) {
-      showToast('Save all sentences first', 'error');
-      return;
-    }
-    
-    const linkResult = await linkSentenceToWord(this.supabase, wordId, result.insertedSentenceId, this.user?.id);
-    if (linkResult.success) {
-      if (!result.linkedWordIds) result.linkedWordIds = [];
-      result.linkedWordIds.push(wordId);
-      this.render();
-      showToast('Linked!', 'success');
-    } else {
-      showToast('Link failed', 'error');
-    }
-  }
-  
-  async bulkSaveAndLinkAll() {
-    if (!this.bulkParsedResults || this.bulkParsedResults.length === 0) return;
-    
-    this.bulkSaving = true;
-    this.render();
-    
-    const source = this.bulkSource || 'manual';
-    const level = document.getElementById('bulkLevelInput')?.value || '';
-    
-    // Step 1: Insert all sentences
-    const sentencesToAdd = this.bulkParsedResults.map(r => ({
-      sentence: r.sentence,
-      meaning_en: r.meaning || null,
-      source,
-      jlpt_level: r.jlpt_level || level || null,
-    }));
-    
-    const addResult = await bulkAddSentences(this.supabase, sentencesToAdd, this.user?.id);
-    
-    if (addResult.added === 0) {
-      this.bulkSaving = false;
-      this.render();
-      showToast('Failed to save sentences: ' + (addResult.errors?.[0] || 'Unknown'), 'error');
-      return;
-    }
-    
-    // Map inserted sentence IDs back to parsed results
-    const inserted = addResult.insertedSentences || [];
-    inserted.forEach((s, i) => {
-      if (this.bulkParsedResults[i]) {
-        this.bulkParsedResults[i].insertedSentenceId = s.id;
-      }
-    });
-    
-    // Step 2: Build all word-sentence links
-    const linksToCreate = [];
-    this.bulkParsedResults.forEach((result, idx) => {
-      if (!result.insertedSentenceId) return;
-      result.detectedWords.forEach(dw => {
-        linksToCreate.push({ word_id: dw.id, sentence_id: result.insertedSentenceId });
-      });
-    });
-    
-    let linkedCount = 0;
-    if (linksToCreate.length > 0) {
-      const linkResult = await bulkLinkSentences(this.supabase, linksToCreate, this.user?.id);
-      linkedCount = linkResult.linked || 0;
-      
-      // Mark all as linked in local state
-      this.bulkParsedResults.forEach(result => {
-        result.linkedWordIds = result.detectedWords.map(dw => dw.id);
-      });
-    }
-    
-    // Add to local sentence pool
-    inserted.forEach(s => this.allUnifiedSentences.push(s));
-    
-    this.bulkSaving = false;
-    this.bulkResultMessage = `✅ ${addResult.added} sentences saved, ${linkedCount} word links created`;
-    this.render();
   }
   
   setTestType(type) {
@@ -1174,7 +951,6 @@ class JLPTStudyApp {
       ${renderStoryOverlay(this)}
       ${renderStoryAlertForm(this)}
       ${renderWordAlertForm(this)}
-      ${renderAddSentenceSheet(this)}
     `;
     
     attachEventListeners(this);
@@ -1187,24 +963,6 @@ class JLPTStudyApp {
         this.attachSentencePanelListeners();
       }
     }
-    
-    // Add sentence sheet listeners
-    document.getElementById('closeAddSentenceSheetBtn')?.addEventListener('click', () => this.closeAddSentenceSheet());
-    document.getElementById('addSentenceSheetBg')?.addEventListener('click', (e) => {
-      if (e.target.id === 'addSentenceSheetBg') this.closeAddSentenceSheet();
-    });
-    document.getElementById('submitNewSentenceBtn')?.addEventListener('click', () => this.submitNewSentence());
-    
-    // Bulk linker listeners
-    document.getElementById('openBulkLinkerBtn')?.addEventListener('click', () => this.openBulkLinker());
-    document.getElementById('parseBulkSentencesBtn')?.addEventListener('click', () => this.parseBulkSentences());
-    document.getElementById('bulkLinkAllBtn')?.addEventListener('click', () => this.bulkSaveAndLinkAll());
-    document.querySelectorAll('[data-bulk-link-word]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.bulkLinkSingle(parseInt(btn.dataset.bulkLinkWord), parseInt(btn.dataset.bulkLinkIdx));
-      });
-    });
   }
   
   renderStudyTab() {

@@ -28,11 +28,10 @@ const BOOK_COLORS = [
 
 export function renderKanjiTab(app) {
   switch (app.kanjiView) {
-    case 'books':       return renderBookSelector(app);
-    case 'chapters':    return renderChapterSelector(app);
-    case 'wordlist':    return renderKanjiWordList(app);
-    case 'bulk-linker': return renderBulkLinker(app);
-    default:            return renderBookSelector(app);
+    case 'books':    return renderBookSelector(app);
+    case 'chapters': return renderChapterSelector(app);
+    case 'wordlist': return renderKanjiWordList(app);
+    default:         return renderBookSelector(app);
   }
 }
 
@@ -86,11 +85,6 @@ function renderBookSelector(app) {
           <h1 class="text-xl font-bold text-white">Kanji Books</h1>
           <p class="text-slate-400 text-sm">${allWordIds.size} unique words across ${books.length} books</p>
         </div>
-        
-        <!-- Bulk Linker Button -->
-        <button id="openBulkLinkerBtn" class="w-full mb-4 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25 transition-all">
-          📝 Bulk Sentence Linker
-        </button>
         
         <div class="space-y-3">
           ${books.map((book, idx) => {
@@ -481,13 +475,6 @@ export function renderSentencePanel(app) {
               </div>
             </div>
           ` : ''}
-          
-          <!-- Add New Sentence Button -->
-          <div class="pt-3 border-t border-slate-700/50">
-            <button id="openAddSentenceSheetBtn" class="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-all">
-              ✏️ Add New Sentence for「${escapeHtml(wordKanji)}」
-            </button>
-          </div>
         </div>
       ` : ''}
     </div>
@@ -512,7 +499,7 @@ function escapeRegex(str) {
  *   ロープ  → ロープ  (no kanji: returns full word)
  *   おきる  → おきる  (no kanji: returns full word)
  */
-export function extractKanjiStem(word) {
+function extractKanjiStem(word) {
   if (!word) return '';
   const chars = [...word];
   
@@ -539,212 +526,4 @@ function isKanji(char) {
   return (code >= 0x4E00 && code <= 0x9FFF)   // CJK Unified
       || (code >= 0x3400 && code <= 0x4DBF)   // CJK Extension A
       || (code >= 0xF900 && code <= 0xFAFF);  // CJK Compatibility
-}
-
-// ===== ADD SENTENCE BOTTOM SHEET =====
-
-export function renderAddSentenceSheet(app) {
-  if (!app.showAddSentenceSheet) return '';
-  
-  const word = app.studyWords?.[app.currentIndex];
-  if (!word) return '';
-  
-  const isSaving = app.addSentenceSaving;
-  
-  return `
-    <div id="addSentenceSheetBg" class="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center">
-      <div class="w-full max-w-lg bg-slate-800 rounded-t-2xl border-t border-slate-600 animate-slideIn" style="animation: slideUp 0.25s ease-out;">
-        <style>@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }</style>
-        
-        <!-- Handle bar -->
-        <div class="flex justify-center pt-3 pb-1">
-          <div class="w-10 h-1 bg-slate-600 rounded-full"></div>
-        </div>
-        
-        <!-- Header -->
-        <div class="px-5 pb-3 flex items-center justify-between">
-          <div>
-            <h3 class="text-white font-bold text-base">Add Sentence</h3>
-            <p class="text-slate-400 text-xs">For「${escapeHtml(word.kanji || '')}」${word.hiragana ? `(${escapeHtml(word.hiragana)})` : ''}</p>
-          </div>
-          <button id="closeAddSentenceSheetBtn" class="text-slate-400 hover:text-white text-xl p-1">✕</button>
-        </div>
-        
-        <!-- Form -->
-        <div class="px-5 pb-5 space-y-3">
-          <div>
-            <label class="text-slate-400 text-xs block mb-1">Japanese Sentence *</label>
-            <textarea id="newSentenceTextInput" rows="2" placeholder="e.g. 私は毎朝6時に起きます。"
-              class="w-full bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-emerald-500 focus:outline-none text-sm resize-none">${escapeHtml(app.newSentenceText || '')}</textarea>
-          </div>
-          
-          <div>
-            <label class="text-slate-400 text-xs block mb-1">English Meaning</label>
-            <input type="text" id="newSentenceMeaningInput" placeholder="e.g. I get up at 6 every morning."
-              value="${escapeHtml(app.newSentenceMeaning || '')}"
-              class="w-full bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-emerald-500 focus:outline-none text-sm">
-          </div>
-          
-          <div class="flex gap-2">
-            <div class="flex-1">
-              <label class="text-slate-400 text-xs block mb-1">Source</label>
-              <input type="text" id="newSentenceSourceInput" placeholder="e.g. textbook, anime, news"
-                value="${escapeHtml(app.newSentenceSource || 'manual')}"
-                class="w-full bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-emerald-500 focus:outline-none text-sm">
-            </div>
-            <div class="w-20">
-              <label class="text-slate-400 text-xs block mb-1">Level</label>
-              <select id="newSentenceLevelInput" class="w-full bg-slate-900 text-white px-2 py-2.5 rounded-xl border border-slate-600 text-sm">
-                <option value="">—</option>
-                <option value="N1" ${word.jlpt_level === 'N1' ? 'selected' : ''}>N1</option>
-                <option value="N2" ${word.jlpt_level === 'N2' ? 'selected' : ''}>N2</option>
-                <option value="N3" ${word.jlpt_level === 'N3' ? 'selected' : ''}>N3</option>
-                <option value="N4">N4</option>
-                <option value="N5">N5</option>
-              </select>
-            </div>
-          </div>
-          
-          <button id="submitNewSentenceBtn" class="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50"
-            ${isSaving ? 'disabled' : ''}>
-            ${isSaving ? 'Saving...' : '✏️ Save & Link to ' + escapeHtml(word.kanji || '')}
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// ===== BULK SENTENCE LINKER VIEW =====
-
-export function renderBulkLinker(app) {
-  const isParsed = app.bulkParsedResults && app.bulkParsedResults.length > 0;
-  const isSaving = app.bulkSaving;
-  
-  return `
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <!-- Header -->
-      <div class="bg-slate-800 p-4">
-        <div class="flex items-center gap-3 mb-3">
-          <button id="backToBooksBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg transition-colors">← Back</button>
-          <div>
-            <h2 class="text-white font-bold">Bulk Sentence Linker</h2>
-            <p class="text-slate-400 text-sm">${app.kanjiWords.length} words in database · ${app.allUnifiedSentences.length} sentences</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="flex-1 overflow-auto hide-scrollbar p-4">
-        <div class="max-w-lg mx-auto space-y-4">
-          
-          <!-- Input Area -->
-          <div class="bg-slate-800 rounded-xl p-4">
-            <label class="text-slate-400 text-xs block mb-2 font-medium">PASTE SENTENCES (one per line)</label>
-            <textarea id="bulkSentenceInput" rows="6" placeholder="私は毎朝6時に起きます。&#10;駅前は駐車禁止です。&#10;彼女は嬉しそうに喜んでいた。&#10;..."
-              class="w-full bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-indigo-500 focus:outline-none text-sm resize-none leading-relaxed">${escapeHtml(app.bulkSentenceInput || '')}</textarea>
-            
-            <div class="flex gap-2 mt-3">
-              <div class="flex-1">
-                <label class="text-slate-500 text-[10px] block mb-1">Source tag</label>
-                <input type="text" id="bulkSourceInput" value="${escapeHtml(app.bulkSource || 'manual')}" placeholder="manual"
-                  class="w-full bg-slate-900 text-white px-2.5 py-1.5 rounded-lg border border-slate-600 text-xs focus:outline-none focus:border-indigo-500">
-              </div>
-              <div class="flex-1">
-                <label class="text-slate-500 text-[10px] block mb-1">JLPT Level</label>
-                <select id="bulkLevelInput" class="w-full bg-slate-900 text-white px-2.5 py-1.5 rounded-lg border border-slate-600 text-xs">
-                  <option value="">Auto</option>
-                  <option value="N1">N1</option>
-                  <option value="N2">N2</option>
-                  <option value="N3">N3</option>
-                </select>
-              </div>
-            </div>
-            
-            <button id="parseBulkSentencesBtn" class="w-full mt-3 py-2.5 bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-600 transition-colors">
-              🔍 Detect Words
-            </button>
-          </div>
-          
-          <!-- Results -->
-          ${isParsed ? `
-            <div class="bg-slate-800 rounded-xl p-4">
-              <div class="flex items-center justify-between mb-3">
-                <div class="text-slate-400 text-xs font-medium">
-                  DETECTED LINKS (${app.bulkParsedResults.reduce((acc, r) => acc + r.detectedWords.length, 0)} word matches across ${app.bulkParsedResults.length} sentences)
-                </div>
-              </div>
-              
-              <div class="space-y-3">
-                ${app.bulkParsedResults.map((result, idx) => `
-                  <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-700/50">
-                    <!-- Sentence -->
-                    <div class="text-sm text-slate-200 leading-relaxed mb-2">${highlightMultipleWords(result.sentence, result.detectedWords)}</div>
-                    ${result.meaning ? `<div class="text-xs text-slate-500 mb-2">${escapeHtml(result.meaning)}</div>` : ''}
-                    
-                    <!-- Detected words -->
-                    ${result.detectedWords.length > 0 ? `
-                      <div class="flex flex-wrap gap-1.5">
-                        ${result.detectedWords.map(dw => {
-                          const isLinked = result.linkedWordIds?.includes(dw.id);
-                          return `
-                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs border transition-all ${
-                              isLinked
-                                ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
-                                : 'bg-indigo-500/15 border-indigo-500/25 text-indigo-400'
-                            }">
-                              ${escapeHtml(dw.kanji)} <span class="text-[10px] opacity-60">${escapeHtml(dw.hiragana || '')}</span>
-                              ${isLinked ? '✓' : `<button data-bulk-link-word="${dw.id}" data-bulk-link-idx="${idx}" class="ml-0.5 hover:text-white">+</button>`}
-                            </span>
-                          `;
-                        }).join('')}
-                      </div>
-                    ` : `
-                      <div class="text-xs text-slate-600">No matching words detected</div>
-                    `}
-                  </div>
-                `).join('')}
-              </div>
-              
-              <!-- Bulk actions -->
-              <div class="flex gap-2 mt-4">
-                <button id="bulkLinkAllBtn" class="flex-1 py-2.5 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                  ${isSaving ? 'disabled' : ''}>
-                  ${isSaving ? 'Saving...' : '✅ Save All & Link Detected Words'}
-                </button>
-              </div>
-            </div>
-          ` : ''}
-          
-          ${app.bulkResultMessage ? `
-            <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-emerald-400 text-sm text-center">
-              ${escapeHtml(app.bulkResultMessage)}
-            </div>
-          ` : ''}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// Highlight multiple detected words in a sentence
-function highlightMultipleWords(sentence, detectedWords) {
-  if (!detectedWords || detectedWords.length === 0) return escapeHtml(sentence);
-  
-  // Sort by stem length descending to avoid partial matches
-  const stems = detectedWords
-    .map(dw => extractKanjiStem(dw.kanji))
-    .filter(s => s)
-    .sort((a, b) => b.length - a.length);
-  
-  if (stems.length === 0) return escapeHtml(sentence);
-  
-  const pattern = new RegExp(`(${stems.map(s => escapeRegex(s)).join('|')})`, 'g');
-  const parts = sentence.split(pattern);
-  const stemSet = new Set(stems);
-  
-  return parts.map(part =>
-    stemSet.has(part)
-      ? `<span class="text-indigo-400 font-bold bg-indigo-500/10 px-0.5 rounded">${escapeHtml(part)}</span>`
-      : escapeHtml(part)
-  ).join('');
 }
