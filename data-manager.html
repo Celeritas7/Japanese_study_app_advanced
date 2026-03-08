@@ -360,6 +360,7 @@
       // Data pools
       sentences: [],
       words: [],
+      goiWords: [],  // from japanese_vocabulary
       storyAlerts: [],
       wordAlerts: [],
       stories: [],
@@ -370,6 +371,11 @@
       sentSource: 'all',
       sentSearch: '',
       sentPage: 0,
+      
+      // AI Review
+      aiEnabled: false,
+      aiReviewing: false,
+      aiResults: null,
       
       // Bulk tab
       bulkInput: '',
@@ -469,9 +475,10 @@
     
     async function loadAll() {
       state.loading = true; render();
-      const [sentences, words, storyAlerts, wordAlerts, stories, storyGroups] = await Promise.all([
+      const [sentences, words, goiWords, storyAlerts, wordAlerts, stories, storyGroups] = await Promise.all([
         loadPaginated('japanese_unified_sentences'),
         loadPaginated('japanese_unified_words'),
+        loadPaginated('japanese_vocabulary'),
         loadPaginated('japanese_story_alerts'),
         loadPaginated('japanese_word_alerts'),
         loadPaginated('japanese_kanji_stories'),
@@ -479,6 +486,7 @@
       ]);
       state.sentences = sentences;
       state.words = words;
+      state.goiWords = goiWords;
       state.storyAlerts = storyAlerts;
       state.wordAlerts = wordAlerts;
       state.stories = stories;
@@ -537,6 +545,141 @@
     async function verifySentence(id, status) {
       if (await updateSentence(id, { verified: status })) {
         toast(status === 'verified' ? '✓ Verified' : status === 'rejected' ? '✗ Rejected' : '↩ Unverified');
+        render();
+      }
+    }
+    
+    async function updateGoiWord(id, updates) {
+      const { error } = await sb.from('japanese_vocabulary').update(updates).eq('id', id);
+      if (error) { toast('Goi update failed: ' + error.message, 'error'); return false; }
+      const w = state.goiWords.find(w => w.id === id);
+      if (w) Object.assign(w, updates);
+      return true;
+    }
+    
+    // Export sentences as JSON for AI review
+    function exportSentencesForReview() {
+      const toExport = state.sentences
+        .filter(s => (s.verified || 'unverified') === 'unverified')
+        .map(s => ({
+          id: s.id,
+          sentence: s.sentence,
+          meaning_en: s.meaning_en || '',
+          source: s.source || '',
+          jlpt_level: s.jlpt_level || '',
+          tags: s.tags || [],
+        }));
+      
+      const blob = new Blob([JSON.stringify(toExport, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sentences_review_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast(`Exported ${toExport.length} sentences`);
+    }
+    
+    // Import AI review results (JSON)
+    async function importAIReview() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const results = JSON.parse(text);
+          if (!Array.isArray(results)) { toast('Invalid JSON: expected array', 'error'); return; }
+          
+          let updated = 0;
+          for (const r of results) {
+            if (!r.id) continue;
+            const updates = {};
+            if (r.verified) updates.verified = r.verified;
+            if (r.tags) updates.tags = r.tags;
+            if (r.meaning_en) updates.meaning_en = r.meaning_en;
+            if (r.corrected_sentence) updates.sentence = r.corrected_sentence;
+            
+            if (Object.keys(updates).length > 0) {
+              const ok = await updateSentence(r.id, updates);
+              if (ok) updated++;
+            }
+          }
+          toast(`Imported: ${updated}/${results.length} sentences updated`);
+          render();
+        } catch (err) {
+          toast('Import error: ' + err.message, 'error');
+        }
+      };
+      input.click();
+    }
+    
+    // AI Review via Anthropic API (Option B)
+    async function aiReviewBatch() {
+      const unverified = state.sentences
+        .filter(s => (s.verified || 'unverified') === 'unverified')
+        .slice(0, 15); // batch of 15
+      
+      if (unverified.length === 0) { toast('No unverified sentences', 'error'); return; }
+      
+      state.aiReviewing = true;
+      state.aiResults = null;
+      render();
+      
+      const sentenceList = unverified.map(s => 
+        `ID:${s.id} | ${s.sentence} | ${s.meaning_en || '(no translation)'}`
+      ).join('\n');
+      
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4000,
+            system: `You are a Japanese language expert reviewing sentences for a JLPT study app. For each sentence, evaluate:
+1. Grammar correctness (is it natural Japanese?)
+2. Suggest tags (grammar:てform, grammar:passive, vocab, etc.)
+3. If meaning_en is wrong or missing, provide correct translation
+4. Rate difficulty 1-3 (1=easy, 3=hard)
+5. verdict: "verified", "rejected", or "needs_edit"
+6. If needs_edit, provide corrected_sentence
+
+Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdict": string, "tags": string[], "meaning_en": string, "difficulty": number, "corrected_sentence": string|null, "notes": string}`,
+            messages: [{ role: 'user', content: `Review these Japanese sentences:\n\n${sentenceList}` }]
+          })
+        });
+        
+        const data = await response.json();
+        const text = data.content?.map(c => c.text || '').join('') || '';
+        const clean = text.replace(/```json|```/g, '').trim();
+        state.aiResults = JSON.parse(clean);
+        state.aiReviewing = false;
+        render();
+        toast(`AI reviewed ${state.aiResults.length} sentences`);
+      } catch (err) {
+        state.aiReviewing = false;
+        render();
+        toast('AI review failed: ' + err.message, 'error');
+      }
+    }
+    
+    // Apply a single AI review result
+    async function applyAIResult(resultIdx) {
+      const r = state.aiResults?.[resultIdx];
+      if (!r) return;
+      const updates = {};
+      if (r.verdict === 'verified' || r.verdict === 'rejected') updates.verified = r.verdict;
+      if (r.tags?.length) updates.tags = r.tags;
+      if (r.meaning_en) updates.meaning_en = r.meaning_en;
+      if (r.difficulty) updates.difficulty = r.difficulty;
+      if (r.corrected_sentence) updates.sentence = r.corrected_sentence;
+      
+      if (Object.keys(updates).length > 0 && await updateSentence(r.id, updates)) {
+        r._applied = true;
+        toast('Applied!');
         render();
       }
     }
@@ -661,7 +804,7 @@
           <div class="app-title">
             <span class="icon">🛠️</span>
             <span>JLPT Data Manager</span>
-            <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} words · ${state.sentences.length} sentences`}</span>
+            <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} unified · ${state.goiWords.length} goi · ${state.sentences.length} sentences`}</span>
           </div>
           <div class="tab-bar">
             <button class="tab-btn ${state.tab === 'sentences' ? 'active' : ''}" data-tab="sentences">
@@ -728,6 +871,57 @@
           <div class="stat-card"><div class="stat-num" style="color:var(--red)">${stats.rejected}</div><div class="stat-label">Rejected</div></div>
           <div class="stat-card"><div class="stat-num">${state.sentences.length}</div><div class="stat-label">Total</div></div>
         </div>
+        
+        <!-- Review Tools -->
+        <div class="card mb-3">
+          <div class="card-body" style="padding:14px 20px;">
+            <div class="flex gap-2 items-center flex-wrap">
+              <span style="font-size:12px; font-weight:700; color:var(--text-muted); margin-right:8px;">REVIEW TOOLS</span>
+              <button class="btn btn-sm btn-ghost" id="exportSentencesBtn">📤 Export Unverified (JSON)</button>
+              <button class="btn btn-sm btn-ghost" id="importReviewBtn">📥 Import AI Results</button>
+              <span style="border-left:1px solid var(--border); height:20px; margin:0 4px;"></span>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin:0;">
+                <input type="checkbox" id="aiToggle" ${state.aiEnabled ? 'checked' : ''} style="width:auto; accent-color:var(--accent);">
+                <span style="font-size:11px; color:${state.aiEnabled ? 'var(--accent)' : 'var(--text-muted)'};">AI Review (API)</span>
+              </label>
+              ${state.aiEnabled ? `
+                <button class="btn btn-sm btn-primary" id="aiReviewBtn" ${state.aiReviewing ? 'disabled' : ''}>
+                  ${state.aiReviewing ? '⏳ Reviewing...' : '🤖 AI Review (15 sentences)'}
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+        
+        <!-- AI Results -->
+        ${state.aiResults ? `
+          <div class="card mb-3">
+            <div class="card-header">
+              <span class="card-title">🤖 AI REVIEW RESULTS (${state.aiResults.length} sentences)</span>
+              <button class="btn btn-sm btn-ghost" id="clearAIResultsBtn">Clear</button>
+            </div>
+            <div class="card-body" style="max-height:400px; overflow-y:auto;">
+              ${state.aiResults.map((r, idx) => {
+                const sent = state.sentences.find(s => s.id === r.id);
+                const verdictCls = r.verdict === 'verified' ? 'badge-verified' : r.verdict === 'rejected' ? 'badge-rejected' : 'badge-unverified';
+                return `
+                  <div style="padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; ${r._applied ? 'opacity:0.4;' : ''}">
+                    <div style="font-size:14px; margin-bottom:4px;">${escapeHtml(sent?.sentence || '?')}</div>
+                    <div class="flex gap-2 items-center flex-wrap mb-2" style="font-size:11px;">
+                      <span class="badge ${verdictCls}">${r.verdict}</span>
+                      ${r.tags?.map(t => `<span class="tag ${tagClass(t)}">${escapeHtml(t)}</span>`).join('') || ''}
+                      ${r.difficulty ? `<span style="color:var(--text-muted);">Diff: ${r.difficulty}</span>` : ''}
+                    </div>
+                    ${r.meaning_en ? `<div style="font-size:11px; color:var(--text-secondary);">EN: ${escapeHtml(r.meaning_en)}</div>` : ''}
+                    ${r.corrected_sentence ? `<div style="font-size:11px; color:var(--amber);">Fix: ${escapeHtml(r.corrected_sentence)}</div>` : ''}
+                    ${r.notes ? `<div style="font-size:11px; color:var(--text-muted);">${escapeHtml(r.notes)}</div>` : ''}
+                    ${!r._applied ? `<button class="btn btn-sm btn-emerald mt-2" data-apply-ai="${idx}">✓ Apply</button>` : '<span style="font-size:11px; color:var(--emerald);">✓ Applied</span>'}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
         
         <div class="filter-bar">
           ${['unverified', 'verified', 'rejected', 'all'].map(f => `
@@ -918,6 +1112,16 @@
                         <input type="text" data-story-edit-meaning="${escapeHtml(alert.kanji)}" value="${escapeHtml(story.meaning || '')}">
                       </div>
                     </div>
+                    <div class="flex gap-2 mb-2">
+                      <div class="flex-1">
+                        <label>Onyomi</label>
+                        <input type="text" data-story-edit-onyomi="${escapeHtml(alert.kanji)}" value="${escapeHtml(story.onyomi || '')}">
+                      </div>
+                      <div class="flex-1">
+                        <label>Kunyomi</label>
+                        <input type="text" data-story-edit-kunyomi="${escapeHtml(alert.kanji)}" value="${escapeHtml(story.kunyomi || '')}">
+                      </div>
+                    </div>
                     <div class="mb-2">
                       <label>Story</label>
                       <textarea rows="2" data-story-edit-story="${escapeHtml(alert.kanji)}">${escapeHtml(story.story || '')}</textarea>
@@ -971,8 +1175,10 @@
         </div>
         
         ${pageItems.map(alert => {
-          // Find the word in both unified and vocabulary tables
+          // Find the word in BOTH unified and vocabulary tables
           const unifiedWord = state.words.find(w => w.kanji === alert.kanji);
+          const goiWord = state.goiWords.find(w => (w.kanji || w.raw) === alert.kanji);
+          const hasAny = unifiedWord || goiWord;
           
           return `
             <div class="alert-item ${alert.resolved ? 'resolved' : ''}">
@@ -993,34 +1199,69 @@
                   </div>
                   
                   ${unifiedWord ? `
-                    <!-- Editable fields -->
-                    <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">UNIFIED TABLE (id: ${unifiedWord.id})</div>
+                    <!-- Unified table edit -->
+                    <div style="font-size:11px; color:var(--accent); margin-bottom:6px; font-weight:600;">📘 UNIFIED TABLE (id: ${unifiedWord.id})</div>
                     <div class="flex gap-2 mb-2">
+                      <div style="width:120px;">
+                        <label>Kanji</label>
+                        <input type="text" data-uw-edit-kanji="${unifiedWord.id}" value="${escapeHtml(unifiedWord.kanji || '')}">
+                      </div>
                       <div class="flex-1">
                         <label>Hiragana</label>
-                        <input type="text" data-word-edit-hiragana="${unifiedWord.id}" value="${escapeHtml(unifiedWord.hiragana || '')}">
+                        <input type="text" data-uw-edit-hiragana="${unifiedWord.id}" value="${escapeHtml(unifiedWord.hiragana || '')}">
                       </div>
                       <div class="flex-1">
                         <label>Meaning</label>
-                        <input type="text" data-word-edit-meaning="${unifiedWord.id}" value="${escapeHtml(unifiedWord.meaning_en || '')}">
+                        <input type="text" data-uw-edit-meaning="${unifiedWord.id}" value="${escapeHtml(unifiedWord.meaning_en || '')}">
                       </div>
-                      <div style="width:80px;">
+                    </div>
+                    <div class="flex gap-2 mb-2">
+                      <div class="flex-1">
+                        <label>Hint</label>
+                        <input type="text" data-uw-edit-hint="${unifiedWord.id}" value="${escapeHtml(unifiedWord.hint || '')}">
+                      </div>
+                      <div style="width:100px;">
                         <label>Type</label>
-                        <input type="text" data-word-edit-type="${unifiedWord.id}" value="${escapeHtml(unifiedWord.word_type || '')}">
+                        <input type="text" data-uw-edit-type="${unifiedWord.id}" value="${escapeHtml(unifiedWord.word_type || '')}">
                       </div>
                     </div>
-                    <div class="mb-2">
-                      <label>Hint</label>
-                      <input type="text" data-word-edit-hint="${unifiedWord.id}" value="${escapeHtml(unifiedWord.hint || '')}">
+                    <button class="btn btn-sm btn-primary mb-3" data-save-unified="${unifiedWord.id}" data-alert-id="${alert.id}">💾 Save Unified</button>
+                  ` : `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">📘 Not in unified table</div>`}
+                  
+                  ${goiWord ? `
+                    <!-- Goi table edit -->
+                    <div style="font-size:11px; color:var(--emerald); margin-bottom:6px; font-weight:600;">📗 GOI TABLE (id: ${goiWord.id})</div>
+                    <div class="flex gap-2 mb-2">
+                      <div style="width:120px;">
+                        <label>Kanji</label>
+                        <input type="text" data-goi-edit-kanji="${goiWord.id}" value="${escapeHtml(goiWord.kanji || goiWord.raw || '')}">
+                      </div>
+                      <div class="flex-1">
+                        <label>Hiragana</label>
+                        <input type="text" data-goi-edit-hiragana="${goiWord.id}" value="${escapeHtml(goiWord.hiragana || '')}">
+                      </div>
+                      <div class="flex-1">
+                        <label>Meaning</label>
+                        <input type="text" data-goi-edit-meaning="${goiWord.id}" value="${escapeHtml(goiWord.meaning || '')}">
+                      </div>
                     </div>
-                    <div class="flex gap-2">
-                      <button class="btn btn-sm btn-primary" data-save-word="${unifiedWord.id}" data-alert-id="${alert.id}" data-alert-table="japanese_word_alerts">💾 Save & Resolve</button>
-                      ${!alert.resolved ? `<button class="btn btn-sm btn-ghost" data-resolve-word="${alert.id}">Skip (Resolve)</button>` : ''}
+                    <div class="flex gap-2 mb-2">
+                      <div class="flex-1">
+                        <label>Hint</label>
+                        <input type="text" data-goi-edit-hint="${goiWord.id}" value="${escapeHtml(goiWord.hint || '')}">
+                      </div>
+                      <div style="width:100px;">
+                        <label>Level</label>
+                        <input type="text" data-goi-edit-level="${goiWord.id}" value="${escapeHtml(goiWord.level || '')}" disabled style="opacity:0.6;">
+                      </div>
                     </div>
-                  ` : `
-                    <div style="font-size:12px; color:var(--text-muted);">Word not found in unified table</div>
-                    ${!alert.resolved ? `<button class="btn btn-sm btn-ghost mt-2" data-resolve-word="${alert.id}">Resolve</button>` : ''}
-                  `}
+                    <button class="btn btn-sm btn-emerald mb-3" data-save-goi="${goiWord.id}" data-alert-id="${alert.id}">💾 Save Goi</button>
+                  ` : `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">📗 Not in goi table</div>`}
+                  
+                  <div class="flex gap-2">
+                    ${(unifiedWord || goiWord) && !alert.resolved ? `<button class="btn btn-sm btn-ghost" data-resolve-word="${alert.id}">Skip (Resolve)</button>` : ''}
+                    ${!hasAny && !alert.resolved ? `<button class="btn btn-sm btn-ghost" data-resolve-word="${alert.id}">Resolve (not found)</button>` : ''}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1094,15 +1335,17 @@
       document.getElementById('flagPrev')?.addEventListener('click', () => { state.flagPage--; render(); });
       document.getElementById('flagNext')?.addEventListener('click', () => { state.flagPage++; render(); });
       
-      // Save story edits
+      // Save story edits (now includes onyomi/kunyomi)
       document.querySelectorAll('[data-save-story]').forEach(btn => {
         btn.addEventListener('click', async () => {
           const kanji = btn.dataset.saveStory;
           const alertId = parseInt(btn.dataset.alertId);
           const meaning = document.querySelector(`[data-story-edit-meaning="${kanji}"]`)?.value || '';
           const story = document.querySelector(`[data-story-edit-story="${kanji}"]`)?.value || '';
+          const onyomi = document.querySelector(`[data-story-edit-onyomi="${kanji}"]`)?.value || '';
+          const kunyomi = document.querySelector(`[data-story-edit-kunyomi="${kanji}"]`)?.value || '';
           
-          const ok = await updateStory(kanji, { meaning, story });
+          const ok = await updateStory(kanji, { meaning, story, onyomi, kunyomi });
           if (ok && alertId) {
             await resolveAlert('japanese_story_alerts', alertId);
             const a = state.storyAlerts.find(a => a.id === alertId);
@@ -1121,25 +1364,46 @@
         });
       });
       
-      // Save word edits
-      document.querySelectorAll('[data-save-word]').forEach(btn => {
+      // Save unified word edits
+      document.querySelectorAll('[data-save-unified]').forEach(btn => {
         btn.addEventListener('click', async () => {
-          const wordId = parseInt(btn.dataset.saveWord);
+          const wordId = parseInt(btn.dataset.saveUnified);
           const alertId = parseInt(btn.dataset.alertId);
-          const alertTable = btn.dataset.alertTable;
           
-          const hiragana = document.querySelector(`[data-word-edit-hiragana="${wordId}"]`)?.value || '';
-          const meaning_en = document.querySelector(`[data-word-edit-meaning="${wordId}"]`)?.value || '';
-          const word_type = document.querySelector(`[data-word-edit-type="${wordId}"]`)?.value || '';
-          const hint = document.querySelector(`[data-word-edit-hint="${wordId}"]`)?.value || '';
+          const kanji = document.querySelector(`[data-uw-edit-kanji="${wordId}"]`)?.value || '';
+          const hiragana = document.querySelector(`[data-uw-edit-hiragana="${wordId}"]`)?.value || '';
+          const meaning_en = document.querySelector(`[data-uw-edit-meaning="${wordId}"]`)?.value || '';
+          const hint = document.querySelector(`[data-uw-edit-hint="${wordId}"]`)?.value || '';
+          const word_type = document.querySelector(`[data-uw-edit-type="${wordId}"]`)?.value || '';
           
-          const ok = await updateWord(wordId, { hiragana, meaning_en, word_type, hint });
-          if (ok && alertId && alertTable) {
-            await resolveAlert(alertTable, alertId);
+          const ok = await updateWord(wordId, { kanji, hiragana, meaning_en, hint, word_type });
+          if (ok && alertId) {
+            await resolveAlert('japanese_word_alerts', alertId);
             const a = state.wordAlerts.find(a => a.id === alertId);
             if (a) a.resolved = true;
           }
-          if (ok) { toast('Word updated & resolved!'); render(); }
+          if (ok) { toast('Unified word updated!'); render(); }
+        });
+      });
+      
+      // Save goi word edits
+      document.querySelectorAll('[data-save-goi]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const wordId = parseInt(btn.dataset.saveGoi);
+          const alertId = parseInt(btn.dataset.alertId);
+          
+          const kanji = document.querySelector(`[data-goi-edit-kanji="${wordId}"]`)?.value || '';
+          const hiragana = document.querySelector(`[data-goi-edit-hiragana="${wordId}"]`)?.value || '';
+          const meaning = document.querySelector(`[data-goi-edit-meaning="${wordId}"]`)?.value || '';
+          const hint = document.querySelector(`[data-goi-edit-hint="${wordId}"]`)?.value || '';
+          
+          const ok = await updateGoiWord(wordId, { kanji, hiragana, meaning, hint });
+          if (ok && alertId) {
+            await resolveAlert('japanese_word_alerts', alertId);
+            const a = state.wordAlerts.find(a => a.id === alertId);
+            if (a) a.resolved = true;
+          }
+          if (ok) { toast('Goi word updated!'); render(); }
         });
       });
       
@@ -1150,6 +1414,16 @@
           const ok = await resolveAlert('japanese_word_alerts', id);
           if (ok) { const a = state.wordAlerts.find(a => a.id === id); if (a) a.resolved = true; toast('Resolved'); render(); }
         });
+      });
+      
+      // Export / Import / AI Review
+      document.getElementById('exportSentencesBtn')?.addEventListener('click', exportSentencesForReview);
+      document.getElementById('importReviewBtn')?.addEventListener('click', importAIReview);
+      document.getElementById('aiToggle')?.addEventListener('change', (e) => { state.aiEnabled = e.target.checked; render(); });
+      document.getElementById('aiReviewBtn')?.addEventListener('click', aiReviewBatch);
+      document.getElementById('clearAIResultsBtn')?.addEventListener('click', () => { state.aiResults = null; render(); });
+      document.querySelectorAll('[data-apply-ai]').forEach(btn => {
+        btn.addEventListener('click', () => applyAIResult(parseInt(btn.dataset.applyAi)));
       });
     }
     
