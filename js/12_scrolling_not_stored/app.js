@@ -1326,22 +1326,6 @@ class JLPTStudyApp {
     if (this.loading) { app.innerHTML = renderLoading(); return; }
     if (!this.user) { app.innerHTML = renderLogin(); attachEventListeners(this); return; }
     
-    // Build a view key that captures the exact "page" we're on
-    const getViewKey = () => {
-      if (this.currentTab === 'stories') return this.selectedStoryGroup ? 'stories-detail' : 'stories-list';
-      if (this.currentTab === 'similar') return this.selectedSimilarGroup ? 'similar-detail' : 'similar-list';
-      if (this.currentTab === 'study') return `study-${this.studySubTab}-${this.studyView}-${this.kanjiView}`;
-      return this.currentTab;
-    };
-    
-    // Save scroll position before re-render
-    if (!this._scrollCache) this._scrollCache = {};
-    const prevKey = this._lastViewKey;
-    const scrollable = app.querySelector('main .overflow-auto');
-    if (scrollable && prevKey) {
-      this._scrollCache[prevKey] = scrollable.scrollTop;
-    }
-    
     let content;
     switch (this.currentTab) {
       case 'study': content = this.renderStudyTab(); break;
@@ -1350,9 +1334,6 @@ class JLPTStudyApp {
       case 'similar': content = renderSimilarTab(this); break;
       default: content = this.renderStudyTab();
     }
-    
-    const newKey = getViewKey();
-    this._lastViewKey = newKey;
     
     app.innerHTML = `
       ${renderHeader(this)}
@@ -1364,13 +1345,6 @@ class JLPTStudyApp {
       ${renderWordAlertForm(this)}
       ${renderAddSentenceSheet(this)}
     `;
-    
-    // Restore scroll position for this view
-    const savedScroll = this._scrollCache[newKey];
-    if (savedScroll > 0) {
-      const newScrollable = app.querySelector('main .overflow-auto');
-      if (newScrollable) newScrollable.scrollTop = savedScroll;
-    }
     
     attachEventListeners(this);
     
