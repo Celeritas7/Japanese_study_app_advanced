@@ -426,24 +426,12 @@
       setTimeout(() => el.remove(), 3000);
     }
     
-    // Build word lookup for detection (full word + compound stems, skip single-char stems)
+    // Build stem lookup for word detection
     function buildStemMap() {
       const map = {};
       state.words.forEach(w => {
-        const kanji = w.kanji || '';
-        if (!kanji) return;
-        
-        // Always try full word match
-        if (!map[kanji]) map[kanji] = [];
-        map[kanji].push(w);
-        
-        // For compound kanji (2+ chars like 禁止, 不良), also add the stem
-        const stem = extractKanjiStem(kanji);
-        if (stem && stem.length >= 2 && stem !== kanji) {
-          if (!map[stem]) map[stem] = [];
-          map[stem].push(w);
-        }
-        // Skip single-character stems (良, 起, etc.) — too noisy for bulk detection
+        const stem = extractKanjiStem(w.kanji);
+        if (stem) { if (!map[stem]) map[stem] = []; map[stem].push(w); }
       });
       return map;
     }
@@ -453,15 +441,6 @@
       const seen = new Set();
       for (const stem of sortedStems) {
         if (sentence.includes(stem)) {
-          // For single-char stems that got in via full word match,
-          // verify it's not part of a larger compound in the sentence
-          if ([...stem].length === 1) {
-            const idx = sentence.indexOf(stem);
-            const charBefore = idx > 0 ? sentence[idx - 1] : '';
-            const charAfter = idx + stem.length < sentence.length ? sentence[idx + stem.length] : '';
-            // Skip if surrounded by other kanji (it's part of a compound)
-            if (isKanji(charBefore) || isKanji(charAfter)) continue;
-          }
           for (const w of stemMap[stem]) {
             if (!seen.has(w.id)) { seen.add(w.id); found.push(w); }
           }
@@ -823,7 +802,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       app.innerHTML = `
         <header class="app-header">
           <div class="app-title">
-            <a href="./" title="Back to Study App" style="text-decoration:none; font-size:20px; margin-right:2px;">←</a>
             <span class="icon">🛠️</span>
             <span>JLPT Data Manager</span>
             <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} unified · ${state.goiWords.length} goi · ${state.sentences.length} sentences`}</span>

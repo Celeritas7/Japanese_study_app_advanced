@@ -396,23 +396,13 @@ export function renderSentencePanel(app) {
   const wordKanji = word.kanji || word.raw || '';
   const kanjiStem = extractKanjiStem(wordKanji);
   
-  // Find unlinked sentences containing this word
-  // Use full word first, then compound stems (2+ chars), skip single-char stems
+  // Find unlinked sentences containing this word's kanji stem
   const linkedSentenceIds = new Set(linked.map(l => l.sentence_id || l.id));
-  const searchTerms = [wordKanji]; // always try full word
-  if (kanjiStem && kanjiStem.length >= 2 && kanjiStem !== wordKanji) {
-    searchTerms.push(kanjiStem); // add compound stem if different from full word
-  }
-  
-  const unlinked = searchTerms.length > 0
-    ? (app.allUnifiedSentences || []).filter(s => {
-        if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
-        return searchTerms.some(term => s.sentence.includes(term));
-      }).slice(0, 8)
+  const unlinked = kanjiStem
+    ? (app.allUnifiedSentences || []).filter(s =>
+        !linkedSentenceIds.has(s.id) && s.sentence && s.sentence.includes(kanjiStem)
+      ).slice(0, 8)  // limit for performance
     : [];
-  
-  // Use best available search term for highlighting
-  const highlightTerm = searchTerms[0] || '';
   
   const sentenceCount = linked.length;
   const isExpanded = app.sentencePanelExpanded;
@@ -503,14 +493,13 @@ export function renderSentencePanel(app) {
           <!-- Unlinked Sentences Discovery -->
           ${unlinked.length > 0 ? `
             <div class="pt-3 border-t border-slate-700/50">
-              <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(wordKanji)}」</div>
+              <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(kanjiStem)}」</div>
               <div class="space-y-1.5">
                 ${unlinked.map(s => {
-                  // Highlight the word in the sentence
-                  const hlTerm = searchTerms.find(t => s.sentence.includes(t)) || highlightTerm;
-                  const parts = hlTerm ? s.sentence.split(new RegExp(`(${escapeRegex(hlTerm)})`)) : [s.sentence];
+                  // Highlight the kanji stem in the sentence
+                  const parts = s.sentence.split(new RegExp(`(${escapeRegex(kanjiStem)})`));
                   const highlighted = parts.map(part =>
-                    part === hlTerm
+                    part === kanjiStem
                       ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>`
                       : escapeHtml(part)
                   ).join('');

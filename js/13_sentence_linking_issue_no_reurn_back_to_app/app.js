@@ -1385,8 +1385,6 @@ class JLPTStudyApp {
       if (container) {
         container.innerHTML = renderSentencePanel(this);
         this.attachSentencePanelListeners();
-      } else {
-        console.warn('Sentence panel: flashcardExtraContent div not found. Deploy latest render.js with ?v= cache-bust.');
       }
     }
     
