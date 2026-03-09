@@ -426,25 +426,34 @@
       setTimeout(() => el.remove(), 3000);
     }
     
-    // Build word lookup for detection (full word + compound stems, skip single-char stems)
+    // Build word lookup for detection (searches BOTH unified and goi tables)
     function buildStemMap() {
       const map = {};
-      state.words.forEach(w => {
-        const kanji = w.kanji || '';
+      const addWord = (w, source) => {
+        const kanji = w.kanji || w.raw || '';
         if (!kanji) return;
+        
+        const entry = { ...w, _source: source, kanji };
         
         // Always try full word match
         if (!map[kanji]) map[kanji] = [];
-        map[kanji].push(w);
+        // Avoid duplicates (same kanji from both tables)
+        if (!map[kanji].some(e => e.kanji === kanji && e._source === source)) {
+          map[kanji].push(entry);
+        }
         
-        // For compound kanji (2+ chars like 禁止, 不良), also add the stem
+        // For compound kanji (2+ chars), also add the stem
         const stem = extractKanjiStem(kanji);
         if (stem && stem.length >= 2 && stem !== kanji) {
           if (!map[stem]) map[stem] = [];
-          map[stem].push(w);
+          if (!map[stem].some(e => e.kanji === kanji && e._source === source)) {
+            map[stem].push(entry);
+          }
         }
-        // Skip single-character stems (良, 起, etc.) — too noisy for bulk detection
-      });
+      };
+      
+      state.words.forEach(w => addWord(w, 'unified'));
+      state.goiWords.forEach(w => addWord(w, 'goi'));
       return map;
     }
     
@@ -744,24 +753,39 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       const { data: inserted, error } = await sb.from('japanese_unified_sentences').insert(rows).select();
       if (error) { toast('Insert failed: ' + error.message, 'error'); state.bulkSaving = false; render(); return; }
       
-      // Build links
+      // Build links (only for unified words — goi-only words can't be linked to word_sentences table)
       const links = [];
       inserted.forEach((s, i) => {
         const parsed = state.bulkParsed[i];
         if (!parsed) return;
-        parsed.detectedWords.forEach(w => links.push({ word_id: w.id, sentence_id: s.id, rating: null }));
+        parsed.detectedWords.forEach(w => {
+          let unifiedId = null;
+          if (w._source === 'unified') {
+            unifiedId = w.id;
+          } else {
+            // Goi word — try to find matching unified word by kanji
+            const match = state.words.find(uw => uw.kanji === w.kanji);
+            if (match) unifiedId = match.id;
+          }
+          if (unifiedId) links.push({ word_id: unifiedId, sentence_id: s.id, rating: null });
+        });
         parsed.linked = true;
         state.sentences.push(s);
       });
       
       let linkedCount = 0;
+      const goiOnlyCount = inserted.reduce((acc, s, i) => {
+        const parsed = state.bulkParsed[i];
+        return acc + (parsed?.detectedWords.filter(w => w._source === 'goi' && !state.words.find(uw => uw.kanji === w.kanji)).length || 0);
+      }, 0);
+      
       if (links.length > 0) {
         const { data: linkData, error: linkErr } = await sb.from('japanese_unified_word_sentences').insert(links).select();
         if (!linkErr && linkData) linkedCount = linkData.length;
       }
       
       state.bulkSaving = false;
-      state.bulkMsg = `✅ ${inserted.length} sentences saved, ${linkedCount} word links created`;
+      state.bulkMsg = `✅ ${inserted.length} sentences saved, ${linkedCount} word links created${goiOnlyCount > 0 ? ` (${goiOnlyCount} goi-only words skipped — not in unified table)` : ''}`;
       render();
       toast(state.bulkMsg);
     }
@@ -1062,7 +1086,7 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
                   <div class="sent-text">${highlightWords(p.sentence, p.detectedWords)}</div>
                   <div class="flex gap-2 flex-wrap mt-2">
                     ${p.detectedWords.length > 0 
-                      ? p.detectedWords.map(w => `<span style="font-size:11px; padding:2px 6px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:4px;">${escapeHtml(w.kanji)} <span style="opacity:0.5">${escapeHtml(w.hiragana||'')}</span></span>`).join('')
+                      ? p.detectedWords.map(w => `<span style="font-size:11px; padding:2px 6px; background:${w._source === 'unified' ? 'rgba(99,102,241,0.1)' : 'rgba(16,185,129,0.1)'}; color:${w._source === 'unified' ? 'var(--accent)' : 'var(--emerald)'}; border-radius:4px;">${escapeHtml(w.kanji)} <span style="opacity:0.5">${escapeHtml(w.hiragana||'')}</span> <span style="opacity:0.3; font-size:9px;">${w._source === 'unified' ? '📘' : '📗'}</span></span>`).join('')
                       : '<span style="font-size:11px; color:var(--text-muted);">No words detected</span>'
                     }
                   </div>
