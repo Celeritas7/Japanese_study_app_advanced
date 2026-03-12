@@ -465,6 +465,7 @@ class JLPTStudyApp {
         this.linkSentence(parseInt(btn.dataset.linkWord), parseInt(btn.dataset.linkSentence));
       });
     });
+    document.getElementById('openAddSentenceSheetBtn')?.addEventListener('click', () => this.openAddSentenceSheet());
     // Verify from sentence panel
     document.querySelectorAll('#flashcardExtraContent [data-verify-sentence]').forEach(btn => {
       btn.addEventListener('click', () => this.verifySentence(parseInt(btn.dataset.verifySentence), 'verified'));
@@ -1390,7 +1391,6 @@ class JLPTStudyApp {
     }
     
     // Add sentence sheet listeners
-    document.getElementById('openAddSentenceSheetBtn')?.addEventListener('click', () => this.openAddSentenceSheet());
     document.getElementById('closeAddSentenceSheetBtn')?.addEventListener('click', () => this.closeAddSentenceSheet());
     document.getElementById('addSentenceSheetBg')?.addEventListener('click', (e) => {
       if (e.target.id === 'addSentenceSheetBg') this.closeAddSentenceSheet();

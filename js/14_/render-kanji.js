@@ -531,6 +531,13 @@ export function renderSentencePanel(app) {
               </div>
             </div>
           ` : ''}
+          
+          <!-- Add New Sentence Button -->
+          <div class="pt-3 border-t border-slate-700/50">
+            <button id="openAddSentenceSheetBtn" class="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-all">
+              ✏️ Add New Sentence for「${escapeHtml(wordKanji)}」
+            </button>
+          </div>
         </div>
       ` : ''}
     </div>

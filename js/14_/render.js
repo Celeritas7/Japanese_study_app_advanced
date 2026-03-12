@@ -516,15 +516,11 @@ export function renderFlashcard(app) {
         <div class="w-full max-w-2xl">
           ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter)}
           
-          <!-- Story + Add Sentence + Flag Buttons -->
+          <!-- Story + Flag Buttons -->
           <div class="flex gap-2 mb-3">
             <button data-open-story="${kanjiEsc}" data-story-hiragana="${word.hiragana || ''}" data-story-meaning="${escapeHtml(word.meaning)}" 
               class="flex-1 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all story-btn hover:opacity-80">
               📖 Kanji Story
-            </button>
-            <button id="openAddSentenceSheetBtn" 
-              class="px-4 py-3 rounded-xl font-semibold flex items-center justify-center transition-all bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20">
-              ✏️
             </button>
             <button data-flag-word="${kanjiEsc}" data-flag-word-hiragana="${word.hiragana || ''}" data-flag-word-meaning="${escapeHtml(word.meaning)}"
               class="px-4 py-3 rounded-xl font-semibold flex items-center justify-center transition-all bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20">
