@@ -3,6 +3,15 @@
 import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
 import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml } from './utils.js';
 
+// Dynamic font size for kanji display based on character count
+function kanjiFontSize(text) {
+  const len = [...(text || '')].length;
+  if (len <= 2) return 'font-size:4rem;';
+  if (len === 3) return 'font-size:3rem;';
+  if (len === 4) return 'font-size:2.5rem;';
+  return 'font-size:2rem;'; // 5+ chars
+}
+
 // ===== WORD ALERT FORM =====
 
 export function renderWordAlertForm(app) {
@@ -575,7 +584,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex items-center justify-center">
         <p class="text-center leading-relaxed">
           ${app.revealStep >= 2 && ctxBefore ? `<span class="context-text">${ctxBefore}</span>` : ''}
-          <span class="kanji-highlight mx-1">${word.kanji || word.raw}</span>
+          <span class="kanji-highlight mx-1" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</span>
           ${app.revealStep >= 2 && ctxAfter ? `<span class="context-text">${ctxAfter}</span>` : ''}
         </p>
       </div>
@@ -616,7 +625,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
         <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
           ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
           ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
-          ${app.revealStep >= 3 ? `<p class="kanji-highlight animate-fadeIn">${word.kanji || word.raw}</p>` : ''}
+          ${app.revealStep >= 3 ? `<p class="kanji-highlight animate-fadeIn" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</p>` : ''}
           ${app.revealStep < 3 ? `
             <p class="text-slate-400 text-sm mt-4">
               \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : 'kanji'}
@@ -654,7 +663,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
             </div>
           ` : ''}
           ${app.revealStep >= 3 ? `<p class="text-2xl text-blue-600 mb-3 animate-fadeIn">${word.hiragana || ''}</p>` : ''}
-          ${app.revealStep >= 4 ? `<p class="kanji-highlight animate-fadeIn">${word.kanji || word.raw}</p>` : ''}
+          ${app.revealStep >= 4 ? `<p class="kanji-highlight animate-fadeIn" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</p>` : ''}
           ${app.revealStep < 4 ? `
             <p class="text-slate-400 text-sm mt-4">
               \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : app.revealStep === 2 ? 'reading' : 'kanji'}

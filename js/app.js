@@ -835,12 +835,29 @@ class JLPTStudyApp {
       }
       console.log(`Sentences loaded: ${Object.keys(sentenceMap).length}/${unifiedIds.length} words have sentences`);
       
-      // Re-render sentence panel if visible
-      const container = document.getElementById('flashcardExtraContent');
-      if (container) {
-        container.innerHTML = renderSentencePanel(this);
-        this.attachSentencePanelListeners();
+      // Enrich study words with best sentence context (sentence_before/sentence_after)
+      const activeWords = this.currentTab === 'srs' ? this.srsWords : this.studyWords;
+      if (activeWords) {
+        activeWords.forEach(w => {
+          const kanji = w.kanji || w.raw || '';
+          const uid = (w.id && this.kanjiWords.some(kw => kw.id === w.id)) ? w.id : kanjiToUnified[kanji];
+          const sentences = uid ? sentenceMap[uid] : null;
+          if (sentences && sentences.length > 0) {
+            const best = sentences[0]; // highest rated
+            const sentText = best.sentence || '';
+            const idx = sentText.indexOf(kanji);
+            if (idx >= 0) {
+              w.sentence_before = sentText.substring(0, idx);
+              w.sentence_after = sentText.substring(idx + kanji.length);
+              w.supporting_word_1 = w.sentence_before;
+              w.supporting_word_2 = w.sentence_after;
+            }
+          }
+        });
       }
+      
+      // Re-render to show updated context + sentence panel
+      this.render();
     } catch (err) {
       console.warn('Sentence loading skipped:', err);
     }

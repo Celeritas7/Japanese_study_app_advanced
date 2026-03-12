@@ -413,6 +413,14 @@ export function renderSentencePanel(app) {
       }).slice(0, 8)
     : [];
   
+  // Count ALL unlinked matches (not just the sliced 8)
+  const unlinkedTotal = searchTerms.length > 0
+    ? (app.allUnifiedSentences || []).filter(s => {
+        if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
+        return searchTerms.some(term => s.sentence.includes(term));
+      }).length
+    : 0;
+  
   // Use best available search term for highlighting
   const highlightTerm = searchTerms[0] || '';
   
@@ -423,11 +431,11 @@ export function renderSentencePanel(app) {
     <div class="mt-4">
       <!-- Toggle Button -->
       <button id="toggleSentencePanelBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
-        sentenceCount > 0 
+        sentenceCount > 0 || unlinkedTotal > 0
           ? 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25'
           : 'bg-slate-700/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
       }">
-        💬 Sentences ${sentenceCount > 0 ? `(${sentenceCount} linked)` : '(none linked)'}
+        💬 Sentences ${sentenceCount > 0 ? `(${sentenceCount} linked` : '(none linked'}${unlinkedTotal > 0 ? ` · ${unlinkedTotal} available` : ''})
         <span class="text-xs">${isExpanded ? '▲' : '▼'}</span>
       </button>
       
