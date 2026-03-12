@@ -368,8 +368,10 @@ export function getCurrentStudyWord(app) {
 // Look up linked sentences for a word (by unified id or kanji text)
 export function getSentencesForWord(app, word) {
   if (!word || !app.kanjiSentenceMap) return [];
-  // Try by word id directly (works for unified words)
-  if (word.id && app.kanjiSentenceMap[word.id]) return app.kanjiSentenceMap[word.id];
+  // Only use word.id if it's actually from the unified table (avoids Goi ID collision)
+  if (word.id && app.kanjiWords?.some(w => w.id === word.id) && app.kanjiSentenceMap[word.id]) {
+    return app.kanjiSentenceMap[word.id];
+  }
   // Fallback: look up unified word by kanji text, then check its ID in the map
   const kanji = word.kanji || word.raw || '';
   if (!kanji || !app.kanjiWords) return [];
