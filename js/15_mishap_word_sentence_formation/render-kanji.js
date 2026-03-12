@@ -406,34 +406,19 @@ export function renderSentencePanel(app) {
     searchTerms.push(kanjiStem); // add compound stem if different from full word
   }
   
-  // Word-boundary-aware match: reject if the char before the match is also kanji
-  // e.g. "治す" inside "退治する" → char before is 退 (kanji) → reject
-  const sentenceContainsWord = (sentence, term) => {
-    let startIdx = 0;
-    while (true) {
-      const idx = sentence.indexOf(term, startIdx);
-      if (idx === -1) return false;
-      // Check char before: if it's kanji, this match is inside a compound → skip
-      if (idx > 0) {
-        const charBefore = sentence[idx - 1];
-        if (isKanji(charBefore)) { startIdx = idx + 1; continue; }
-      }
-      return true; // valid match
-    }
-  };
-  
-  const matchesSentence = (s) => {
-    if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
-    return searchTerms.some(term => sentenceContainsWord(s.sentence, term));
-  };
-  
   const unlinked = searchTerms.length > 0
-    ? (app.allUnifiedSentences || []).filter(matchesSentence).slice(0, 8)
+    ? (app.allUnifiedSentences || []).filter(s => {
+        if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
+        return searchTerms.some(term => s.sentence.includes(term));
+      }).slice(0, 8)
     : [];
   
   // Count ALL unlinked matches (not just the sliced 8)
   const unlinkedTotal = searchTerms.length > 0
-    ? (app.allUnifiedSentences || []).filter(matchesSentence).length
+    ? (app.allUnifiedSentences || []).filter(s => {
+        if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
+        return searchTerms.some(term => s.sentence.includes(term));
+      }).length
     : 0;
   
   // Use best available search term for highlighting
