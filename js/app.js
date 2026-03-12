@@ -411,15 +411,13 @@ class JLPTStudyApp {
         const item = arr.find(s => s.link_id === linkId);
         if (item) {
           item.rating = result.rating;
+          // Re-sort so highest rated is first (used for context display)
+          arr.sort((a, b) => (b.rating || 0) - (a.rating || 0));
           break;
         }
       }
-      // Surgical re-render of sentence panel
-      const container = document.getElementById('flashcardExtraContent');
-      if (container) {
-        container.innerHTML = renderSentencePanel(this);
-        this.attachSentencePanelListeners();
-      }
+      // Full re-render so flashcard context updates too
+      this.render();
       showToast(result.rating ? `Rated ★${result.rating}` : 'Rating cleared', 'success');
     } else {
       showToast('Rating failed', 'error');
@@ -441,12 +439,8 @@ class JLPTStudyApp {
           rating: null,
         });
       }
-      // Surgical re-render
-      const container = document.getElementById('flashcardExtraContent');
-      if (container) {
-        container.innerHTML = renderSentencePanel(this);
-        this.attachSentencePanelListeners();
-      }
+      // Full re-render so flashcard context updates too
+      this.render();
       showToast('Sentence linked!', 'success');
     } else {
       showToast('Link failed: ' + result.error, 'error');

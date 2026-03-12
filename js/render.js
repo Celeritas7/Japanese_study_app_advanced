@@ -488,8 +488,28 @@ export function renderFlashcard(app) {
   const levelColor = LEVEL_COLORS[word.level] || LEVEL_COLORS['ALL'];
   const kanjiEsc = escapeHtml(word.kanji || word.raw);
   
-  const ctxBefore = word.sentence_before || word.supporting_word_1 || '';
-  const ctxAfter = word.sentence_after || word.supporting_word_2 || '';
+  let ctxBefore = word.sentence_before || word.supporting_word_1 || '';
+  let ctxAfter = word.sentence_after || word.supporting_word_2 || '';
+  
+  // Live fallback: check kanjiSentenceMap if no pre-enriched context
+  // This catches sentences linked/rated during the current study session
+  if (!ctxBefore && !ctxAfter && app.kanjiSentenceMap && app.kanjiWords) {
+    const kanji = word.kanji || word.raw || '';
+    // Resolve unified word ID
+    let uid = (word.id && app.kanjiWords.some(kw => kw.id === word.id)) ? word.id : null;
+    if (!uid) { const match = app.kanjiWords.find(w => w.kanji === kanji); uid = match?.id; }
+    const sentences = uid ? app.kanjiSentenceMap[uid] : null;
+    if (sentences && sentences.length > 0) {
+      const best = sentences[0];
+      const sentText = best.sentence || '';
+      const idx = sentText.indexOf(kanji);
+      if (idx >= 0) {
+        ctxBefore = sentText.substring(0, idx);
+        ctxAfter = sentText.substring(idx + kanji.length);
+      }
+    }
+  }
+  
   const hasContext = ctxBefore || ctxAfter;
   
   return `
