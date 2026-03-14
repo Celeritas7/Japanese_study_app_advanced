@@ -967,6 +967,8 @@ class JLPTStudyApp {
   
   startSRSTest() {
     let allWords = [];
+    // Use ALL unified words for SRS (not just JLPT vocabulary)
+    const wordPool = this.kanjiWords;
     
     if (this.srsConfig.selectionMode === 'marking') {
       for (let k = 1; k <= 5; k++) {
@@ -975,7 +977,7 @@ class JLPTStudyApp {
       for (let k = 1; k <= 5; k++) {
         const count = this.srsConfig.markingCounts[k];
         if (count <= 0) continue;
-        const pool = this.vocabulary.filter(w => getMarking(this.markings, w) === k);
+        const pool = wordPool.filter(w => getMarking(this.markings, w) === k);
         allWords.push(...sampleArray(pool, count));
       }
     } else {
@@ -984,9 +986,9 @@ class JLPTStudyApp {
         const input = document.getElementById(`srs${level}Count`);
         if (input) this.srsConfig[`${level.toLowerCase()}Count`] = parseInt(input.value) || 0;
       }
-      const n1 = this.vocabulary.filter(v => v.level === 'N1');
-      const n2 = this.vocabulary.filter(v => v.level === 'N2');
-      const n3 = this.vocabulary.filter(v => v.level === 'N3');
+      const n1 = wordPool.filter(v => v.level === 'N1');
+      const n2 = wordPool.filter(v => v.level === 'N2');
+      const n3 = wordPool.filter(v => v.level === 'N3');
       allWords = [
         ...sampleArray(n1, this.srsConfig.n1Count),
         ...sampleArray(n2, this.srsConfig.n2Count),
@@ -1019,7 +1021,7 @@ class JLPTStudyApp {
     if (testType === 'kanji_recognition') {
       // Kanji Recognition: show kanji, choose meaning
       const correct = word.meaning;
-      const pool = this.vocabulary.filter(v => v.meaning !== correct && v.meaning);
+      const pool = this.kanjiWords.filter(v => v.meaning !== correct && v.meaning);
       const wrong = sampleArray(pool, 3).map(v => v.meaning);
       this.srsOptions = shuffleArray([correct, ...wrong]);
     } else {
@@ -1038,7 +1040,7 @@ class JLPTStudyApp {
   }
   
   generateH2KOptions(word, correct) {
-    const all = this.vocabulary;
+    const all = this.kanjiWords;  // Use all unified words for better distractors
     const kanjiLen = [...(correct || '')].length;
     const distractors = [];
     
@@ -1093,7 +1095,7 @@ class JLPTStudyApp {
   }
   
   generateK2HOptions(word, correct) {
-    const all = this.vocabulary;
+    const all = this.kanjiWords;  // Use all unified words for better distractors
     const distractors = [];
     const correctKanji = word.kanji || word.raw;
     const kanjiChars = [...(correctKanji || '')].filter(c => /[\u4e00-\u9faf]/.test(c));
@@ -1342,7 +1344,7 @@ class JLPTStudyApp {
   getMarkingStats() {
     const stats = {};
     for (let k = 0; k <= 5; k++) {
-      stats[k] = this.vocabulary.filter(w => getMarking(this.markings, w) === k).length;
+      stats[k] = this.kanjiWords.filter(w => getMarking(this.markings, w) === k).length;
     }
     return stats;
   }

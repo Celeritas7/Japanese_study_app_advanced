@@ -40,9 +40,11 @@ export function renderKanjiTab(app) {
 // ===== BOOK SELECTOR =====
 
 function renderBookSelector(app) {
-  // Build book summary from word_books join table
+  // Build book summary from word_books join table (exclude JLPT vocab books — those are in Goi tab)
+  const JLPT_PREFIXES = ['JLPT_'];
   const bookMap = {};
   app.kanjiWordBooks.forEach(wb => {
+    if (JLPT_PREFIXES.some(p => wb.book_code.startsWith(p))) return; // skip Goi books
     if (!bookMap[wb.book_code]) {
       bookMap[wb.book_code] = {
         code: wb.book_code,
@@ -368,11 +370,9 @@ export function getCurrentStudyWord(app) {
 // Look up linked sentences for a word (by unified id or kanji text)
 export function getSentencesForWord(app, word) {
   if (!word || !app.kanjiSentenceMap) return [];
-  // Only use word.id if it's actually from the unified table (avoids Goi ID collision)
-  if (word.id && app.kanjiWords?.some(w => w.id === word.id) && app.kanjiSentenceMap[word.id]) {
-    return app.kanjiSentenceMap[word.id];
-  }
-  // Fallback: look up unified word by kanji text, then check its ID in the map
+  // After merge, all words (Goi + Kanji) have unified IDs
+  if (word.id && app.kanjiSentenceMap[word.id]) return app.kanjiSentenceMap[word.id];
+  // Fallback: look up by kanji text
   const kanji = word.kanji || word.raw || '';
   if (!kanji || !app.kanjiWords) return [];
   const match = app.kanjiWords.find(w => w.kanji === kanji);
