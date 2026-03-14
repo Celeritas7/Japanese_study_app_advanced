@@ -359,7 +359,8 @@
       
       // Data pools
       sentences: [],
-      words: [],       // from japanese_unified_words (includes all Goi + Kanji words)
+      words: [],
+      goiWords: [],  // from japanese_vocabulary
       storyAlerts: [],
       wordAlerts: [],
       stories: [],
@@ -425,24 +426,34 @@
       setTimeout(() => el.remove(), 3000);
     }
     
-    // Build word lookup for detection (full word + compound stems, skip single-char stems)
+    // Build word lookup for detection (searches BOTH unified and goi tables)
     function buildStemMap() {
       const map = {};
-      state.words.forEach(w => {
-        const kanji = w.kanji || '';
+      const addWord = (w, source) => {
+        const kanji = w.kanji || w.raw || '';
         if (!kanji) return;
+        
+        const entry = { ...w, _source: source, kanji };
         
         // Always try full word match
         if (!map[kanji]) map[kanji] = [];
-        if (!map[kanji].some(e => e.id === w.id)) map[kanji].push(w);
+        // Avoid duplicates (same kanji from both tables)
+        if (!map[kanji].some(e => e.kanji === kanji && e._source === source)) {
+          map[kanji].push(entry);
+        }
         
         // For compound kanji (2+ chars), also add the stem
         const stem = extractKanjiStem(kanji);
         if (stem && stem.length >= 2 && stem !== kanji) {
           if (!map[stem]) map[stem] = [];
-          if (!map[stem].some(e => e.id === w.id)) map[stem].push(w);
+          if (!map[stem].some(e => e.kanji === kanji && e._source === source)) {
+            map[stem].push(entry);
+          }
         }
-      });
+      };
+      
+      state.words.forEach(w => addWord(w, 'unified'));
+      state.goiWords.forEach(w => addWord(w, 'goi'));
       return map;
     }
     
@@ -494,9 +505,10 @@
     
     async function loadAll() {
       state.loading = true; render();
-      const [sentences, words, storyAlerts, wordAlerts, stories, storyGroups] = await Promise.all([
+      const [sentences, words, goiWords, storyAlerts, wordAlerts, stories, storyGroups] = await Promise.all([
         loadPaginated('japanese_unified_sentences'),
         loadPaginated('japanese_unified_words'),
+        loadPaginated('japanese_vocabulary'),
         loadPaginated('japanese_story_alerts'),
         loadPaginated('japanese_word_alerts'),
         loadPaginated('japanese_kanji_stories'),
@@ -504,6 +516,7 @@
       ]);
       state.sentences = sentences;
       state.words = words;
+      state.goiWords = goiWords;
       state.storyAlerts = storyAlerts;
       state.wordAlerts = wordAlerts;
       state.stories = stories;
@@ -564,6 +577,14 @@
         toast(status === 'verified' ? '✓ Verified' : status === 'rejected' ? '✗ Rejected' : '↩ Unverified');
         render();
       }
+    }
+    
+    async function updateGoiWord(id, updates) {
+      const { error } = await sb.from('japanese_vocabulary').update(updates).eq('id', id);
+      if (error) { toast('Goi update failed: ' + error.message, 'error'); return false; }
+      const w = state.goiWords.find(w => w.id === id);
+      if (w) Object.assign(w, updates);
+      return true;
     }
     
     // Export sentences as JSON for AI review
@@ -732,26 +753,39 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       const { data: inserted, error } = await sb.from('japanese_unified_sentences').insert(rows).select();
       if (error) { toast('Insert failed: ' + error.message, 'error'); state.bulkSaving = false; render(); return; }
       
-      // Build links
+      // Build links (only for unified words — goi-only words can't be linked to word_sentences table)
       const links = [];
       inserted.forEach((s, i) => {
         const parsed = state.bulkParsed[i];
         if (!parsed) return;
         parsed.detectedWords.forEach(w => {
-          if (w.id) links.push({ word_id: w.id, sentence_id: s.id, rating: null });
+          let unifiedId = null;
+          if (w._source === 'unified') {
+            unifiedId = w.id;
+          } else {
+            // Goi word — try to find matching unified word by kanji
+            const match = state.words.find(uw => uw.kanji === w.kanji);
+            if (match) unifiedId = match.id;
+          }
+          if (unifiedId) links.push({ word_id: unifiedId, sentence_id: s.id, rating: null });
         });
         parsed.linked = true;
         state.sentences.push(s);
       });
       
       let linkedCount = 0;
+      const goiOnlyCount = inserted.reduce((acc, s, i) => {
+        const parsed = state.bulkParsed[i];
+        return acc + (parsed?.detectedWords.filter(w => w._source === 'goi' && !state.words.find(uw => uw.kanji === w.kanji)).length || 0);
+      }, 0);
+      
       if (links.length > 0) {
         const { data: linkData, error: linkErr } = await sb.from('japanese_unified_word_sentences').insert(links).select();
         if (!linkErr && linkData) linkedCount = linkData.length;
       }
       
       state.bulkSaving = false;
-      state.bulkMsg = `✅ ${inserted.length} sentences saved, ${linkedCount} word links created`;
+      state.bulkMsg = `✅ ${inserted.length} sentences saved, ${linkedCount} word links created${goiOnlyCount > 0 ? ` (${goiOnlyCount} goi-only words skipped — not in unified table)` : ''}`;
       render();
       toast(state.bulkMsg);
     }
@@ -816,7 +850,7 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             <a href="./" title="Back to Study App" style="text-decoration:none; font-size:20px; margin-right:2px;">←</a>
             <span class="icon">🛠️</span>
             <span>JLPT Data Manager</span>
-            <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} words · ${state.sentences.length} sentences`}</span>
+            <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} unified · ${state.goiWords.length} goi · ${state.sentences.length} sentences`}</span>
           </div>
           <div class="tab-bar">
             <button class="tab-btn ${state.tab === 'sentences' ? 'active' : ''}" data-tab="sentences">
@@ -1052,7 +1086,7 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
                   <div class="sent-text">${highlightWords(p.sentence, p.detectedWords)}</div>
                   <div class="flex gap-2 flex-wrap mt-2">
                     ${p.detectedWords.length > 0 
-                      ? p.detectedWords.map(w => `<span style="font-size:11px; padding:2px 6px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:4px;">${escapeHtml(w.kanji)} <span style="opacity:0.5">${escapeHtml(w.hiragana||'')}</span></span>`).join('')
+                      ? p.detectedWords.map(w => `<span style="font-size:11px; padding:2px 6px; background:${w._source === 'unified' ? 'rgba(99,102,241,0.1)' : 'rgba(16,185,129,0.1)'}; color:${w._source === 'unified' ? 'var(--accent)' : 'var(--emerald)'}; border-radius:4px;">${escapeHtml(w.kanji)} <span style="opacity:0.5">${escapeHtml(w.hiragana||'')}</span> <span style="opacity:0.3; font-size:9px;">${w._source === 'unified' ? '📘' : '📗'}</span></span>`).join('')
                       : '<span style="font-size:11px; color:var(--text-muted);">No words detected</span>'
                     }
                   </div>
@@ -1187,7 +1221,10 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
         </div>
         
         ${pageItems.map(alert => {
-          const word = state.words.find(w => w.kanji === alert.kanji);
+          // Find the word in BOTH unified and vocabulary tables
+          const unifiedWord = state.words.find(w => w.kanji === alert.kanji);
+          const goiWord = state.goiWords.find(w => (w.kanji || w.raw) === alert.kanji);
+          const hasAny = unifiedWord || goiWord;
           
           return `
             <div class="alert-item ${alert.resolved ? 'resolved' : ''}">
@@ -1207,40 +1244,70 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
                     ${alert.comment ? `<div style="margin-top:4px; color:var(--text-secondary);">"${escapeHtml(alert.comment)}"</div>` : ''}
                   </div>
                   
-                  ${word ? `
-                    <div style="font-size:11px; color:var(--accent); margin-bottom:6px; font-weight:600;">📘 WORD (id: ${word.id})</div>
+                  ${unifiedWord ? `
+                    <!-- Unified table edit -->
+                    <div style="font-size:11px; color:var(--accent); margin-bottom:6px; font-weight:600;">📘 UNIFIED TABLE (id: ${unifiedWord.id})</div>
                     <div class="flex gap-2 mb-2">
                       <div style="width:120px;">
                         <label>Kanji</label>
-                        <input type="text" data-uw-edit-kanji="${word.id}" value="${escapeHtml(word.kanji || '')}">
+                        <input type="text" data-uw-edit-kanji="${unifiedWord.id}" value="${escapeHtml(unifiedWord.kanji || '')}">
                       </div>
                       <div class="flex-1">
                         <label>Hiragana</label>
-                        <input type="text" data-uw-edit-hiragana="${word.id}" value="${escapeHtml(word.hiragana || '')}">
+                        <input type="text" data-uw-edit-hiragana="${unifiedWord.id}" value="${escapeHtml(unifiedWord.hiragana || '')}">
                       </div>
                       <div class="flex-1">
                         <label>Meaning</label>
-                        <input type="text" data-uw-edit-meaning="${word.id}" value="${escapeHtml(word.meaning_en || '')}">
+                        <input type="text" data-uw-edit-meaning="${unifiedWord.id}" value="${escapeHtml(unifiedWord.meaning_en || '')}">
                       </div>
                     </div>
                     <div class="flex gap-2 mb-2">
                       <div class="flex-1">
                         <label>Hint</label>
-                        <input type="text" data-uw-edit-hint="${word.id}" value="${escapeHtml(word.hint || '')}">
+                        <input type="text" data-uw-edit-hint="${unifiedWord.id}" value="${escapeHtml(unifiedWord.hint || '')}">
                       </div>
                       <div style="width:100px;">
                         <label>Type</label>
-                        <input type="text" data-uw-edit-type="${word.id}" value="${escapeHtml(word.word_type || '')}">
+                        <input type="text" data-uw-edit-type="${unifiedWord.id}" value="${escapeHtml(unifiedWord.word_type || '')}">
                       </div>
                     </div>
-                    <div class="flex gap-2">
-                      <button class="btn btn-sm btn-primary" data-save-unified="${word.id}" data-alert-id="${alert.id}">💾 Save & Resolve</button>
-                      ${!alert.resolved ? `<button class="btn btn-sm btn-ghost" data-resolve-word="${alert.id}">Skip (Resolve)</button>` : ''}
+                    <button class="btn btn-sm btn-primary mb-3" data-save-unified="${unifiedWord.id}" data-alert-id="${alert.id}">💾 Save Unified</button>
+                  ` : `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">📘 Not in unified table</div>`}
+                  
+                  ${goiWord ? `
+                    <!-- Goi table edit -->
+                    <div style="font-size:11px; color:var(--emerald); margin-bottom:6px; font-weight:600;">📗 GOI TABLE (id: ${goiWord.id})</div>
+                    <div class="flex gap-2 mb-2">
+                      <div style="width:120px;">
+                        <label>Kanji</label>
+                        <input type="text" data-goi-edit-kanji="${goiWord.id}" value="${escapeHtml(goiWord.kanji || goiWord.raw || '')}">
+                      </div>
+                      <div class="flex-1">
+                        <label>Hiragana</label>
+                        <input type="text" data-goi-edit-hiragana="${goiWord.id}" value="${escapeHtml(goiWord.hiragana || '')}">
+                      </div>
+                      <div class="flex-1">
+                        <label>Meaning</label>
+                        <input type="text" data-goi-edit-meaning="${goiWord.id}" value="${escapeHtml(goiWord.meaning_en || goiWord.meaning || '')}">
+                      </div>
                     </div>
-                  ` : `
-                    <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Word not found in database</div>
-                    ${!alert.resolved ? `<button class="btn btn-sm btn-ghost" data-resolve-word="${alert.id}">Resolve</button>` : ''}
-                  `}
+                    <div class="flex gap-2 mb-2">
+                      <div class="flex-1">
+                        <label>Hint</label>
+                        <input type="text" data-goi-edit-hint="${goiWord.id}" value="${escapeHtml(goiWord.hint || '')}">
+                      </div>
+                      <div style="width:100px;">
+                        <label>Level</label>
+                        <input type="text" data-goi-edit-level="${goiWord.id}" value="${escapeHtml(goiWord.level || '')}" disabled style="opacity:0.6;">
+                      </div>
+                    </div>
+                    <button class="btn btn-sm btn-emerald mb-3" data-save-goi="${goiWord.id}" data-alert-id="${alert.id}">💾 Save Goi</button>
+                  ` : `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">📗 Not in goi table</div>`}
+                  
+                  <div class="flex gap-2">
+                    ${(unifiedWord || goiWord) && !alert.resolved ? `<button class="btn btn-sm btn-ghost" data-resolve-word="${alert.id}">Skip (Resolve)</button>` : ''}
+                    ${!hasAny && !alert.resolved ? `<button class="btn btn-sm btn-ghost" data-resolve-word="${alert.id}">Resolve (not found)</button>` : ''}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1362,6 +1429,27 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             if (a) a.resolved = true;
           }
           if (ok) { toast('Unified word updated!'); render(); }
+        });
+      });
+      
+      // Save goi word edits
+      document.querySelectorAll('[data-save-goi]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const wordId = parseInt(btn.dataset.saveGoi);
+          const alertId = parseInt(btn.dataset.alertId);
+          
+          const kanji = document.querySelector(`[data-goi-edit-kanji="${wordId}"]`)?.value || '';
+          const hiragana = document.querySelector(`[data-goi-edit-hiragana="${wordId}"]`)?.value || '';
+          const meaning_en = document.querySelector(`[data-goi-edit-meaning="${wordId}"]`)?.value || '';
+          const hint = document.querySelector(`[data-goi-edit-hint="${wordId}"]`)?.value || '';
+          
+          const ok = await updateGoiWord(wordId, { kanji, hiragana, meaning_en, hint });
+          if (ok && alertId) {
+            await resolveAlert('japanese_word_alerts', alertId);
+            const a = state.wordAlerts.find(a => a.id === alertId);
+            if (a) a.resolved = true;
+          }
+          if (ok) { toast('Goi word updated!'); render(); }
         });
       });
       

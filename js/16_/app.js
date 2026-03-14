@@ -4,7 +4,7 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js';
 import { 
-  loadMarkings, loadStoryGroups, loadStories, 
+  loadVocabulary, loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert,
@@ -198,9 +198,11 @@ class JLPTStudyApp {
     this.render();
     
     const userId = this.user?.id;
+    console.log('loadAllData: Full user object:', this.user);
     console.log('loadAllData: userId:', userId);
     
-    const [markings, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences] = await Promise.all([
+    const [vocabulary, markings, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences] = await Promise.all([
+      loadVocabulary(this.supabase),
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
       loadStoryGroups(this.supabase),
@@ -213,6 +215,7 @@ class JLPTStudyApp {
       loadAllUnifiedSentences(this.supabase)
     ]);
     
+    this.vocabulary = vocabulary;
     this.markings = markings;
     this.markingCategories = markingCategories;
     this.storyGroups = storyGroups;
@@ -224,27 +227,7 @@ class JLPTStudyApp {
     this.kanjiWordBooks = kanjiWordBooks;
     this.allUnifiedSentences = allSentences;
     
-    // Derive vocabulary (Goi study words) from unified tables
-    // JLPT book entries → one vocabulary item per word-book pairing
-    const JLPT_BOOKS = ['JLPT_N1', 'JLPT_N2', 'JLPT_N3'];
-    const wordLookup = {};
-    kanjiWords.forEach(w => { wordLookup[w.id] = w; });
-    
-    this.vocabulary = kanjiWordBooks
-      .filter(wb => JLPT_BOOKS.includes(wb.book_code))
-      .map(wb => {
-        const word = wordLookup[wb.word_id];
-        if (!word) return null;
-        return {
-          ...word,
-          level: wb.book_code.replace('JLPT_', ''),  // JLPT_N1 → N1
-          weekDayLabel: wb.chapter || '',
-          ref_no: wb.ref,
-        };
-      })
-      .filter(Boolean);
-    
-    console.log(`Loaded: ${this.vocabulary.length} vocab (from unified), ${Object.keys(markings).length} markings, ${kanjiWords.length} unified words, ${kanjiWordBooks.length} word-book links, ${allSentences.length} sentences`);
+    console.log(`Loaded: ${vocabulary.length} vocab, ${Object.keys(markings).length} markings, ${kanjiWords.length} kanji words, ${kanjiWordBooks.length} word-book links, ${allSentences.length} sentences`);
     this.syncing = false;
     this.render();
   }
@@ -510,11 +493,11 @@ class JLPTStudyApp {
     this.render();
   }
   
-  // Find the unified word ID for any word
-  // After merge, vocabulary words already have unified IDs
+  // Find the unified word ID for any word (unified words have it directly, goi words need a lookup)
   resolveUnifiedWordId(word) {
+    // If it's a unified word (has id and is in kanjiWords), use directly
     if (word.id && this.kanjiWords.some(w => w.id === word.id)) return word.id;
-    // Fallback: look up by kanji text
+    // Look up by kanji text in unified words
     const kanji = word.kanji || word.raw || '';
     const match = this.kanjiWords.find(w => w.kanji === kanji);
     return match?.id || null;

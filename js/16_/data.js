@@ -1,5 +1,7 @@
 // JLPT Vocabulary Master - Data Operations
 
+import { getWeekDay } from './utils.js';
+
 // Default marking categories (fallback if not loaded from DB)
 export const DEFAULT_MARKING_CATEGORIES = {
   0: { label: 'Not Marked', color: 'bg-gray-500', lightColor: 'bg-gray-100', textColor: 'text-gray-700', icon: '○', border: 'border-gray-300' },
@@ -107,6 +109,50 @@ export async function updateMarkingCategory(supabase, userId, categoryId, update
   } catch (err) {
     console.error('updateMarkingCategory exception:', err);
     return false;
+  }
+}
+
+/**
+ * Load vocabulary with pagination (handles >1000 rows)
+ */
+export async function loadVocabulary(supabase) {
+  try {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    
+    while (true) {
+      const { data, error } = await supabase
+        .from('japanese_vocabulary')
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+        .order('id');
+      
+      if (error) {
+        console.error('Vocabulary load error:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      page++;
+    }
+    
+    // Transform data
+    return allData.map(row => {
+      const wd = getWeekDay(row.page_no);
+      return {
+        ...row,
+        meaning: row.meaning_en || row.meaning || '',
+        weekDayLabel: wd.label,
+        week: wd.week,
+        day: wd.day,
+      };
+    });
+  } catch (err) {
+    console.error('loadVocabulary exception:', err);
+    return [];
   }
 }
 
