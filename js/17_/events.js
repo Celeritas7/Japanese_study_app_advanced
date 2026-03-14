@@ -35,7 +35,7 @@ function attachStoryResultListeners(app) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const kanji = btn.dataset.openStory;
-      const word = app.kanjiWords.find(w => w.kanji === kanji) || { kanji, hiragana: btn.dataset.storyHiragana || '', meaning: btn.dataset.storyMeaning || '' };
+      const word = app.vocabulary.find(w => w.kanji === kanji) || { kanji, hiragana: btn.dataset.storyHiragana || '', meaning: btn.dataset.storyMeaning || '' };
       app.openStoryOverlay(word);
     });
   });
@@ -422,7 +422,8 @@ export function attachEventListeners(app) {
       const kanji = btn.dataset.openStory;
       const hiragana = btn.dataset.storyHiragana || '';
       const meaning = btn.dataset.storyMeaning || '';
-      const word = app.kanjiWords.find(w => w.kanji === kanji)
+      const word = app.vocabulary.find(w => w.kanji === kanji) 
+        || app.kanjiWords.find(w => w.kanji === kanji)
         || { kanji, hiragana, meaning };
       app.openStoryOverlay(word);
     });
@@ -492,74 +493,49 @@ export function attachEventListeners(app) {
   });
   document.getElementById('submitWordAlertBtn')?.addEventListener('click', () => app.submitWordAlert());
   
-  // ===== WORD RELATIONS =====
-  document.querySelectorAll('[data-word-group-id]').forEach(btn => {
+  // ===== SIMILAR KANJI =====
+  document.querySelectorAll('[data-similar-group-id]').forEach(btn => {
     btn.addEventListener('click', () => {
-      app.selectWordGroup(parseInt(btn.dataset.wordGroupId));
+      const groupId = parseInt(btn.dataset.similarGroupId);
+      app.selectedSimilarGroup = app.similarGroups.find(g => g.id === groupId);
+      app.render();
     });
   });
   
-  document.getElementById('backToRelationsListBtn')?.addEventListener('click', () => {
-    app.backToRelationsList();
-  });
-  
-  // Relations type filter buttons
-  document.querySelectorAll('[data-rel-filter]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      app.setRelationsFilter(btn.dataset.relFilter);
-    });
-  });
-  
-  // Relations pagination
-  document.getElementById('relPrevPageBtn')?.addEventListener('click', () => {
-    if (app.relationsPage > 0) { app.relationsPage--; app.render(); }
-  });
-  document.getElementById('relNextPageBtn')?.addEventListener('click', () => {
-    app.relationsPage++;
+  document.getElementById('backToSimilarListBtn')?.addEventListener('click', () => {
+    app.selectedSimilarGroup = null;
     app.render();
   });
   
-  // Relations search — IME-safe with debounce
-  const relSearchInput = document.getElementById('relationsSearchInput');
-  if (relSearchInput) {
+  // Similar search — IME-safe with debounce
+  const similarInput = document.getElementById('similarSearchInput');
+  if (similarInput) {
     let composing = false;
     let debounceTimer = null;
     
-    relSearchInput.addEventListener('compositionstart', () => { composing = true; });
-    relSearchInput.addEventListener('compositionend', (e) => {
+    similarInput.addEventListener('compositionstart', () => { composing = true; });
+    similarInput.addEventListener('compositionend', (e) => {
       composing = false;
-      app.relationsSearch = e.target.value;
-      app.relationsPage = 0;
+      app.similarFilter.search = e.target.value;
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         app.render();
-        const el = document.getElementById('relationsSearchInput');
+        const el = document.getElementById('similarSearchInput');
         if (el) el.focus();
       }, 100);
     });
     
-    relSearchInput.addEventListener('input', (e) => {
+    similarInput.addEventListener('input', (e) => {
       if (composing) return;
-      app.relationsSearch = e.target.value;
-      app.relationsPage = 0;
+      app.similarFilter.search = e.target.value;
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         app.render();
-        const el = document.getElementById('relationsSearchInput');
+        const el = document.getElementById('similarSearchInput');
         if (el) el.focus();
       }, 300);
     });
   }
-  
-  // View group from flashcard badge
-  document.querySelectorAll('[data-view-group]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const groupId = parseInt(btn.dataset.viewGroup);
-      app.currentTab = 'similar'; // The tab ID stays 'similar' internally
-      app.selectWordGroup(groupId);
-    });
-  });
   
   // ===== MODALS =====
   document.getElementById('closeModalBtn')?.addEventListener('click', () => {

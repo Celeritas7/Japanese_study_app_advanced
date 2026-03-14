@@ -2,7 +2,6 @@
 
 import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
 import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml } from './utils.js';
-import { getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 
 // Dynamic font size for kanji display based on character count
 function kanjiFontSize(text) {
@@ -176,7 +175,7 @@ export function renderTabs(currentTab) {
     { id: 'study', label: 'Study', icon: TAB_ICONS.study },
     { id: 'srs', label: 'SRS Review', icon: TAB_ICONS.srs },
     { id: 'stories', label: 'Stories', icon: TAB_ICONS.stories },
-    { id: 'similar', label: 'Relations', icon: '🔗' }
+    { id: 'similar', label: 'Similar', icon: TAB_ICONS.similar }
   ];
   
   return `
@@ -544,12 +543,6 @@ export function renderFlashcard(app) {
       <!-- Card Content -->
       <div class="flex-1 flex flex-col items-center justify-start p-4 overflow-auto">
         <div class="w-full max-w-2xl">
-          ${(() => {
-            const badges = getWordGroupBadges(app, word);
-            return badges.length > 0 ? `
-              <div class="flex gap-1.5 mb-3 flex-wrap justify-center">${renderGroupBadges(badges)}</div>
-            ` : '';
-          })()}
           ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter)}
           
           <!-- Story + Add Sentence + Flag Buttons -->

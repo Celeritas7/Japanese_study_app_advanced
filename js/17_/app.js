@@ -11,8 +11,7 @@ import {
   loadUnifiedWords, loadUnifiedWordBooks, loadSentencesForWords,
   loadAllUnifiedSentences, updateSentenceRating, linkSentenceToWord,
   addNewSentenceAndLink, bulkAddSentences, bulkLinkSentences,
-  updateSentenceVerified, addSentenceTag, removeSentenceTag,
-  loadWordGroups, loadWordGroupMembers
+  updateSentenceVerified, addSentenceTag, removeSentenceTag
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
@@ -23,7 +22,7 @@ import {
 } from './render.js';
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
-import { renderRelationsTab, getWordGroupBadges, renderGroupBadges } from './render-relations.js';
+import { renderSimilarTab } from './render-similar.js';
 import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, getCurrentStudyWord } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
@@ -46,14 +45,6 @@ class JLPTStudyApp {
     this.storyGroups = [];
     this.stories = [];
     this.similarGroups = [];
-    
-    // Word relations (replaces Similar tab)
-    this.wordGroups = [];
-    this.wordGroupMembers = [];
-    this.selectedWordGroup = null;
-    this.relationsFilter = 'all';
-    this.relationsSearch = '';
-    this.relationsPage = 0;
     this.selfStudyTopics = [];
     this.selfStudyWords = [];
     
@@ -209,7 +200,7 @@ class JLPTStudyApp {
     const userId = this.user?.id;
     console.log('loadAllData: userId:', userId);
     
-    const [markings, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences, wordGroups, wordGroupMembers] = await Promise.all([
+    const [markings, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences] = await Promise.all([
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
       loadStoryGroups(this.supabase),
@@ -219,9 +210,7 @@ class JLPTStudyApp {
       loadSelfStudyWords(this.supabase, userId),
       loadUnifiedWords(this.supabase),
       loadUnifiedWordBooks(this.supabase),
-      loadAllUnifiedSentences(this.supabase),
-      loadWordGroups(this.supabase),
-      loadWordGroupMembers(this.supabase)
+      loadAllUnifiedSentences(this.supabase)
     ]);
     
     this.markings = markings;
@@ -234,8 +223,6 @@ class JLPTStudyApp {
     this.kanjiWords = kanjiWords;
     this.kanjiWordBooks = kanjiWordBooks;
     this.allUnifiedSentences = allSentences;
-    this.wordGroups = wordGroups;
-    this.wordGroupMembers = wordGroupMembers;
     
     // Derive vocabulary (Goi study words) from unified tables
     // JLPT book entries → one vocabulary item per word-book pairing
@@ -257,7 +244,7 @@ class JLPTStudyApp {
       })
       .filter(Boolean);
     
-    console.log(`Loaded: ${this.vocabulary.length} vocab, ${kanjiWords.length} words, ${kanjiWordBooks.length} book-links, ${allSentences.length} sentences, ${wordGroups.length} word groups`);
+    console.log(`Loaded: ${this.vocabulary.length} vocab (from unified), ${Object.keys(markings).length} markings, ${kanjiWords.length} unified words, ${kanjiWordBooks.length} word-book links, ${allSentences.length} sentences`);
     this.syncing = false;
     this.render();
   }
@@ -267,38 +254,7 @@ class JLPTStudyApp {
     if (tab === 'study') { this.studyView = 'level'; this.selectedLevel = null; }
     this.selectedStoryGroup = null;
     this.selectedSimilarGroup = null;
-    this.selectedWordGroup = null;
     this.render();
-  }
-  
-  // Word Relations navigation
-  selectWordGroup(groupId) {
-    const group = this.wordGroups.find(g => g.id === groupId);
-    if (group) {
-      this.selectedWordGroup = group;
-      this.render();
-    }
-  }
-  
-  backToRelationsList() {
-    this.selectedWordGroup = null;
-    this.render();
-  }
-  
-  setRelationsFilter(filter) {
-    this.relationsFilter = filter;
-    this.relationsPage = 0;
-    this.render();
-  }
-  
-  setRelationsSearch(search) {
-    this.relationsSearch = search;
-    this.relationsPage = 0;
-    // Surgical DOM update — don't destroy search input
-    const listContainer = document.querySelector('.flex-1.overflow-auto.hide-scrollbar.p-4');
-    if (listContainer) {
-      // Re-render will happen naturally via events.js debounce
-    }
   }
   
   selectStudySubTab(subTab) {
@@ -1402,7 +1358,7 @@ class JLPTStudyApp {
     // Build a view key that captures the exact "page" we're on
     const getViewKey = () => {
       if (this.currentTab === 'stories') return this.selectedStoryGroup ? 'stories-detail' : 'stories-list';
-      if (this.currentTab === 'similar') return this.selectedWordGroup ? 'relations-detail' : 'relations-list';
+      if (this.currentTab === 'similar') return this.selectedSimilarGroup ? 'similar-detail' : 'similar-list';
       if (this.currentTab === 'study') return `study-${this.studySubTab}-${this.studyView}-${this.kanjiView}`;
       return this.currentTab;
     };
@@ -1420,7 +1376,7 @@ class JLPTStudyApp {
       case 'study': content = this.renderStudyTab(); break;
       case 'srs': content = renderSRSTab(this); break;
       case 'stories': content = renderStoriesTab(this); break;
-      case 'similar': content = renderRelationsTab(this); break;
+      case 'similar': content = renderSimilarTab(this); break;
       default: content = this.renderStudyTab();
     }
     
