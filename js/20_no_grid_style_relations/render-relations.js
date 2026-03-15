@@ -5,26 +5,12 @@ import { escapeHtml } from './utils.js';
 import { getMarking } from './utils.js';
 
 const GROUP_TYPE_INFO = {
-  alt_kanji:       { label: 'Alt Kanji',     icon: '漢', color: 'bg-indigo-500',  gradFrom: 'from-indigo-600', gradTo: 'to-blue-600',   hex: '#6366f1', desc: 'Same reading, different kanji' },
-  alt_reading:     { label: 'Alt Reading',   icon: 'あ', color: 'bg-purple-500',  gradFrom: 'from-purple-600', gradTo: 'to-pink-600',   hex: '#a855f7', desc: 'Same kanji, different readings' },
-  synonym:         { label: 'Synonym',       icon: '≈', color: 'bg-amber-500',   gradFrom: 'from-amber-500',  gradTo: 'to-orange-600', hex: '#f59e0b', desc: 'Similar meaning words' },
-  near_synonym:    { label: 'Near Synonym',  icon: '≅', color: 'bg-teal-500',    gradFrom: 'from-teal-500',   gradTo: 'to-emerald-600',hex: '#14b8a6', desc: 'Almost same meaning, different usage' },
-  context_variant: { label: 'Context',       icon: '文', color: 'bg-rose-500',    gradFrom: 'from-rose-500',   gradTo: 'to-red-600',    hex: '#f43f5e', desc: 'Same root in different compounds' },
+  alt_kanji:       { label: 'Alt Kanji',     icon: '\u6F22', color: 'bg-indigo-500',  gradFrom: 'from-indigo-600', gradTo: 'to-blue-600',   hex: '#6366f1', desc: 'Same reading, different kanji' },
+  alt_reading:     { label: 'Alt Reading',   icon: '\u3042', color: 'bg-purple-500',  gradFrom: 'from-purple-600', gradTo: 'to-pink-600',   hex: '#a855f7', desc: 'Same kanji, different readings' },
+  synonym:         { label: 'Synonym',       icon: '\u2248', color: 'bg-amber-500',   gradFrom: 'from-amber-500',  gradTo: 'to-orange-600', hex: '#f59e0b', desc: 'Similar meaning words' },
+  near_synonym:    { label: 'Near Synonym',  icon: '\u2245', color: 'bg-teal-500',    gradFrom: 'from-teal-500',   gradTo: 'to-emerald-600',hex: '#14b8a6', desc: 'Almost same meaning, different usage' },
+  context_variant: { label: 'Context',       icon: '\u6587', color: 'bg-rose-500',    gradFrom: 'from-rose-500',   gradTo: 'to-red-600',    hex: '#f43f5e', desc: 'Same root in different compounds' },
 };
-
-// ===== STUDIED GROUPS HELPER =====
-
-function getStudiedGroups(app) {
-  if (!app.relationsStudiedGroups) {
-    try {
-      const stored = localStorage.getItem('relationsStudied');
-      app.relationsStudiedGroups = new Set(stored ? JSON.parse(stored) : []);
-    } catch {
-      app.relationsStudiedGroups = new Set();
-    }
-  }
-  return app.relationsStudiedGroups;
-}
 
 // ===== MAIN ROUTER =====
 
@@ -51,8 +37,8 @@ function renderFolderView(app) {
   return `
     <div class="flex-1 overflow-auto hide-scrollbar p-4">
       <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 mb-4 text-white">
-        <h2 class="text-xl font-bold mb-1">🔗 Word Relations</h2>
-        <p class="opacity-80 text-sm">${totalGroups} groups · ${totalLinks} word links · 5 categories</p>
+        <h2 class="text-xl font-bold mb-1">\uD83D\uDD17 Word Relations</h2>
+        <p class="opacity-80 text-sm">${totalGroups} groups \u00B7 ${totalLinks} word links \u00B7 5 categories</p>
       </div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         ${gridTypes.map(([type, info]) => `
@@ -90,8 +76,6 @@ function renderGroupList(app) {
   const info = GROUP_TYPE_INFO[categoryType] || GROUP_TYPE_INFO.synonym;
   const groups = (app.wordGroups || []).filter(g => g.group_type === categoryType);
   const search = app.relationsSearch || '';
-  const studied = getStudiedGroups(app);
-  const hideStudied = app.relationsHideStudied || false;
 
   let filtered = groups;
   if (search) {
@@ -105,13 +89,6 @@ function renderGroupList(app) {
         return word?.kanji?.includes(search) || word?.meaning?.toLowerCase().includes(q);
       });
     });
-  }
-
-  // Count studied before hide filter (for button label)
-  const studiedCount = filtered.filter(g => studied.has(g.id)).length;
-
-  if (hideStudied) {
-    filtered = filtered.filter(g => !studied.has(g.id));
   }
 
   filtered.sort((a, b) => {
@@ -130,78 +107,52 @@ function renderGroupList(app) {
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
       <div class="bg-slate-800 p-4">
-        <button id="backToFoldersBtn" class="text-slate-400 hover:text-white mb-3 flex items-center gap-2 text-sm">← Back to categories</button>
+        <button id="backToFoldersBtn" class="text-slate-400 hover:text-white mb-3 flex items-center gap-2 text-sm">\u2190 Back to categories</button>
         <div class="bg-gradient-to-r ${info.gradFrom} ${info.gradTo} rounded-2xl p-4 mb-3 text-white">
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center text-xl font-bold">${info.icon}</div>
             <div>
               <h2 class="text-lg font-bold">${info.label}</h2>
-              <p class="text-sm opacity-80">${filtered.length}${hideStudied ? ` shown · ${studiedCount} hidden` : ` groups`} — ${info.desc}</p>
+              <p class="text-sm opacity-80">${filtered.length} groups \u2014 ${info.desc}</p>
             </div>
           </div>
         </div>
         <input type="text" id="relationsSearchInput" autocomplete="off" placeholder="Search in ${info.label.toLowerCase()}..."
           value="${escapeHtml(search)}"
-          class="w-full p-3 rounded-xl bg-slate-900 text-white border border-slate-600 focus:border-indigo-500 focus:outline-none text-sm mb-2">
-        <!-- Studied filter toggle -->
-        <div class="flex items-center gap-2">
-          <button id="relToggleHideStudied"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${hideStudied
-              ? 'bg-emerald-500 text-white'
-              : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'}">
-            ${hideStudied ? '✓ Hiding studied' : '○ Show all'}
-            ${studiedCount > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold ${hideStudied ? 'bg-emerald-400/30 text-emerald-100' : 'bg-slate-600 text-slate-300'}">${studiedCount}</span>` : ''}
-          </button>
-          ${studiedCount > 0 ? `<span class="text-slate-600 text-[10px]">${studiedCount} group${studiedCount !== 1 ? 's' : ''} marked studied</span>` : ''}
-        </div>
+          class="w-full p-3 rounded-xl bg-slate-900 text-white border border-slate-600 focus:border-indigo-500 focus:outline-none text-sm">
       </div>
-      <div class="flex-1 overflow-auto hide-scrollbar p-3">
+      <div class="flex-1 overflow-auto hide-scrollbar p-4">
         ${pageItems.length === 0 ? `
           <div class="text-center py-12">
             <div class="text-4xl mb-2">${info.icon}</div>
-            <p class="text-slate-400">${search ? 'No groups match this search' : hideStudied ? 'All groups are marked as studied!' : 'No groups in this category yet'}</p>
-            ${hideStudied && studiedCount > 0 ? `<button id="relToggleHideStudied" class="mt-3 px-4 py-2 rounded-full bg-slate-700 text-slate-300 text-xs hover:bg-slate-600">Show all groups</button>` : ''}
+            <p class="text-slate-400">${search ? 'No groups match this search' : 'No groups in this category yet'}</p>
           </div>
         ` : `
-          <div class="grid grid-cols-3 gap-2">
+          <div class="space-y-2">
             ${pageItems.map(group => {
               const members = (app.wordGroupMembers || []).filter(m => m.group_id === group.id);
               const memberWords = members.map(m => {
                 const word = app.kanjiWords.find(w => w.id === m.word_id);
                 return word ? { ...word, ...m } : null;
               }).filter(Boolean);
-              const isStudied = studied.has(group.id);
-              const groupName = escapeHtml(group.group_name || group.group_key);
-              const previewWords = memberWords.slice(0, 3);
-
               return `
-                <button data-word-group-id="${group.id}"
-                  class="relative p-2.5 rounded-xl text-left transition-all group
-                    ${isStudied
-                      ? 'bg-slate-800/60 border border-emerald-500/20 hover:bg-slate-700/60'
-                      : 'bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-slate-600'}">
-                  <!-- Studied badge -->
-                  ${isStudied ? `
-                    <div class="absolute top-1.5 right-1.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
-                      <span class="text-white text-[8px] font-bold leading-none">✓</span>
+                <button data-word-group-id="${group.id}" class="w-full p-4 bg-slate-800 rounded-xl text-left hover:bg-slate-700 transition-all group">
+                  <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 ${info.color} rounded-xl flex items-center justify-center text-white text-lg font-bold shrink-0">${info.icon}</div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <h3 class="text-white font-bold text-sm truncate">${escapeHtml(group.group_name || group.group_key)}</h3>
+                        ${group.status === 'verified' ? '<span class="text-emerald-400 text-[10px]">\u2713</span>' : ''}
+                        <span class="text-slate-500 text-xs">(${memberWords.length})</span>
+                      </div>
+                      <div class="flex gap-1.5 mt-1 flex-wrap">
+                        ${memberWords.slice(0, 5).map(w => `
+                          <span class="text-xs px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">${escapeHtml(w.kanji)}</span>
+                        `).join('')}
+                        ${memberWords.length > 5 ? `<span class="text-xs text-slate-500">+${memberWords.length - 5}</span>` : ''}
+                      </div>
                     </div>
-                  ` : ''}
-                  <!-- Icon + name -->
-                  <div class="flex items-start gap-1.5 mb-2 pr-4">
-                    <div class="w-6 h-6 ${info.color} rounded-lg flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">${info.icon}</div>
-                    <span class="text-white text-[11px] font-semibold leading-tight line-clamp-2">${groupName}</span>
-                  </div>
-                  <!-- Word previews -->
-                  <div class="flex flex-wrap gap-1 mb-1.5">
-                    ${previewWords.map(w => `
-                      <span class="text-[10px] text-indigo-300 bg-slate-900/80 px-1.5 py-0.5 rounded font-medium">${escapeHtml(w.kanji)}</span>
-                    `).join('')}
-                    ${memberWords.length > 3 ? `<span class="text-[9px] text-slate-500 self-center">+${memberWords.length - 3}</span>` : ''}
-                  </div>
-                  <!-- Footer: count + verified -->
-                  <div class="flex items-center gap-1">
-                    <span class="text-slate-500 text-[9px]">${memberWords.length} words</span>
-                    ${group.status === 'verified' ? '<span class="text-emerald-500 text-[9px]">✓</span>' : ''}
+                    <span class="text-slate-500 group-hover:translate-x-1 transition-transform">\u2192</span>
                   </div>
                 </button>
               `;
@@ -210,9 +161,9 @@ function renderGroupList(app) {
         `}
         ${totalPages > 1 ? `
           <div class="flex items-center justify-center gap-3 py-4">
-            <button id="relPrevPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page === 0 ? 'disabled' : ''}>← Prev</button>
+            <button id="relPrevPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page === 0 ? 'disabled' : ''}>\u2190 Prev</button>
             <span class="text-xs text-slate-500">${page + 1} / ${totalPages}</span>
-            <button id="relNextPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
+            <button id="relNextPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page >= totalPages - 1 ? 'disabled' : ''}>Next \u2192</button>
           </div>
         ` : ''}
       </div>
@@ -235,23 +186,10 @@ function renderGroupDetail(app) {
     return { ...word, ...m, marking, markInfo };
   }).filter(Boolean).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
-  const studied = getStudiedGroups(app);
-  const isStudied = studied.has(group.id);
-
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
       <div class="bg-slate-800 p-4">
-        <div class="flex items-center justify-between mb-3">
-          <button id="backToRelationsListBtn" class="text-slate-400 hover:text-white flex items-center gap-2 text-sm">← Back to ${info.label}</button>
-          <!-- Mark studied toggle -->
-          <button id="markGroupStudiedBtn" data-group-id="${group.id}"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all
-              ${isStudied
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20'
-                : 'bg-slate-700 text-slate-400 border border-slate-600 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'}">
-            ${isStudied ? '✓ Studied' : '○ Mark studied'}
-          </button>
-        </div>
+        <button id="backToRelationsListBtn" class="text-slate-400 hover:text-white mb-3 flex items-center gap-2 text-sm">\u2190 Back to ${info.label}</button>
         <div class="bg-gradient-to-r ${info.gradFrom} ${info.gradTo} rounded-2xl p-5 text-white">
           <div class="flex items-center gap-3 mb-2">
             <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl font-bold">${info.icon}</div>
@@ -285,14 +223,14 @@ function renderGroupDetail(app) {
                   </div>
                   <div class="flex items-center gap-1 shrink-0">
                     <button data-open-story="${kanjiEsc}" data-story-hiragana="${escapeHtml(hiragana)}" data-story-meaning="${escapeHtml(word.meaning || '')}"
-                      class="w-8 h-8 flex items-center justify-center text-purple-400 hover:text-purple-300 rounded-lg hover:bg-purple-500/10 text-sm">📖</button>
+                      class="w-8 h-8 flex items-center justify-center text-purple-400 hover:text-purple-300 rounded-lg hover:bg-purple-500/10 text-sm">\uD83D\uDCD6</button>
                     <div class="w-8 h-8 ${word.markInfo.color} rounded-lg flex items-center justify-center">
                       <span class="text-white text-sm">${word.markInfo.icon}</span>
                     </div>
                   </div>
                 </div>
-                ${word.usage_note ? `<div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 mb-2"><p class="text-amber-300 text-xs">💡 ${escapeHtml(word.usage_note)}</p></div>` : ''}
-                ${word.hint ? `<p class="text-slate-500 text-xs mb-2">🔑 ${escapeHtml(word.hint)}</p>` : ''}
+                ${word.usage_note ? `<div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 mb-2"><p class="text-amber-300 text-xs">\uD83D\uDCA1 ${escapeHtml(word.usage_note)}</p></div>` : ''}
+                ${word.hint ? `<p class="text-slate-500 text-xs mb-2">\uD83D\uDD11 ${escapeHtml(word.hint)}</p>` : ''}
                 ${bestSentence ? `
                   <div class="bg-slate-900/50 rounded-lg p-2.5 mt-2">
                     <p class="text-slate-300 text-xs leading-relaxed">${highlightWordInSentence(bestSentence.sentence, word.kanji)}</p>
@@ -316,12 +254,12 @@ function renderGroupDetail(app) {
                 class="flex-1 p-3 rounded-xl bg-slate-900 text-white border border-slate-600 focus:border-indigo-500 focus:outline-none text-sm">
               <button id="submitAddWordBtn" class="px-5 py-3 rounded-xl bg-indigo-500 text-white text-sm font-bold hover:bg-indigo-600 transition-colors">Add</button>
             </div>
-            <p class="text-slate-600 text-[10px] mt-2">Just the kanji — hiragana and meaning can be added later</p>
+            <p class="text-slate-600 text-[10px] mt-2">Just the kanji \u2014 hiragana and meaning can be added later</p>
           </div>
         </div>
         ${(group.group_type === 'alt_kanji' || group.group_type === 'synonym' || group.group_type === 'near_synonym') && !group.description ? `
           <div class="mt-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4">
-            <p class="text-indigo-400 text-xs font-semibold mb-1">📝 HOW ARE THESE DIFFERENT?</p>
+            <p class="text-indigo-400 text-xs font-semibold mb-1">\uD83D\uDCDD HOW ARE THESE DIFFERENT?</p>
             <p class="text-slate-400 text-xs">No explanation yet. Add one in the Data Manager.</p>
           </div>
         ` : ''}

@@ -526,36 +526,6 @@ export function attachEventListeners(app) {
     app.relationsPage++;
     app.render();
   });
-
-  // Toggle hide-studied filter
-  document.getElementById('relToggleHideStudied')?.addEventListener('click', () => {
-    app.relationsHideStudied = !app.relationsHideStudied;
-    app.relationsPage = 0;
-    app.render();
-  });
-
-  // Mark / unmark group as studied (in group detail header)
-  document.getElementById('markGroupStudiedBtn')?.addEventListener('click', () => {
-    const groupId = app.selectedWordGroup?.id;
-    if (!groupId) return;
-    if (!app.relationsStudiedGroups) {
-      try {
-        const stored = localStorage.getItem('relationsStudied');
-        app.relationsStudiedGroups = new Set(stored ? JSON.parse(stored) : []);
-      } catch {
-        app.relationsStudiedGroups = new Set();
-      }
-    }
-    if (app.relationsStudiedGroups.has(groupId)) {
-      app.relationsStudiedGroups.delete(groupId);
-    } else {
-      app.relationsStudiedGroups.add(groupId);
-    }
-    try {
-      localStorage.setItem('relationsStudied', JSON.stringify([...app.relationsStudiedGroups]));
-    } catch { /* storage unavailable */ }
-    app.render();
-  });
   
   // Relations search — IME-safe with debounce
   const relSearchInput = document.getElementById('relationsSearchInput');
