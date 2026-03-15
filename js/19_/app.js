@@ -51,7 +51,6 @@ class JLPTStudyApp {
     this.wordGroups = [];
     this.wordGroupMembers = [];
     this.selectedWordGroup = null;
-    this.relationsCategory = null;   // which folder is open (null = folder view)
     this.relationsFilter = 'all';
     this.relationsSearch = '';
     this.relationsPage = 0;
@@ -269,7 +268,6 @@ class JLPTStudyApp {
     this.selectedStoryGroup = null;
     this.selectedSimilarGroup = null;
     this.selectedWordGroup = null;
-    this.relationsCategory = null;
     this.render();
   }
   
@@ -285,67 +283,6 @@ class JLPTStudyApp {
   backToRelationsList() {
     this.selectedWordGroup = null;
     this.render();
-  }
-  
-  backToFolders() {
-    this.relationsCategory = null;
-    this.selectedWordGroup = null;
-    this.relationsSearch = '';
-    this.relationsPage = 0;
-    this.render();
-  }
-  
-  openRelationsFolder(type) {
-    this.relationsCategory = type;
-    this.relationsSearch = '';
-    this.relationsPage = 0;
-    this.selectedWordGroup = null;
-    this.render();
-  }
-  
-  async addWordToGroup(groupId, kanji) {
-    if (!kanji || !kanji.trim()) return;
-    kanji = kanji.trim();
-    
-    // Find or skip if word exists in unified words
-    let wordEntry = this.kanjiWords.find(w => w.kanji === kanji);
-    let wordId;
-    
-    if (wordEntry) {
-      wordId = wordEntry.id;
-    } else {
-      // Insert a minimal word entry into japanese_unified_words
-      try {
-        const { data, error } = await this.supabase
-          .from('japanese_unified_words')
-          .insert({ kanji: kanji, hiragana: '', meaning_en: '', hint: '' })
-          .select();
-        if (error) { console.error('Insert word error:', error); alert('Failed to add word: ' + error.message); return; }
-        wordId = data[0].id;
-        // Add to local cache
-        const newWord = { ...data[0], meaning: '', level: '', raw: kanji, supporting_word_1: '', supporting_word_2: '', sentence_before: '', sentence_after: '' };
-        this.kanjiWords.push(newWord);
-      } catch (e) { console.error(e); return; }
-    }
-    
-    // Check if already a member
-    const existing = this.wordGroupMembers.find(m => m.group_id === groupId && m.word_id === wordId);
-    if (existing) { alert('This word is already in the group.'); return; }
-    
-    // Get next sort_order
-    const existingMembers = this.wordGroupMembers.filter(m => m.group_id === groupId);
-    const nextSort = existingMembers.length > 0 ? Math.max(...existingMembers.map(m => m.sort_order || 0)) + 1 : 1;
-    
-    try {
-      const { data, error } = await this.supabase
-        .from('japanese_word_group_members')
-        .insert({ group_id: groupId, word_id: wordId, sort_order: nextSort })
-        .select();
-      if (error) { console.error('Insert member error:', error); alert('Failed to link word: ' + error.message); return; }
-      // Add to local cache
-      this.wordGroupMembers.push(data[0]);
-      this.render();
-    } catch (e) { console.error(e); }
   }
   
   setRelationsFilter(filter) {
@@ -1465,7 +1402,7 @@ class JLPTStudyApp {
     // Build a view key that captures the exact "page" we're on
     const getViewKey = () => {
       if (this.currentTab === 'stories') return this.selectedStoryGroup ? 'stories-detail' : 'stories-list';
-      if (this.currentTab === 'similar') return this.selectedWordGroup ? 'relations-detail' : this.relationsCategory ? `relations-${this.relationsCategory}` : 'relations-folders';
+      if (this.currentTab === 'similar') return this.selectedWordGroup ? 'relations-detail' : 'relations-list';
       if (this.currentTab === 'study') return `study-${this.studySubTab}-${this.studyView}-${this.kanjiView}`;
       return this.currentTab;
     };

@@ -492,30 +492,22 @@ export function attachEventListeners(app) {
   });
   document.getElementById('submitWordAlertBtn')?.addEventListener('click', () => app.submitWordAlert());
   
-  // ===== WORD RELATIONS (Folder-based navigation) =====
-  
-  // Level 1: Folder selection
-  document.querySelectorAll('[data-rel-folder]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      app.openRelationsFolder(btn.dataset.relFolder);
-    });
-  });
-  
-  // Level 2: Group selection (inside a folder)
+  // ===== WORD RELATIONS =====
   document.querySelectorAll('[data-word-group-id]').forEach(btn => {
     btn.addEventListener('click', () => {
       app.selectWordGroup(parseInt(btn.dataset.wordGroupId));
     });
   });
   
-  // Back: folders <- group list
-  document.getElementById('backToFoldersBtn')?.addEventListener('click', () => {
-    app.backToFolders();
-  });
-  
-  // Back: group list <- group detail
   document.getElementById('backToRelationsListBtn')?.addEventListener('click', () => {
     app.backToRelationsList();
+  });
+  
+  // Relations type filter buttons
+  document.querySelectorAll('[data-rel-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      app.setRelationsFilter(btn.dataset.relFilter);
+    });
   });
   
   // Relations pagination
@@ -559,36 +551,12 @@ export function attachEventListeners(app) {
     });
   }
   
-  // Add word to group
-  document.getElementById('showAddWordBtn')?.addEventListener('click', () => {
-    document.getElementById('showAddWordBtn').classList.add('hidden');
-    document.getElementById('addWordForm').classList.remove('hidden');
-    document.getElementById('addWordKanjiInput')?.focus();
-  });
-  
-  document.getElementById('submitAddWordBtn')?.addEventListener('click', () => {
-    const input = document.getElementById('addWordKanjiInput');
-    if (input && app.selectedWordGroup) {
-      app.addWordToGroup(app.selectedWordGroup.id, input.value);
-    }
-  });
-  
-  // Submit on Enter key in add word input
-  document.getElementById('addWordKanjiInput')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && app.selectedWordGroup) {
-      const input = document.getElementById('addWordKanjiInput');
-      if (input) app.addWordToGroup(app.selectedWordGroup.id, input.value);
-    }
-  });
-  
   // View group from flashcard badge
   document.querySelectorAll('[data-view-group]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const groupId = parseInt(btn.dataset.viewGroup);
-      const group = app.wordGroups.find(g => g.id === groupId);
-      app.currentTab = 'similar';
-      if (group) app.relationsCategory = group.group_type;
+      app.currentTab = 'similar'; // The tab ID stays 'similar' internally
       app.selectWordGroup(groupId);
     });
   });

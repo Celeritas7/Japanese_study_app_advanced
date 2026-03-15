@@ -1,88 +1,41 @@
 // JLPT Vocabulary Master - Word Relations Tab
-// Folder-based navigation: Folders -> Group List -> Group Detail
+// Replaces the old Similar Kanji tab with intelligent word grouping
 
 import { escapeHtml } from './utils.js';
 import { getMarking } from './utils.js';
 
 const GROUP_TYPE_INFO = {
-  alt_kanji:       { label: 'Alt Kanji',     icon: '\u6F22', color: 'bg-indigo-500',  gradFrom: 'from-indigo-600', gradTo: 'to-blue-600',   hex: '#6366f1', desc: 'Same reading, different kanji' },
-  alt_reading:     { label: 'Alt Reading',   icon: '\u3042', color: 'bg-purple-500',  gradFrom: 'from-purple-600', gradTo: 'to-pink-600',   hex: '#a855f7', desc: 'Same kanji, different readings' },
-  synonym:         { label: 'Synonym',       icon: '\u2248', color: 'bg-amber-500',   gradFrom: 'from-amber-500',  gradTo: 'to-orange-600', hex: '#f59e0b', desc: 'Similar meaning words' },
-  near_synonym:    { label: 'Near Synonym',  icon: '\u2245', color: 'bg-teal-500',    gradFrom: 'from-teal-500',   gradTo: 'to-emerald-600',hex: '#14b8a6', desc: 'Almost same meaning, different usage' },
-  context_variant: { label: 'Context',       icon: '\u6587', color: 'bg-rose-500',    gradFrom: 'from-rose-500',   gradTo: 'to-red-600',    hex: '#f43f5e', desc: 'Same root in different compounds' },
+  alt_kanji:       { label: 'Alt Kanji',     icon: '漢', color: 'bg-indigo-500', desc: 'Same reading, different kanji' },
+  alt_reading:     { label: 'Alt Reading',   icon: 'あ', color: 'bg-purple-500', desc: 'Same kanji, different readings' },
+  synonym:         { label: 'Synonym',       icon: '≈', color: 'bg-amber-500',  desc: 'Similar meaning words' },
+  near_synonym:    { label: 'Near Synonym',  icon: '≅', color: 'bg-teal-500',   desc: 'Almost same meaning, different usage' },
+  context_variant: { label: 'Context',       icon: '文', color: 'bg-rose-500',   desc: 'Same root in different compounds' },
 };
 
 // ===== MAIN ROUTER =====
 
 export function renderRelationsTab(app) {
   if (app.selectedWordGroup) return renderGroupDetail(app);
-  if (app.relationsCategory) return renderGroupList(app);
-  return renderFolderView(app);
+  return renderGroupList(app);
 }
 
-// ===== LEVEL 1: FOLDER VIEW =====
-
-function renderFolderView(app) {
-  const groups = app.wordGroups || [];
-  const typeCounts = {};
-  Object.keys(GROUP_TYPE_INFO).forEach(k => typeCounts[k] = 0);
-  groups.forEach(g => { if (typeCounts[g.group_type] !== undefined) typeCounts[g.group_type]++; });
-  const totalGroups = groups.length;
-  const totalLinks = (app.wordGroupMembers || []).length;
-
-  const types = Object.entries(GROUP_TYPE_INFO);
-  const gridTypes = types.slice(0, 4);
-  const lastType = types[4];
-
-  return `
-    <div class="flex-1 overflow-auto hide-scrollbar p-4">
-      <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 mb-4 text-white">
-        <h2 class="text-xl font-bold mb-1">\uD83D\uDD17 Word Relations</h2>
-        <p class="opacity-80 text-sm">${totalGroups} groups \u00B7 ${totalLinks} word links \u00B7 5 categories</p>
-      </div>
-      <div class="grid grid-cols-2 gap-3 mb-3">
-        ${gridTypes.map(([type, info]) => `
-          <button data-rel-folder="${type}" class="p-5 bg-slate-800 border border-slate-700 rounded-xl text-center hover:bg-slate-700 hover:border-slate-600 transition-all">
-            <div class="w-12 h-12 ${info.color} rounded-xl flex items-center justify-center text-white text-xl font-bold mx-auto mb-2">${info.icon}</div>
-            <div class="text-white font-bold text-sm mb-0.5">${info.label}</div>
-            <div class="text-slate-500 text-[10px] mb-2">${info.desc}</div>
-            <div class="text-lg font-bold" style="color:${info.hex}">${typeCounts[type] || 0}</div>
-          </button>
-        `).join('')}
-      </div>
-      ${lastType ? (() => {
-        const [type, info] = lastType;
-        return `
-          <button data-rel-folder="${type}" class="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl hover:bg-slate-700 hover:border-slate-600 transition-all">
-            <div class="flex items-center gap-3">
-              <div class="w-12 h-12 ${info.color} rounded-xl flex items-center justify-center text-white text-xl font-bold shrink-0">${info.icon}</div>
-              <div class="text-left flex-1">
-                <div class="text-white font-bold text-sm">${info.label}</div>
-                <div class="text-slate-500 text-[10px]">${info.desc}</div>
-              </div>
-              <div class="text-lg font-bold" style="color:${info.hex}">${typeCounts[type] || 0}</div>
-            </div>
-          </button>
-        `;
-      })() : ''}
-    </div>
-  `;
-}
-
-// ===== LEVEL 2: GROUP LIST =====
+// ===== GROUP LIST =====
 
 function renderGroupList(app) {
-  const categoryType = app.relationsCategory;
-  const info = GROUP_TYPE_INFO[categoryType] || GROUP_TYPE_INFO.synonym;
-  const groups = (app.wordGroups || []).filter(g => g.group_type === categoryType);
+  const groups = app.wordGroups || [];
+  const filter = app.relationsFilter || 'all';
   const search = app.relationsSearch || '';
-
-  let filtered = groups;
+  
+  // Filter by type
+  let filtered = filter === 'all' ? groups : groups.filter(g => g.group_type === filter);
+  
+  // Filter by search
   if (search) {
     const q = search.toLowerCase();
-    filtered = groups.filter(g => {
+    filtered = filtered.filter(g => {
       if (g.group_name?.toLowerCase().includes(q)) return true;
       if (g.group_key?.includes(search)) return true;
+      // Check if any member kanji matches
       const members = (app.wordGroupMembers || []).filter(m => m.group_id === g.id);
       return members.some(m => {
         const word = app.kanjiWords.find(w => w.id === m.word_id);
@@ -90,7 +43,8 @@ function renderGroupList(app) {
       });
     });
   }
-
+  
+  // Sort: verified first, then by member count desc
   filtered.sort((a, b) => {
     if (a.status === 'verified' && b.status !== 'verified') return -1;
     if (b.status === 'verified' && a.status !== 'verified') return 1;
@@ -98,43 +52,63 @@ function renderGroupList(app) {
     const bCount = (app.wordGroupMembers || []).filter(m => m.group_id === b.id).length;
     return bCount - aCount;
   });
-
+  
+  // Pagination
   const page = app.relationsPage || 0;
   const pageSize = 30;
   const totalPages = Math.ceil(filtered.length / pageSize);
   const pageItems = filtered.slice(page * pageSize, (page + 1) * pageSize);
-
+  
+  // Type counts
+  const typeCounts = {};
+  groups.forEach(g => { typeCounts[g.group_type] = (typeCounts[g.group_type] || 0) + 1; });
+  
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Header -->
       <div class="bg-slate-800 p-4">
-        <button id="backToFoldersBtn" class="text-slate-400 hover:text-white mb-3 flex items-center gap-2 text-sm">\u2190 Back to categories</button>
-        <div class="bg-gradient-to-r ${info.gradFrom} ${info.gradTo} rounded-2xl p-4 mb-3 text-white">
-          <div class="flex items-center gap-3">
-            <div class="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center text-xl font-bold">${info.icon}</div>
-            <div>
-              <h2 class="text-lg font-bold">${info.label}</h2>
-              <p class="text-sm opacity-80">${filtered.length} groups \u2014 ${info.desc}</p>
-            </div>
-          </div>
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 mb-4 text-white">
+          <h2 class="text-xl font-bold mb-1">🔗 Word Relations</h2>
+          <p class="opacity-80 text-sm">${groups.length} groups • ${(app.wordGroupMembers || []).length} word links</p>
         </div>
-        <input type="text" id="relationsSearchInput" autocomplete="off" placeholder="Search in ${info.label.toLowerCase()}..."
-          value="${escapeHtml(search)}"
+        
+        <!-- Type Filters -->
+        <div class="flex gap-1.5 mb-3 flex-wrap">
+          <button data-rel-filter="all" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            filter === 'all' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+          }">All ${groups.length}</button>
+          ${Object.entries(GROUP_TYPE_INFO).map(([type, info]) => {
+            const count = typeCounts[type] || 0;
+            if (count === 0) return '';
+            return `<button data-rel-filter="${type}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              filter === type ? `${info.color} text-white` : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }">${info.icon} ${info.label} ${count}</button>`;
+          }).join('')}
+        </div>
+        
+        <!-- Search -->
+        <input type="text" id="relationsSearchInput" autocomplete="off" placeholder="Search word, reading, or meaning..." 
+          value="${escapeHtml(search)}" 
           class="w-full p-3 rounded-xl bg-slate-900 text-white border border-slate-600 focus:border-indigo-500 focus:outline-none text-sm">
       </div>
+      
+      <!-- Group List -->
       <div class="flex-1 overflow-auto hide-scrollbar p-4">
         ${pageItems.length === 0 ? `
           <div class="text-center py-12">
-            <div class="text-4xl mb-2">${info.icon}</div>
-            <p class="text-slate-400">${search ? 'No groups match this search' : 'No groups in this category yet'}</p>
+            <div class="text-4xl mb-2">🔗</div>
+            <p class="text-slate-400">No groups match this filter</p>
           </div>
         ` : `
           <div class="space-y-2">
             ${pageItems.map(group => {
+              const info = GROUP_TYPE_INFO[group.group_type] || GROUP_TYPE_INFO.synonym;
               const members = (app.wordGroupMembers || []).filter(m => m.group_id === group.id);
               const memberWords = members.map(m => {
                 const word = app.kanjiWords.find(w => w.id === m.word_id);
                 return word ? { ...word, ...m } : null;
               }).filter(Boolean);
+              
               return `
                 <button data-word-group-id="${group.id}" class="w-full p-4 bg-slate-800 rounded-xl text-left hover:bg-slate-700 transition-all group">
                   <div class="flex items-center gap-3">
@@ -142,8 +116,7 @@ function renderGroupList(app) {
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
                         <h3 class="text-white font-bold text-sm truncate">${escapeHtml(group.group_name || group.group_key)}</h3>
-                        ${group.status === 'verified' ? '<span class="text-emerald-400 text-[10px]">\u2713</span>' : ''}
-                        <span class="text-slate-500 text-xs">(${memberWords.length})</span>
+                        ${group.status === 'verified' ? '<span class="text-emerald-400 text-[10px]">✓</span>' : ''}
                       </div>
                       <div class="flex gap-1.5 mt-1 flex-wrap">
                         ${memberWords.slice(0, 5).map(w => `
@@ -152,18 +125,19 @@ function renderGroupList(app) {
                         ${memberWords.length > 5 ? `<span class="text-xs text-slate-500">+${memberWords.length - 5}</span>` : ''}
                       </div>
                     </div>
-                    <span class="text-slate-500 group-hover:translate-x-1 transition-transform">\u2192</span>
+                    <span class="text-slate-500 group-hover:translate-x-1 transition-transform">→</span>
                   </div>
                 </button>
               `;
             }).join('')}
           </div>
         `}
+        
         ${totalPages > 1 ? `
           <div class="flex items-center justify-center gap-3 py-4">
-            <button id="relPrevPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page === 0 ? 'disabled' : ''}>\u2190 Prev</button>
+            <button id="relPrevPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page === 0 ? 'disabled' : ''}>← Prev</button>
             <span class="text-xs text-slate-500">${page + 1} / ${totalPages}</span>
-            <button id="relNextPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page >= totalPages - 1 ? 'disabled' : ''}>Next \u2192</button>
+            <button id="relNextPageBtn" class="px-3 py-1.5 rounded-lg text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
           </div>
         ` : ''}
       </div>
@@ -171,11 +145,12 @@ function renderGroupList(app) {
   `;
 }
 
-// ===== LEVEL 3: GROUP DETAIL =====
+// ===== GROUP DETAIL =====
 
 function renderGroupDetail(app) {
   const group = app.selectedWordGroup;
-  if (!group) return renderFolderView(app);
+  if (!group) return renderGroupList(app);
+  
   const info = GROUP_TYPE_INFO[group.group_type] || GROUP_TYPE_INFO.synonym;
   const members = (app.wordGroupMembers || []).filter(m => m.group_id === group.id);
   const memberWords = members.map(m => {
@@ -185,12 +160,18 @@ function renderGroupDetail(app) {
     const markInfo = app.markingCategories[marking] || app.markingCategories[0];
     return { ...word, ...m, marking, markInfo };
   }).filter(Boolean).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-
+  
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Header -->
       <div class="bg-slate-800 p-4">
-        <button id="backToRelationsListBtn" class="text-slate-400 hover:text-white mb-3 flex items-center gap-2 text-sm">\u2190 Back to ${info.label}</button>
-        <div class="bg-gradient-to-r ${info.gradFrom} ${info.gradTo} rounded-2xl p-5 text-white">
+        <button id="backToRelationsListBtn" class="text-slate-400 hover:text-white mb-3 flex items-center gap-2 text-sm">← Back to Relations</button>
+        
+        <div class="bg-gradient-to-r ${info.color === 'bg-indigo-500' ? 'from-indigo-600 to-blue-600' : 
+          info.color === 'bg-purple-500' ? 'from-purple-600 to-pink-600' :
+          info.color === 'bg-amber-500' ? 'from-amber-500 to-orange-600' :
+          info.color === 'bg-teal-500' ? 'from-teal-500 to-emerald-600' :
+          'from-rose-500 to-red-600'} rounded-2xl p-5 text-white">
           <div class="flex items-center gap-3 mb-2">
             <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl font-bold">${info.icon}</div>
             <div>
@@ -202,15 +183,21 @@ function renderGroupDetail(app) {
           ${group.description ? `<p class="text-sm mt-2 bg-white/10 rounded-lg p-3">${escapeHtml(group.description)}</p>` : ''}
         </div>
       </div>
+      
+      <!-- Members -->
       <div class="flex-1 overflow-auto hide-scrollbar p-4">
         <div class="space-y-3">
-          ${memberWords.map(word => {
+          ${memberWords.map((word, idx) => {
             const kanjiEsc = escapeHtml(word.kanji || '');
             const hiragana = word.hiragana_override || word.hiragana || '';
+            
+            // Find linked sentences for this word
             const sentences = (app.kanjiSentenceMap?.[word.word_id || word.id]) || [];
             const bestSentence = sentences[0];
+            
             return `
               <div class="bg-slate-800 rounded-xl p-4 border-l-4 ${word.markInfo.border}">
+                <!-- Word header -->
                 <div class="flex items-start justify-between mb-2">
                   <div>
                     <div class="flex items-center gap-2">
@@ -223,14 +210,24 @@ function renderGroupDetail(app) {
                   </div>
                   <div class="flex items-center gap-1 shrink-0">
                     <button data-open-story="${kanjiEsc}" data-story-hiragana="${escapeHtml(hiragana)}" data-story-meaning="${escapeHtml(word.meaning || '')}"
-                      class="w-8 h-8 flex items-center justify-center text-purple-400 hover:text-purple-300 rounded-lg hover:bg-purple-500/10 text-sm">\uD83D\uDCD6</button>
+                      class="w-8 h-8 flex items-center justify-center text-purple-400 hover:text-purple-300 rounded-lg hover:bg-purple-500/10 text-sm">📖</button>
                     <div class="w-8 h-8 ${word.markInfo.color} rounded-lg flex items-center justify-center">
                       <span class="text-white text-sm">${word.markInfo.icon}</span>
                     </div>
                   </div>
                 </div>
-                ${word.usage_note ? `<div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 mb-2"><p class="text-amber-300 text-xs">\uD83D\uDCA1 ${escapeHtml(word.usage_note)}</p></div>` : ''}
-                ${word.hint ? `<p class="text-slate-500 text-xs mb-2">\uD83D\uDD11 ${escapeHtml(word.hint)}</p>` : ''}
+                
+                <!-- Usage note -->
+                ${word.usage_note ? `
+                  <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 mb-2">
+                    <p class="text-amber-300 text-xs">💡 ${escapeHtml(word.usage_note)}</p>
+                  </div>
+                ` : ''}
+                
+                <!-- Hint -->
+                ${word.hint ? `<p class="text-slate-500 text-xs mb-2">🔑 ${escapeHtml(word.hint)}</p>` : ''}
+                
+                <!-- Best sentence -->
                 ${bestSentence ? `
                   <div class="bg-slate-900/50 rounded-lg p-2.5 mt-2">
                     <p class="text-slate-300 text-xs leading-relaxed">${highlightWordInSentence(bestSentence.sentence, word.kanji)}</p>
@@ -245,23 +242,15 @@ function renderGroupDetail(app) {
             `;
           }).join('')}
         </div>
-        <!-- Add Word -->
-        <div class="mt-4" id="addWordArea">
-          <button id="showAddWordBtn" class="w-full py-3 border border-dashed border-slate-600 rounded-xl text-indigo-400 text-sm font-semibold hover:border-indigo-500 hover:bg-indigo-500/5 transition-all">+ Add word to this group</button>
-          <div id="addWordForm" class="hidden mt-2">
-            <div class="flex gap-2">
-              <input type="text" id="addWordKanjiInput" placeholder="Type kanji..."
-                class="flex-1 p-3 rounded-xl bg-slate-900 text-white border border-slate-600 focus:border-indigo-500 focus:outline-none text-sm">
-              <button id="submitAddWordBtn" class="px-5 py-3 rounded-xl bg-indigo-500 text-white text-sm font-bold hover:bg-indigo-600 transition-colors">Add</button>
+        
+        ${group.group_type === 'alt_kanji' || group.group_type === 'synonym' || group.group_type === 'near_synonym' ? `
+          <!-- Comparison explanation -->
+          ${group.description ? '' : `
+            <div class="mt-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4">
+              <p class="text-indigo-400 text-xs font-semibold mb-1">📝 HOW ARE THESE DIFFERENT?</p>
+              <p class="text-slate-400 text-xs">No explanation yet. Add one in the Data Manager.</p>
             </div>
-            <p class="text-slate-600 text-[10px] mt-2">Just the kanji \u2014 hiragana and meaning can be added later</p>
-          </div>
-        </div>
-        ${(group.group_type === 'alt_kanji' || group.group_type === 'synonym' || group.group_type === 'near_synonym') && !group.description ? `
-          <div class="mt-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4">
-            <p class="text-indigo-400 text-xs font-semibold mb-1">\uD83D\uDCDD HOW ARE THESE DIFFERENT?</p>
-            <p class="text-slate-400 text-xs">No explanation yet. Add one in the Data Manager.</p>
-          </div>
+          `}
         ` : ''}
       </div>
     </div>
@@ -269,15 +258,20 @@ function renderGroupDetail(app) {
 }
 
 // ===== FLASHCARD BADGE =====
+// Call this from renderFlashcard to show group badges
 
 export function getWordGroupBadges(app, word) {
   if (!app.wordGroupMembers || !app.wordGroups) return [];
+  
   const kanji = word.kanji || word.raw || '';
+  // Find all groups this word belongs to (by word_id or kanji match)
   const memberEntries = app.wordGroupMembers.filter(m => {
     if (word.id && app.kanjiWords?.some(kw => kw.id === word.id) && m.word_id === word.id) return true;
+    // Fallback: find unified word by kanji, then check membership
     const match = app.kanjiWords?.find(w => w.kanji === kanji);
     return match && m.word_id === match.id;
   });
+  
   const groupIds = [...new Set(memberEntries.map(m => m.group_id))];
   return groupIds.map(gid => {
     const group = app.wordGroups.find(g => g.id === gid);
@@ -304,6 +298,8 @@ function highlightWordInSentence(sentence, kanji) {
   const escaped = kanji.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const parts = sentence.split(new RegExp(`(${escaped})`));
   return parts.map(part =>
-    part === kanji ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>` : escapeHtml(part)
+    part === kanji
+      ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>`
+      : escapeHtml(part)
   ).join('');
 }
