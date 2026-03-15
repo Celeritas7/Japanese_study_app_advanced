@@ -174,24 +174,19 @@ export function renderHeader(app) {
 export function renderTabs(currentTab) {
   const tabs = [
     { id: 'study', label: 'Study', icon: TAB_ICONS.study },
-    { id: 'srs', label: 'SRS', icon: TAB_ICONS.srs },
+    { id: 'srs', label: 'SRS Review', icon: TAB_ICONS.srs },
     { id: 'stories', label: 'Stories', icon: TAB_ICONS.stories },
-    { id: 'similar', label: 'Relations', icon: '\uD83D\uDD17' },
-    { id: 'anime', label: 'Anime', icon: TAB_ICONS.anime, href: 'anime-reader.html' }
+    { id: 'similar', label: 'Relations', icon: '🔗' }
   ];
   
   return `
     <nav class="bg-slate-800 border-b border-slate-700 flex">
-      ${tabs.map(t => t.href
-        ? `<a href="${t.href}" class="flex-1 py-3 px-2 text-center transition-all text-slate-400 hover:text-white" style="text-decoration:none">
-            <span class="text-lg">${t.icon}</span>
-            <span class="text-xs block mt-1">${t.label}</span>
-          </a>`
-        : `<button data-tab="${t.id}" class="flex-1 py-3 px-2 text-center transition-all ${currentTab === t.id ? 'tab-active' : 'text-slate-400 hover:text-white'}">
-            <span class="text-lg">${t.icon}</span>
-            <span class="text-xs block mt-1">${t.label}</span>
-          </button>`
-      ).join('')}
+      ${tabs.map(t => `
+        <button data-tab="${t.id}" class="flex-1 py-3 px-2 text-center transition-all ${currentTab === t.id ? 'tab-active' : 'text-slate-400 hover:text-white'}">
+          <span class="text-lg">${t.icon}</span>
+          <span class="text-xs block mt-1">${t.label}</span>
+        </button>
+      `).join('')}
     </nav>
   `;
 }

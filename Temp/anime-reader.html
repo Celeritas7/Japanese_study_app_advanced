@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>アニメ Reading Mode — JLPT Vocabulary Master</title>
+  
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=M+PLUS+Rounded+1c:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-deep: #07070d;
+      --bg-surface: #0f1019;
+      --bg-card: #161822;
+      --bg-elevated: #1e2030;
+      --border-dim: #252839;
+      --border-glow: #3d4166;
+      --text-primary: #e8e9f0;
+      --text-secondary: #8b8fa8;
+      --text-muted: #555873;
+      --accent-cyan: #00d4ff;
+      --accent-pink: #ff3b8b;
+      --accent-amber: #ffb03a;
+      --accent-green: #00e88f;
+      --accent-purple: #b07dff;
+      --word-known: #00e88f;
+      --word-unknown: #ff3b8b;
+      --word-grammar: #555873;
+      --word-saved: #b07dff;
+    }
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overscroll-behavior: none;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* === LOADING SCREEN === */
+    .loader-screen {
+      position: fixed; inset: 0;
+      background: var(--bg-deep);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s, visibility 0.5s;
+    }
+    .loader-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    
+    .loader-ring {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border-dim);
+      border-top-color: var(--accent-cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .loader-text {
+      margin-top: 16px; font-size: 13px; color: var(--text-muted);
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.05em;
+    }
+    .loader-progress {
+      margin-top: 8px; font-size: 11px; color: var(--text-muted);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    
+    /* === HEADER === */
+    .app-header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-dim);
+      padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .app-title {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      font-size: 16px; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    
+    .btn-icon {
+      width: 36px; height: 36px;
+      border: 1px solid var(--border-dim);
+      background: var(--bg-card);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+      font-size: 16px;
+    }
+    .btn-icon:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+    
+    /* === VIEWS === */
+    .view { display: none; }
+    .view.active { display: block; }
+    
+    /* === IMPORT VIEW === */
+    .import-view { padding: 24px 16px; max-width: 520px; margin: 0 auto; }
+    
+    .import-hero { text-align: center; padding: 40px 0 32px; }
+    .import-hero-icon {
+      width: 72px; height: 72px; border-radius: 20px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px; font-size: 32px;
+      box-shadow: 0 8px 32px rgba(0,212,255,0.15);
+    }
+    .import-hero h1 {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      font-size: 22px; font-weight: 700; margin-bottom: 6px;
+    }
+    .import-hero p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+    
+    .anime-meta-form {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: 14px; padding: 20px; margin-bottom: 16px;
+    }
+    .form-label {
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 6px; display: block;
+    }
+    .form-input {
+      width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-dim);
+      border-radius: 8px; padding: 10px 14px; font-size: 15px;
+      color: var(--text-primary); font-family: 'Noto Sans JP', sans-serif;
+      outline: none; transition: border-color 0.15s; margin-bottom: 14px;
+    }
+    .form-input:focus { border-color: var(--accent-cyan); }
+    .form-input::placeholder { color: var(--text-muted); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-row .form-input { margin-bottom: 0; }
+    
+    .drop-zone {
+      border: 2px dashed var(--border-glow); border-radius: 14px;
+      padding: 40px 20px; text-align: center; cursor: pointer;
+      transition: all 0.2s; background: var(--bg-card); margin-bottom: 16px;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent-cyan); background: rgba(0,212,255,0.04);
+    }
+    .drop-zone-icon { font-size: 36px; margin-bottom: 10px; }
+    .drop-zone-text { font-size: 14px; color: var(--text-secondary); }
+    .drop-zone-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+    .drop-zone-file {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px; color: var(--accent-green); margin-top: 8px;
+    }
+    
+    .text-import-area {
+      width: 100%; min-height: 120px; background: var(--bg-elevated);
+      border: 1px solid var(--border-dim); border-radius: 10px;
+      padding: 12px 14px; font-size: 15px; color: var(--text-primary);
+      font-family: 'Noto Sans JP', sans-serif; outline: none;
+      resize: vertical; line-height: 1.7; margin-bottom: 16px;
+    }
+    .text-import-area:focus { border-color: var(--accent-cyan); }
+    .text-import-area::placeholder { color: var(--text-muted); }
+    
+    .import-tabs {
+      display: flex; gap: 0; margin-bottom: 16px;
+      border-radius: 10px; overflow: hidden; border: 1px solid var(--border-dim);
+    }
+    .import-tab {
+      flex: 1; padding: 10px 0; text-align: center;
+      font-size: 13px; font-weight: 500; background: var(--bg-card);
+      color: var(--text-secondary); cursor: pointer; transition: all 0.15s; border: none;
+    }
+    .import-tab.active {
+      background: var(--accent-cyan); color: var(--bg-deep); font-weight: 700;
+    }
+    
+    .btn-primary {
+      width: 100%; padding: 14px 24px; border: none; border-radius: 12px;
+      font-size: 15px; font-weight: 700;
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      cursor: pointer; transition: all 0.2s;
+      background: linear-gradient(135deg, var(--accent-cyan), #0098cc);
+      color: var(--bg-deep); letter-spacing: 0.03em;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,212,255,0.3); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    
+    .btn-secondary {
+      padding: 10px 20px; border: 1px solid var(--border-dim); border-radius: 10px;
+      font-size: 13px; font-weight: 500; background: var(--bg-card);
+      color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
+    
+    /* === READING VIEW === */
+    .reading-header {
+      background: var(--bg-surface); border-bottom: 1px solid var(--border-dim);
+      padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+      position: sticky; top: 49px; z-index: 90;
+    }
+    .reading-meta { flex: 1; min-width: 0; }
+    .reading-anime-name {
+      font-size: 13px; font-weight: 600; color: var(--accent-cyan);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .reading-episode { font-size: 11px; color: var(--text-muted); }
+    .reading-stats {
+      display: flex; gap: 12px; font-size: 11px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .stat-known { color: var(--word-known); }
+    .stat-unknown { color: var(--word-unknown); }
+    .stat-saved { color: var(--word-saved); }
+    
+    .dialogue-container { padding: 16px; max-width: 680px; margin: 0 auto; }
+    
+    .dialogue-line {
+      margin-bottom: 20px; padding: 14px 16px;
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: 12px; transition: border-color 0.15s;
+      animation: fadeUp 0.3s ease-out both;
+    }
+    .dialogue-line:hover { border-color: var(--border-glow); }
+    
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .dialogue-timestamp {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; color: var(--text-muted);
+      margin-bottom: 8px; letter-spacing: 0.05em;
+    }
+    
+    .dialogue-text { font-size: 20px; line-height: 1.8; letter-spacing: 0.02em; }
+    
+    .word-token {
+      display: inline; cursor: pointer; border-radius: 3px;
+      padding: 1px 2px; transition: all 0.12s; position: relative;
+    }
+    .word-token:hover { background: rgba(255,255,255,0.08); }
+    .word-token.known { color: var(--word-known); }
+    .word-token.unknown { color: var(--word-unknown); border-bottom: 2px dotted var(--word-unknown); }
+    .word-token.saved { color: var(--word-saved); border-bottom: 2px solid var(--word-saved); }
+    .word-token.grammar { color: var(--word-grammar); cursor: default; }
+    .word-token.particle { color: var(--text-muted); font-size: 0.9em; cursor: default; }
+    
+    .word-token .furigana {
+      display: none; position: absolute; top: -18px; left: 50%;
+      transform: translateX(-50%); font-size: 10px; color: var(--text-muted);
+      white-space: nowrap; pointer-events: none;
+    }
+    .furigana-on .word-token .furigana { display: block; }
+    
+    /* === WORD POPUP === */
+    .word-popup-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      z-index: 200; display: flex; align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(4px); animation: fadeIn 0.15s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    
+    .word-popup {
+      width: 100%; max-width: 480px; background: var(--bg-elevated);
+      border-top: 1px solid var(--border-glow); border-radius: 20px 20px 0 0;
+      padding: 24px 20px 32px; animation: slideUp 0.2s ease-out;
+      max-height: 70vh; overflow-y: auto;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    
+    .popup-handle {
+      width: 36px; height: 4px; background: var(--border-glow);
+      border-radius: 2px; margin: 0 auto 18px;
+    }
+    .popup-word-display { text-align: center; margin-bottom: 20px; }
+    .popup-surface { font-size: 40px; font-weight: 700; margin-bottom: 4px; }
+    .popup-reading {
+      font-size: 18px; color: var(--accent-cyan);
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+    }
+    .popup-pos {
+      font-size: 11px; color: var(--text-muted);
+      font-family: 'IBM Plex Mono', monospace; margin-top: 4px;
+    }
+    
+    .popup-meaning {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 14px;
+    }
+    .popup-meaning-label {
+      font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.08em; margin-bottom: 4px;
+    }
+    .popup-meaning-text { font-size: 15px; color: var(--text-primary); line-height: 1.5; }
+    .popup-meaning-hint { font-size: 12px; color: var(--accent-amber); margin-top: 6px; }
+    
+    .popup-context {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+      font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+    }
+    .popup-context em { color: var(--accent-pink); font-style: normal; font-weight: 600; }
+    
+    .popup-source-tag {
+      display: inline-block; padding: 4px 10px; border-radius: 6px;
+      font-size: 11px; font-weight: 500; margin-bottom: 16px;
+    }
+    .popup-source-tag.known-tag {
+      background: rgba(0,232,143,0.12); color: var(--word-known);
+      border: 1px solid rgba(0,232,143,0.25);
+    }
+    .popup-source-tag.unknown-tag {
+      background: rgba(255,59,139,0.12); color: var(--word-unknown);
+      border: 1px solid rgba(255,59,139,0.25);
+    }
+    .popup-source-tag.saved-tag {
+      background: rgba(176,125,255,0.12); color: var(--word-saved);
+      border: 1px solid rgba(176,125,255,0.25);
+    }
+    
+    .btn-save-word {
+      width: 100%; padding: 13px 24px; border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 700;
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      cursor: pointer; transition: all 0.2s;
+      background: linear-gradient(135deg, var(--accent-pink), #cc2e6f); color: white;
+    }
+    .btn-save-word:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,59,139,0.3); }
+    .btn-save-word:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-save-word.saved { background: linear-gradient(135deg, var(--accent-purple), #8a5fd9); }
+    
+    .btn-remove-word {
+      width: 100%; padding: 10px 24px; border: 1px solid var(--border-dim);
+      border-radius: 10px; font-size: 12px; background: transparent;
+      color: var(--text-muted); cursor: pointer; margin-top: 8px; transition: all 0.15s;
+    }
+    .btn-remove-word:hover { border-color: var(--accent-pink); color: var(--accent-pink); }
+    
+    /* === SUMMARY VIEW === */
+    .summary-view { padding: 20px 16px; max-width: 520px; margin: 0 auto; }
+    
+    .summary-card {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: 14px; padding: 20px; margin-bottom: 16px;
+    }
+    .summary-card h3 {
+      font-size: 13px; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;
+    }
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .summary-stat {
+      text-align: center; padding: 12px 8px;
+      background: var(--bg-elevated); border-radius: 10px;
+    }
+    .summary-stat-value {
+      font-size: 24px; font-weight: 700;
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+    }
+    .summary-stat-label {
+      font-size: 10px; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px;
+    }
+    
+    .word-list-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid var(--border-dim);
+    }
+    .word-list-item:last-child { border-bottom: none; }
+    .word-list-surface { font-size: 18px; font-weight: 600; }
+    .word-list-reading { font-size: 12px; color: var(--accent-cyan); margin-left: 8px; }
+    .word-list-meaning { font-size: 12px; color: var(--text-secondary); max-width: 180px; text-align: right; }
+
+    /* === SESSION LIST === */
+    .session-item {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .session-anime { font-size: 14px; font-weight: 600; }
+    .session-ep { font-size: 11px; color: var(--text-muted); }
+    .session-date { font-size: 10px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; }
+
+    /* === AUTH === */
+    .login-screen {
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .login-logo {
+      width: 80px; height: 80px; border-radius: 22px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      display: flex; align-items: center; justify-content: center; font-size: 36px;
+      margin-bottom: 20px; box-shadow: 0 8px 40px rgba(0,212,255,0.2);
+    }
+    .login-title {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      font-size: 20px; font-weight: 700; margin-bottom: 6px;
+    }
+    .login-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }
+    .btn-google {
+      padding: 12px 32px; border: 1px solid var(--border-glow); border-radius: 12px;
+      background: var(--bg-card); color: var(--text-primary);
+      font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .btn-google:hover { border-color: var(--accent-cyan); background: var(--bg-elevated); }
+    
+    @media (min-width: 640px) {
+      .dialogue-text { font-size: 24px; }
+      .word-popup { border-radius: 20px; margin: auto; max-height: 80vh; }
+      .word-popup-overlay { align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loader -->
+  <div class="loader-screen" id="loaderScreen">
+    <div class="loader-ring"></div>
+    <div class="loader-text">Loading kuromoji dictionary...</div>
+    <div class="loader-progress" id="loaderProgress">Initializing tokenizer</div>
+  </div>
+
+  <div id="app"></div>
+
+  <!-- kuromoji.js for Japanese morphological analysis -->
+  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
+
+  <script>
+    // ===== SUPABASE CONFIG =====
+    const SUPABASE_URL = 'https://ulgrfumbwjovbjzjiems.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ===== POS CLASSIFICATION =====
+    const SKIP_POS = new Set(['助詞', '記号', '助動詞', '補助記号', 'BOS/EOS']);
+    const GRAMMAR_POS = new Set(['接続詞', '連体詞', '感動詞', '接頭詞']);
+
+    // ===== SRT PARSER =====
+    function parseSRT(text) {
+      const blocks = text.trim().replace(/\r\n/g, '\n').split(/\n\n+/);
+      const lines = [];
+      for (const block of blocks) {
+        const parts = block.split('\n');
+        if (parts.length < 3) continue;
+        const tm = parts[1].match(/(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})/);
+        if (!tm) continue;
+        const dialogue = parts.slice(2).join(' ').replace(/<[^>]+>/g, '').replace(/\{[^}]+\}/g, '').trim();
+        if (!dialogue) continue;
+        lines.push({ start: tm[1].replace(',', '.'), end: tm[2].replace(',', '.'), text: dialogue });
+      }
+      return lines;
+    }
+
+    // ===== ASS/SSA PARSER =====
+    function parseASS(text) {
+      const lines = [];
+      const re = /^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),[^,]*,[^,]*,\d+,\d+,\d+,[^,]*,(.*)/;
+      for (const line of text.split('\n')) {
+        const m = line.match(re);
+        if (!m) continue;
+        const d = m[3].replace(/\{[^}]*\}/g, '').replace(/\\[Nn]/g, ' ').trim();
+        if (!d) continue;
+        lines.push({ start: m[1], end: m[2], text: d });
+      }
+      return lines;
+    }
+
+    // ===== MAIN APP =====
+    class AnimeReader {
+      constructor() {
+        this.user = null;
+        this.tokenizer = null;
+        this.tokenizerReady = false;
+
+        // Vocabulary lookup
+        this.vocabulary = [];
+        this.vocabLookup = {};   // surface/kanji/hiragana -> vocab entry
+        this.savedAnimeWords = {}; // base_form -> row
+
+        // View state
+        this.currentView = 'import'; // 'import' | 'reading' | 'summary'
+        this.importMode = 'srt';     // 'srt' | 'text'
+        this.animeName = '';
+        this.episodeNum = '';
+        this.seasonNum = '';
+        this.srtFile = null;
+        this.rawText = '';
+
+        // Parsed dialogue
+        this.dialogueLines = [];
+        this.allTokens = [];     // unique content tokens
+        this.wordPopup = null;
+
+        // Settings
+        this.showFurigana = false;
+
+        // Past sessions
+        this.sessions = [];
+
+        this.init();
+      }
+
+      async init() {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) this.user = session.user;
+
+        sb.auth.onAuthStateChange((event, session) => {
+          if (event === 'INITIAL_SESSION') return;
+          this.user = session?.user || null;
+          if (event === 'SIGNED_IN') {
+            this.loadVocabulary();
+            this.loadSavedAnimeWords();
+            this.loadSessions();
+          }
+          this.render();
+        });
+
+        this.initTokenizer();
+        if (this.user) {
+          await Promise.all([this.loadVocabulary(), this.loadSavedAnimeWords(), this.loadSessions()]);
+        }
+        this.render();
+      }
+
+      // ===== TOKENIZER =====
+      initTokenizer() {
+        const progress = document.getElementById('loaderProgress');
+        kuromoji.builder({ dicPath: 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict' }).build((err, tokenizer) => {
+          if (err) {
+            console.error('Kuromoji init error:', err);
+            if (progress) progress.textContent = 'Dictionary load failed — refresh to retry';
+            return;
+          }
+          this.tokenizer = tokenizer;
+          this.tokenizerReady = true;
+          document.getElementById('loaderScreen')?.classList.add('hidden');
+          this.render();
+        });
+
+        let step = 0;
+        const msgs = ['Downloading dictionary files...', 'Parsing morphological data...', 'Building token lattice...', 'Almost ready...'];
+        const iv = setInterval(() => {
+          if (this.tokenizerReady) { clearInterval(iv); return; }
+          if (progress && step < msgs.length) progress.textContent = msgs[step++];
+        }, 2000);
+      }
+
+      // ===== DATA LOADING =====
+      async loadVocabulary() {
+        try {
+          let all = [], page = 0;
+          while (true) {
+            const { data, error } = await sb.from('japanese_vocabulary')
+              .select('id,kanji,hiragana,meaning_en,hint,level')
+              .range(page * 1000, (page + 1) * 1000 - 1).order('id');
+            if (error || !data?.length) break;
+            all = all.concat(data);
+            if (data.length < 1000) break;
+            page++;
+          }
+          this.vocabulary = all;
+          this.vocabLookup = {};
+          for (const v of all) {
+            if (v.kanji) this.vocabLookup[v.kanji] = v;
+            if (v.hiragana) this.vocabLookup[v.hiragana] = v;
+          }
+          console.log(`Vocab loaded: ${all.length}`);
+        } catch (e) { console.error('loadVocabulary:', e); }
+      }
+
+      async loadSavedAnimeWords() {
+        if (!this.user) return;
+        try {
+          const { data, error } = await sb.from('japanese_anime_words')
+            .select('*').eq('user_id', this.user.id);
+          if (error) { console.error('loadSavedAnimeWords:', error); return; }
+          this.savedAnimeWords = {};
+          for (const w of (data || [])) this.savedAnimeWords[w.base_form] = w;
+        } catch (e) { console.error(e); }
+      }
+
+      async loadSessions() {
+        if (!this.user) return;
+        try {
+          const { data, error } = await sb.from('japanese_anime_sessions')
+            .select('*').eq('user_id', this.user.id)
+            .order('created_at', { ascending: false }).limit(30);
+          if (error) { console.error('loadSessions:', error); return; }
+          this.sessions = data || [];
+        } catch (e) { console.error(e); }
+      }
+
+      // ===== TOKENIZATION =====
+      tokenizeLine(text) {
+        if (!this.tokenizer) return [{ surface: text, type: 'raw' }];
+        return this.tokenizer.tokenize(text).map(t => {
+          const baseForm = t.basic_form !== '*' ? t.basic_form : t.surface_form;
+          const reading = t.reading !== '*' ? t.reading : '';
+          const pos = t.pos;
+
+          let type = 'unknown';
+          if (SKIP_POS.has(pos) || pos === '記号') {
+            type = pos === '助詞' ? 'particle' : 'grammar';
+          } else if (GRAMMAR_POS.has(pos)) {
+            type = 'grammar';
+          } else if (this.vocabLookup[baseForm] || this.vocabLookup[t.surface_form]) {
+            type = 'known';
+          } else if (this.savedAnimeWords[baseForm]) {
+            type = 'saved';
+          }
+
+          return {
+            surface: t.surface_form, baseForm, reading, pos,
+            posDetail: [t.pos_detail_1, t.pos_detail_2, t.pos_detail_3].filter(x => x !== '*').join('・'),
+            conjugation: t.conjugated_form !== '*' ? t.conjugated_form : '',
+            type,
+            vocabEntry: this.vocabLookup[baseForm] || this.vocabLookup[t.surface_form] || null,
+            savedEntry: this.savedAnimeWords[baseForm] || null,
+          };
+        });
+      }
+
+      processDialogue(rawLines) {
+        this.dialogueLines = rawLines.map((line, i) => ({
+          ...line, index: i, tokens: this.tokenizeLine(line.text),
+        }));
+        const seen = new Set();
+        this.allTokens = [];
+        for (const line of this.dialogueLines) {
+          for (const t of line.tokens) {
+            if (t.type === 'grammar' || t.type === 'particle') continue;
+            const key = t.baseForm || t.surface;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            this.allTokens.push(t);
+          }
+        }
+      }
+
+      // ===== ACTIONS =====
+      async startReading() {
+        if (!this.tokenizerReady) return;
+        let rawLines;
+        if (this.importMode === 'srt' && this.srtFile) {
+          const text = await this.srtFile.text();
+          const ext = this.srtFile.name.toLowerCase();
+          rawLines = (ext.endsWith('.ass') || ext.endsWith('.ssa')) ? parseASS(text) : parseSRT(text);
+        } else if (this.importMode === 'text' && this.rawText.trim()) {
+          rawLines = this.rawText.trim().split('\n').filter(l => l.trim())
+            .map(l => ({ start: '', end: '', text: l.trim() }));
+        } else return;
+
+        if (!rawLines.length) { alert('No dialogue lines found.'); return; }
+        this.processDialogue(rawLines);
+        this.saveSession(rawLines.length);
+        this.currentView = 'reading';
+        this.render();
+      }
+
+      async saveSession(lineCount) {
+        if (!this.user || !this.animeName) return;
+        try {
+          await sb.from('japanese_anime_sessions').insert({
+            user_id: this.user.id, anime_name: this.animeName,
+            season: this.seasonNum || null, episode: this.episodeNum || null,
+            line_count: lineCount, created_at: new Date().toISOString(),
+          });
+          this.loadSessions();
+        } catch (e) { console.error('saveSession:', e); }
+      }
+
+      async saveWord(token) {
+        if (!this.user || !token) return;
+        try {
+          const { data, error } = await sb.from('japanese_anime_words').upsert({
+            user_id: this.user.id, surface_form: token.surface,
+            base_form: token.baseForm, reading: token.reading,
+            pos: token.pos, pos_detail: token.posDetail,
+            anime_source: this.animeName || 'Unknown',
+            episode: this.episodeNum || null, season: this.seasonNum || null,
+            created_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,base_form' }).select();
+
+          if (error) { console.error('saveWord:', error); alert('Save failed: ' + error.message); return; }
+          this.savedAnimeWords[token.baseForm] = data?.[0] || {};
+
+          // Reclassify
+          for (const line of this.dialogueLines)
+            for (const t of line.tokens)
+              if (t.baseForm === token.baseForm && t.type === 'unknown') {
+                t.type = 'saved';
+                t.savedEntry = this.savedAnimeWords[token.baseForm];
+              }
+
+          // Refresh unique tokens list
+          for (const t of this.allTokens)
+            if (t.baseForm === token.baseForm) { t.type = 'saved'; t.savedEntry = this.savedAnimeWords[token.baseForm]; }
+
+          this.render();
+          if (this.wordPopup?.baseForm === token.baseForm) this.showWordPopup(token);
+        } catch (e) { console.error('saveWord:', e); }
+      }
+
+      async removeWord(token) {
+        if (!this.user || !token) return;
+        try {
+          const { error } = await sb.from('japanese_anime_words').delete()
+            .eq('user_id', this.user.id).eq('base_form', token.baseForm);
+          if (error) { console.error('removeWord:', error); return; }
+          delete this.savedAnimeWords[token.baseForm];
+          for (const line of this.dialogueLines)
+            for (const t of line.tokens)
+              if (t.baseForm === token.baseForm && t.type === 'saved') { t.type = 'unknown'; t.savedEntry = null; }
+          for (const t of this.allTokens)
+            if (t.baseForm === token.baseForm) { t.type = 'unknown'; t.savedEntry = null; }
+          this.render();
+          if (this.wordPopup?.baseForm === token.baseForm) this.showWordPopup(token);
+        } catch (e) { console.error('removeWord:', e); }
+      }
+
+      showWordPopup(token) {
+        if (!token || token.type === 'grammar' || token.type === 'particle') return;
+        this.wordPopup = token;
+        this.render();
+      }
+      closePopup() { this.wordPopup = null; this.render(); }
+
+      getStats() {
+        const known = this.allTokens.filter(t => t.type === 'known').length;
+        const unknown = this.allTokens.filter(t => t.type === 'unknown').length;
+        const saved = this.allTokens.filter(t => t.type === 'saved').length;
+        return { known, unknown, saved, total: this.allTokens.length };
+      }
+
+      // ===== AUTH =====
+      async signIn() {
+        await sb.auth.signInWithOAuth({ provider: 'google',
+          options: { redirectTo: window.location.origin + window.location.pathname } });
+      }
+      async signOut() { await sb.auth.signOut(); this.user = null; this.render(); }
+
+      // ===== RENDER =====
+      render() {
+        const app = document.getElementById('app');
+        if (!app) return;
+        if (!this.user) { app.innerHTML = this.renderLogin(); this.bind(); return; }
+
+        let body = '';
+        switch (this.currentView) {
+          case 'reading': body = this.renderReadingView(); break;
+          case 'summary': body = this.renderSummaryView(); break;
+          default: body = this.renderImportView();
+        }
+        app.innerHTML = `${this.renderAppHeader()}${body}${this.wordPopup ? this.renderWordPopup() : ''}`;
+        this.bind();
+      }
+
+      renderLogin() {
+        return `<div class="login-screen">
+          <div class="login-logo">📺</div>
+          <div class="login-title">アニメ Reading Mode</div>
+          <div class="login-sub">Import subtitles, learn vocabulary from anime</div>
+          <button class="btn-google" id="loginBtn">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+            Sign in with Google
+          </button>
+        </div>`;
+      }
+
+      renderAppHeader() {
+        return `<header class="app-header">
+          <div class="app-title">📺 アニメ Reader</div>
+          <div class="header-actions">
+            <a href="index.html" class="btn-icon" title="Back to main app" style="text-decoration:none">🏠</a>
+            ${this.currentView !== 'import' ? '<button class="btn-icon" id="backToImportBtn" title="New import">↩</button>' : ''}
+            ${this.currentView === 'reading' ? `
+              <button class="btn-icon" id="summaryBtn" title="Summary">📊</button>
+              <button class="btn-icon" id="toggleFuriganaBtn" title="Toggle furigana"
+                style="${this.showFurigana ? 'border-color:var(--accent-cyan);color:var(--accent-cyan)' : ''}">ふ</button>
+            ` : ''}
+            <button class="btn-icon" id="signOutBtn" title="Sign out">⏏</button>
+          </div>
+        </header>`;
+      }
+
+      // ===== IMPORT VIEW =====
+      renderImportView() {
+        const canStart = this.tokenizerReady && (
+          (this.importMode === 'srt' && this.srtFile) ||
+          (this.importMode === 'text' && this.rawText.trim())
+        );
+        return `<div class="import-view">
+          <div class="import-hero">
+            <div class="import-hero-icon">📺</div>
+            <h1>Anime Dialogue Reader</h1>
+            <p>Import subtitles to study vocabulary in context.<br>Words are auto-detected and matched against your JLPT database.</p>
+          </div>
+          <div class="anime-meta-form">
+            <label class="form-label">Anime Title</label>
+            <input class="form-input" id="animeNameInput" placeholder="e.g. 進撃の巨人" value="${this.esc(this.animeName)}">
+            <div class="form-row">
+              <div><label class="form-label">Season</label>
+                <input class="form-input" id="seasonInput" placeholder="1" value="${this.esc(this.seasonNum)}" inputmode="numeric"></div>
+              <div><label class="form-label">Episode</label>
+                <input class="form-input" id="episodeInput" placeholder="1" value="${this.esc(this.episodeNum)}" inputmode="numeric"></div>
+            </div>
+          </div>
+          <div class="import-tabs">
+            <button class="import-tab ${this.importMode === 'srt' ? 'active' : ''}" data-import-mode="srt">Subtitle File</button>
+            <button class="import-tab ${this.importMode === 'text' ? 'active' : ''}" data-import-mode="text">Paste Text</button>
+          </div>
+          ${this.importMode === 'srt' ? `
+            <div class="drop-zone" id="dropZone">
+              <input type="file" id="fileInput" accept=".srt,.ass,.ssa,.vtt" hidden>
+              <div class="drop-zone-icon">📁</div>
+              <div class="drop-zone-text">Drop subtitle file or tap to browse</div>
+              <div class="drop-zone-hint">.srt .ass .ssa supported</div>
+              ${this.srtFile ? `<div class="drop-zone-file">✓ ${this.esc(this.srtFile.name)}</div>` : ''}
+            </div>
+          ` : `
+            <textarea class="text-import-area" id="textImportArea"
+              placeholder="Paste Japanese dialogue here...&#10;Each line becomes a separate dialogue entry.">${this.esc(this.rawText)}</textarea>
+          `}
+          <button class="btn-primary" id="startReadingBtn" ${canStart ? '' : 'disabled'}>
+            ${this.tokenizerReady ? '🎬 Start Reading' : '⏳ Loading Tokenizer...'}
+          </button>
+          ${this.sessions.length ? `
+            <div style="margin-top:28px">
+              <h3 style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px">Recent Sessions</h3>
+              ${this.sessions.slice(0, 5).map(s => `
+                <div class="session-item">
+                  <div><div class="session-anime">${this.esc(s.anime_name)}</div>
+                    <div class="session-ep">${s.season ? 'S' + s.season : ''}${s.episode ? 'E' + s.episode : ''} · ${s.line_count || '?'} lines</div></div>
+                  <div class="session-date">${new Date(s.created_at).toLocaleDateString('ja-JP')}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>`;
+      }
+
+      // ===== READING VIEW =====
+      renderReadingView() {
+        const stats = this.getStats();
+        return `
+          <div class="reading-header">
+            <div class="reading-meta">
+              <div class="reading-anime-name">${this.esc(this.animeName || 'Untitled')}</div>
+              <div class="reading-episode">${this.episodeNum ? 'Episode ' + this.episodeNum : ''} · ${this.dialogueLines.length} lines</div>
+            </div>
+            <div class="reading-stats">
+              <span class="stat-known" title="Known">${stats.known}✓</span>
+              <span class="stat-saved" title="Saved">${stats.saved}★</span>
+              <span class="stat-unknown" title="New">${stats.unknown}?</span>
+            </div>
+          </div>
+          <div class="dialogue-container ${this.showFurigana ? 'furigana-on' : ''}">
+            ${this.dialogueLines.map((line, i) => `
+              <div class="dialogue-line" style="animation-delay:${Math.min(i * 30, 300)}ms">
+                ${line.start ? `<div class="dialogue-timestamp">${line.start}${line.end ? ' → ' + line.end : ''}</div>` : ''}
+                <div class="dialogue-text">${line.tokens.map((t, j) => {
+                  if (t.type === 'grammar' || t.type === 'particle')
+                    return `<span class="word-token ${t.type}">${this.esc(t.surface)}</span>`;
+                  return `<span class="word-token ${t.type}" data-line="${i}" data-token="${j}">${
+                    t.reading && t.reading !== t.surface ? `<span class="furigana">${this.toHiragana(t.reading)}</span>` : ''
+                  }${this.esc(t.surface)}</span>`;
+                }).join('')}</div>
+              </div>
+            `).join('')}
+            <div style="height:40px"></div>
+          </div>`;
+      }
+
+      // ===== WORD POPUP =====
+      renderWordPopup() {
+        const t = this.wordPopup;
+        if (!t) return '';
+        const vocab = t.vocabEntry || this.vocabLookup[t.baseForm] || this.vocabLookup[t.surface];
+        const saved = t.savedEntry || this.savedAnimeWords[t.baseForm];
+        const isKnown = !!vocab, isSaved = !!saved;
+
+        // Find context line
+        let ctxHTML = '';
+        for (const line of this.dialogueLines) {
+          if (line.tokens.some(lt => lt.baseForm === t.baseForm || lt.surface === t.surface)) {
+            ctxHTML = line.tokens.map(lt =>
+              (lt.baseForm === t.baseForm || lt.surface === t.surface)
+                ? `<em>${this.esc(lt.surface)}</em>` : this.esc(lt.surface)
+            ).join('');
+            break;
+          }
+        }
+
+        return `<div class="word-popup-overlay" id="popupOverlay">
+          <div class="word-popup">
+            <div class="popup-handle"></div>
+            <div class="popup-word-display">
+              <div class="popup-surface">${this.esc(t.surface)}</div>
+              ${t.reading ? `<div class="popup-reading">${this.toHiragana(t.reading)}</div>` : ''}
+              <div class="popup-pos">${t.pos}${t.posDetail ? ' · ' + t.posDetail : ''}${t.conjugation ? ' · ' + t.conjugation : ''}</div>
+            </div>
+            ${t.baseForm !== t.surface ? `<div style="text-align:center;margin-bottom:14px;font-size:13px;color:var(--text-muted)">
+              辞書形: <span style="color:var(--text-primary);font-weight:600">${this.esc(t.baseForm)}</span></div>` : ''}
+            ${isKnown ? `<span class="popup-source-tag known-tag">✓ In your JLPT vocabulary</span>`
+              : isSaved ? `<span class="popup-source-tag saved-tag">★ Saved from ${this.esc(saved.anime_source || 'anime')}</span>`
+              : `<span class="popup-source-tag unknown-tag">? New word</span>`}
+            ${vocab ? `<div class="popup-meaning">
+              <div class="popup-meaning-label">Meaning</div>
+              <div class="popup-meaning-text">${this.esc(vocab.meaning_en || '')}</div>
+              ${vocab.hint ? `<div class="popup-meaning-hint">💡 ${this.esc(vocab.hint)}</div>` : ''}
+              ${vocab.level ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">JLPT ${vocab.level}</div>` : ''}
+            </div>` : ''}
+            ${ctxHTML ? `<div class="popup-context">${ctxHTML}</div>` : ''}
+            ${!isKnown ? (isSaved
+              ? `<button class="btn-save-word saved" disabled>★ Already Saved</button>
+                 <button class="btn-remove-word" id="removeWordBtn">Remove from saved words</button>`
+              : `<button class="btn-save-word" id="saveWordBtn">★ Save Word from ${this.esc(this.animeName || 'anime')}</button>`
+            ) : ''}
+          </div>
+        </div>`;
+      }
+
+      // ===== SUMMARY VIEW =====
+      renderSummaryView() {
+        const stats = this.getStats();
+        const unknowns = this.allTokens.filter(t => t.type === 'unknown');
+        const saveds = this.allTokens.filter(t => t.type === 'saved');
+        const knowns = this.allTokens.filter(t => t.type === 'known');
+        const pct = stats.total > 0 ? Math.round(((stats.known + stats.saved) / stats.total) * 100) : 0;
+
+        return `<div class="summary-view">
+          <div class="summary-card">
+            <h3>Session Summary</h3>
+            <div style="text-align:center;margin-bottom:16px">
+              <div style="font-size:48px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;
+                background:linear-gradient(135deg,var(--accent-cyan),var(--accent-green));
+                -webkit-background-clip:text;-webkit-text-fill-color:transparent">${pct}%</div>
+              <div style="font-size:12px;color:var(--text-muted)">Comprehension Rate</div>
+            </div>
+            <div class="summary-grid">
+              <div class="summary-stat"><div class="summary-stat-value" style="color:var(--word-known)">${stats.known}</div><div class="summary-stat-label">Known</div></div>
+              <div class="summary-stat"><div class="summary-stat-value" style="color:var(--word-saved)">${stats.saved}</div><div class="summary-stat-label">Saved</div></div>
+              <div class="summary-stat"><div class="summary-stat-value" style="color:var(--word-unknown)">${stats.unknown}</div><div class="summary-stat-label">Unknown</div></div>
+            </div>
+          </div>
+          ${unknowns.length ? `<div class="summary-card"><h3>Unknown Words (${unknowns.length})</h3>
+            ${unknowns.map(t => `<div class="word-list-item">
+              <div><span class="word-list-surface" style="color:var(--word-unknown)">${this.esc(t.surface)}</span>
+                <span class="word-list-reading">${this.toHiragana(t.reading)}</span></div>
+              <button class="btn-secondary" data-save-base="${this.esc(t.baseForm)}" style="padding:6px 12px;font-size:11px">★ Save</button>
+            </div>`).join('')}</div>` : ''}
+          ${saveds.length ? `<div class="summary-card"><h3>Saved from Anime (${saveds.length})</h3>
+            ${saveds.map(t => `<div class="word-list-item">
+              <div><span class="word-list-surface" style="color:var(--word-saved)">${this.esc(t.surface)}</span>
+                <span class="word-list-reading">${this.toHiragana(t.reading)}</span></div>
+              <div class="word-list-meaning" style="color:var(--text-muted);font-size:11px">${this.esc((t.savedEntry?.anime_source || '') + (t.savedEntry?.episode ? ' E' + t.savedEntry.episode : ''))}</div>
+            </div>`).join('')}</div>` : ''}
+          ${knowns.length ? `<div class="summary-card"><h3>Known JLPT Words (${knowns.length})</h3>
+            ${knowns.slice(0, 30).map(t => `<div class="word-list-item">
+              <div><span class="word-list-surface" style="color:var(--word-known)">${this.esc(t.surface)}</span>
+                <span class="word-list-reading">${t.vocabEntry?.hiragana || this.toHiragana(t.reading)}</span></div>
+              <div class="word-list-meaning">${this.esc(t.vocabEntry?.meaning_en || '')}</div>
+            </div>`).join('')}
+            ${knowns.length > 30 ? `<div style="text-align:center;padding:8px;color:var(--text-muted);font-size:12px">...and ${knowns.length - 30} more</div>` : ''}
+          </div>` : ''}
+          <button class="btn-primary" id="backToReadingBtn" style="margin-bottom:40px">← Back to Reading</button>
+        </div>`;
+      }
+
+      // ===== EVENT BINDING =====
+      bind() {
+        document.getElementById('loginBtn')?.addEventListener('click', () => this.signIn());
+        document.getElementById('signOutBtn')?.addEventListener('click', () => this.signOut());
+
+        document.getElementById('backToImportBtn')?.addEventListener('click', () => {
+          this.currentView = 'import'; this.dialogueLines = []; this.allTokens = []; this.wordPopup = null; this.render();
+        });
+        document.getElementById('summaryBtn')?.addEventListener('click', () => {
+          this.currentView = 'summary'; this.wordPopup = null; this.render();
+        });
+        document.getElementById('toggleFuriganaBtn')?.addEventListener('click', () => {
+          this.showFurigana = !this.showFurigana; this.render();
+        });
+
+        // Import tabs
+        document.querySelectorAll('[data-import-mode]').forEach(b =>
+          b.addEventListener('click', () => { this.importMode = b.dataset.importMode; this.render(); }));
+
+        // Form inputs — use 'change' to avoid IME issues
+        const nameEl = document.getElementById('animeNameInput');
+        if (nameEl) nameEl.addEventListener('change', () => this.animeName = nameEl.value);
+        const sEl = document.getElementById('seasonInput');
+        if (sEl) sEl.addEventListener('change', () => this.seasonNum = sEl.value);
+        const eEl = document.getElementById('episodeInput');
+        if (eEl) eEl.addEventListener('change', () => this.episodeNum = eEl.value);
+        const tArea = document.getElementById('textImportArea');
+        if (tArea) tArea.addEventListener('input', () => this.rawText = tArea.value);
+
+        // File drop
+        const dz = document.getElementById('dropZone'), fi = document.getElementById('fileInput');
+        if (dz && fi) {
+          dz.addEventListener('click', () => fi.click());
+          dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+          dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+          dz.addEventListener('drop', e => {
+            e.preventDefault(); dz.classList.remove('dragover');
+            if (e.dataTransfer?.files?.[0]) { this.srtFile = e.dataTransfer.files[0]; this.render(); }
+          });
+          fi.addEventListener('change', () => { if (fi.files?.[0]) { this.srtFile = fi.files[0]; this.render(); } });
+        }
+
+        // Start reading
+        document.getElementById('startReadingBtn')?.addEventListener('click', () => {
+          // Capture latest input values
+          const n = document.getElementById('animeNameInput');
+          const s = document.getElementById('seasonInput');
+          const ep = document.getElementById('episodeInput');
+          if (n) this.animeName = n.value;
+          if (s) this.seasonNum = s.value;
+          if (ep) this.episodeNum = ep.value;
+          this.startReading();
+        });
+
+        // Word tokens
+        document.querySelectorAll('.word-token[data-line]').forEach(el =>
+          el.addEventListener('click', () => {
+            const token = this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];
+            if (token) this.showWordPopup(token);
+          }));
+
+        // Popup
+        document.getElementById('popupOverlay')?.addEventListener('click', e => {
+          if (e.target.id === 'popupOverlay') this.closePopup();
+        });
+        document.getElementById('saveWordBtn')?.addEventListener('click', () => { if (this.wordPopup) this.saveWord(this.wordPopup); });
+        document.getElementById('removeWordBtn')?.addEventListener('click', () => { if (this.wordPopup) this.removeWord(this.wordPopup); });
+
+        // Summary save buttons
+        document.querySelectorAll('[data-save-base]').forEach(b =>
+          b.addEventListener('click', () => {
+            const t = this.allTokens.find(x => x.baseForm === b.dataset.saveBase);
+            if (t) this.saveWord(t);
+          }));
+
+        document.getElementById('backToReadingBtn')?.addEventListener('click', () => { this.currentView = 'reading'; this.render(); });
+      }
+
+      // ===== UTILS =====
+      esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+      toHiragana(k) { return k ? k.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60)) : ''; }
+    }
+
+    // ===== INIT =====
+    window.animeReader = new AnimeReader();
+  </script>
+</body>
+</html>

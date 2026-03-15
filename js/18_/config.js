@@ -35,7 +35,6 @@ export const TAB_ICONS = {
   srs: '\uD83D\uDD04',      // 🔄
   stories: '\uD83D\uDCD6', // 📖
   similar: '\uD83C\uDFB2', // 🎲
-  anime: '\uD83D\uDCFA',   // 📺
 };
 
 // Topic Icons for Self Study
