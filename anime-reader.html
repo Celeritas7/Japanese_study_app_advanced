@@ -4,668 +4,385 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>アニメ Reading Mode — JLPT Vocabulary Master</title>
-  
   <meta name="theme-color" content="#0a0a0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=M+PLUS+Rounded+1c:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-
   <style>
-    :root {
-      --bg-deep: #07070d;
-      --bg-surface: #0f1019;
-      --bg-card: #161822;
-      --bg-elevated: #1e2030;
-      --border-dim: #252839;
-      --border-glow: #3d4166;
-      --text-primary: #e8e9f0;
-      --text-secondary: #8b8fa8;
-      --text-muted: #555873;
-      --accent-cyan: #00d4ff;
-      --accent-pink: #ff3b8b;
-      --accent-amber: #ffb03a;
-      --accent-green: #00e88f;
-      --accent-purple: #b07dff;
-      --word-known: #00e88f;
-      --word-unknown: #ff3b8b;
-      --word-grammar: #555873;
-      --word-saved: #b07dff;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Noto Sans JP', sans-serif;
-      background: var(--bg-deep); color: var(--text-primary);
-      min-height: 100vh; overscroll-behavior: none;
-      -webkit-font-smoothing: antialiased;
-    }
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-    .app-header {
-      background: var(--bg-surface); border-bottom: 1px solid var(--border-dim);
-      padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px);
-    }
-    .app-title {
-      font-family: 'M PLUS Rounded 1c', sans-serif; font-size: 16px; font-weight: 700;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .header-actions { display: flex; gap: 8px; align-items: center; }
-    .btn-icon {
-      width: 36px; height: 36px; border: 1px solid var(--border-dim);
-      background: var(--bg-card); border-radius: 8px; color: var(--text-secondary);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: all 0.15s; font-size: 16px; text-decoration: none;
-    }
-    .btn-icon:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
-
-    .import-view { padding: 24px 16px; max-width: 520px; margin: 0 auto; }
-    .import-hero { text-align: center; padding: 40px 0 32px; }
-    .import-hero-icon {
-      width: 72px; height: 72px; border-radius: 20px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 16px; font-size: 32px;
-      box-shadow: 0 8px 32px rgba(0,212,255,0.15);
-    }
-    .import-hero h1 { font-family: 'M PLUS Rounded 1c', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-    .import-hero p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
-
-    .anime-meta-form { background: var(--bg-card); border: 1px solid var(--border-dim); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
-    .form-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; display: block; }
-    .form-input {
-      width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-dim);
-      border-radius: 8px; padding: 10px 14px; font-size: 15px; color: var(--text-primary);
-      font-family: 'Noto Sans JP', sans-serif; outline: none; transition: border-color 0.15s; margin-bottom: 14px;
-    }
-    .form-input:focus { border-color: var(--accent-cyan); }
-    .form-input::placeholder { color: var(--text-muted); }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .form-row .form-input { margin-bottom: 0; }
-
-    .drop-zone {
-      border: 2px dashed var(--border-glow); border-radius: 14px; padding: 40px 20px;
-      text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg-card); margin-bottom: 16px;
-    }
-    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-cyan); background: rgba(0,212,255,0.04); }
-    .drop-zone-icon { font-size: 36px; margin-bottom: 10px; }
-    .drop-zone-text { font-size: 14px; color: var(--text-secondary); }
-    .drop-zone-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
-    .drop-zone-file { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent-green); margin-top: 8px; }
-
-    .text-import-area {
-      width: 100%; min-height: 120px; background: var(--bg-elevated); border: 1px solid var(--border-dim);
-      border-radius: 10px; padding: 12px 14px; font-size: 15px; color: var(--text-primary);
-      font-family: 'Noto Sans JP', sans-serif; outline: none; resize: vertical; line-height: 1.7; margin-bottom: 16px;
-    }
-    .text-import-area:focus { border-color: var(--accent-cyan); }
-    .text-import-area::placeholder { color: var(--text-muted); }
-
-    .import-tabs { display: flex; margin-bottom: 16px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-dim); }
-    .import-tab {
-      flex: 1; padding: 10px 0; text-align: center; font-size: 13px; font-weight: 500;
-      background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; border: none;
-    }
-    .import-tab.active { background: var(--accent-cyan); color: var(--bg-deep); font-weight: 700; }
-
-    .btn-primary {
-      width: 100%; padding: 14px 24px; border: none; border-radius: 12px; font-size: 15px; font-weight: 700;
-      font-family: 'M PLUS Rounded 1c', sans-serif; cursor: pointer; transition: all 0.2s;
-      background: linear-gradient(135deg, var(--accent-cyan), #0098cc); color: var(--bg-deep);
-    }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,212,255,0.3); }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
-    .btn-secondary {
-      padding: 10px 20px; border: 1px solid var(--border-dim); border-radius: 10px; font-size: 13px; font-weight: 500;
-      background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
-    }
-    .btn-secondary:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
-
-    .reading-header {
-      background: var(--bg-surface); border-bottom: 1px solid var(--border-dim);
-      padding: 10px 16px; display: flex; align-items: center; gap: 12px;
-      position: sticky; top: 49px; z-index: 90;
-    }
-    .reading-meta { flex: 1; min-width: 0; }
-    .reading-anime-name { font-size: 13px; font-weight: 600; color: var(--accent-cyan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .reading-episode { font-size: 11px; color: var(--text-muted); }
-    .reading-stats { display: flex; gap: 12px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
-    .stat-known { color: var(--word-known); }
-    .stat-unknown { color: var(--word-unknown); }
-    .stat-saved { color: var(--word-saved); }
-
-    .dialogue-container { padding: 16px; max-width: 680px; margin: 0 auto; }
-    .dialogue-line {
-      margin-bottom: 20px; padding: 14px 16px; background: var(--bg-card);
-      border: 1px solid var(--border-dim); border-radius: 12px; transition: border-color 0.15s;
-      animation: fadeUp 0.3s ease-out both;
-    }
-    .dialogue-line:hover { border-color: var(--border-glow); }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .dialogue-timestamp { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-muted); margin-bottom: 8px; }
-    .dialogue-text { font-size: 20px; line-height: 1.8; letter-spacing: 0.02em; }
-
-    .word-token { display: inline; cursor: pointer; border-radius: 3px; padding: 1px 2px; transition: all 0.12s; position: relative; }
-    .word-token:hover { background: rgba(255,255,255,0.08); }
-    .word-token.known { color: var(--word-known); }
-    .word-token.unknown { color: var(--word-unknown); border-bottom: 2px dotted var(--word-unknown); }
-    .word-token.saved { color: var(--word-saved); border-bottom: 2px solid var(--word-saved); }
-    .word-token.punct { color: var(--text-muted); cursor: default; }
-
-    .word-popup-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200;
-      display: flex; align-items: flex-end; justify-content: center;
-      backdrop-filter: blur(4px); animation: fadeIn 0.15s ease-out;
-    }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .word-popup {
-      width: 100%; max-width: 480px; background: var(--bg-elevated);
-      border-top: 1px solid var(--border-glow); border-radius: 20px 20px 0 0;
-      padding: 24px 20px 32px; animation: slideUp 0.2s ease-out; max-height: 70vh; overflow-y: auto;
-    }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .popup-handle { width: 36px; height: 4px; background: var(--border-glow); border-radius: 2px; margin: 0 auto 18px; }
-    .popup-word-display { text-align: center; margin-bottom: 20px; }
-    .popup-surface { font-size: 40px; font-weight: 700; margin-bottom: 4px; }
-    .popup-reading { font-size: 18px; color: var(--accent-cyan); font-family: 'M PLUS Rounded 1c', sans-serif; }
-
-    .popup-meaning { background: var(--bg-card); border: 1px solid var(--border-dim); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
-    .popup-meaning-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-    .popup-meaning-text { font-size: 15px; color: var(--text-primary); line-height: 1.5; }
-    .popup-meaning-hint { font-size: 12px; color: var(--accent-amber); margin-top: 6px; }
-
-    .popup-context { background: var(--bg-card); border: 1px solid var(--border-dim); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
-    .popup-context em { color: var(--accent-pink); font-style: normal; font-weight: 600; }
-
-    .popup-source-tag { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; margin-bottom: 16px; }
-    .popup-source-tag.known-tag { background: rgba(0,232,143,0.12); color: var(--word-known); border: 1px solid rgba(0,232,143,0.25); }
-    .popup-source-tag.unknown-tag { background: rgba(255,59,139,0.12); color: var(--word-unknown); border: 1px solid rgba(255,59,139,0.25); }
-    .popup-source-tag.saved-tag { background: rgba(176,125,255,0.12); color: var(--word-saved); border: 1px solid rgba(176,125,255,0.25); }
-
-    .btn-save-word {
-      width: 100%; padding: 13px 24px; border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
-      font-family: 'M PLUS Rounded 1c', sans-serif; cursor: pointer; transition: all 0.2s;
-      background: linear-gradient(135deg, var(--accent-pink), #cc2e6f); color: white;
-    }
-    .btn-save-word:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,59,139,0.3); }
-    .btn-save-word:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-    .btn-save-word.saved { background: linear-gradient(135deg, var(--accent-purple), #8a5fd9); }
-    .btn-remove-word {
-      width: 100%; padding: 10px 24px; border: 1px solid var(--border-dim); border-radius: 10px;
-      font-size: 12px; background: transparent; color: var(--text-muted); cursor: pointer; margin-top: 8px; transition: all 0.15s;
-    }
-    .btn-remove-word:hover { border-color: var(--accent-pink); color: var(--accent-pink); }
-
-    .summary-view { padding: 20px 16px; max-width: 520px; margin: 0 auto; }
-    .summary-card { background: var(--bg-card); border: 1px solid var(--border-dim); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
-    .summary-card h3 { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
-    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    .summary-stat { text-align: center; padding: 12px 8px; background: var(--bg-elevated); border-radius: 10px; }
-    .summary-stat-value { font-size: 24px; font-weight: 700; font-family: 'M PLUS Rounded 1c', sans-serif; }
-    .summary-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
-    .word-list-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-dim); }
-    .word-list-item:last-child { border-bottom: none; }
-    .word-list-surface { font-size: 18px; font-weight: 600; }
-    .word-list-reading { font-size: 12px; color: var(--accent-cyan); margin-left: 8px; }
-    .word-list-meaning { font-size: 12px; color: var(--text-secondary); max-width: 180px; text-align: right; }
-
-    .session-item { background: var(--bg-card); border: 1px solid var(--border-dim); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
-    .session-anime { font-size: 14px; font-weight: 600; }
-    .session-ep { font-size: 11px; color: var(--text-muted); }
-    .session-date { font-size: 10px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; }
-
-    .login-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
-    .login-logo { width: 80px; height: 80px; border-radius: 22px; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); display: flex; align-items: center; justify-content: center; font-size: 36px; margin-bottom: 20px; box-shadow: 0 8px 40px rgba(0,212,255,0.2); }
-    .login-title { font-family: 'M PLUS Rounded 1c', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-    .login-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }
-    .btn-google { padding: 12px 32px; border: 1px solid var(--border-glow); border-radius: 12px; background: var(--bg-card); color: var(--text-primary); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 10px; }
-    .btn-google:hover { border-color: var(--accent-cyan); background: var(--bg-elevated); }
-    
-    @media (min-width: 640px) {
-      .dialogue-text { font-size: 24px; }
-      .word-popup { border-radius: 20px; margin: auto; max-height: 80vh; }
-      .word-popup-overlay { align-items: center; }
-    }
+    :root{--bg-deep:#07070d;--bg-surface:#0f1019;--bg-card:#161822;--bg-elevated:#1e2030;--border-dim:#252839;--border-glow:#3d4166;--text-primary:#e8e9f0;--text-secondary:#8b8fa8;--text-muted:#555873;--accent-cyan:#00d4ff;--accent-pink:#ff3b8b;--accent-amber:#ffb03a;--accent-green:#00e88f;--accent-purple:#b07dff;--word-known:#00e88f;--word-unknown:#ff3b8b;--word-saved:#b07dff}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-deep);color:var(--text-primary);min-height:100vh;overscroll-behavior:none;-webkit-font-smoothing:antialiased}
+    .hide-sb::-webkit-scrollbar{display:none}.hide-sb{-ms-overflow-style:none;scrollbar-width:none}
+    .app-header{background:var(--bg-surface);border-bottom:1px solid var(--border-dim);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+    .app-title{font-family:'M PLUS Rounded 1c',sans-serif;font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--accent-cyan),var(--accent-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .header-actions{display:flex;gap:8px;align-items:center}
+    .btn-icon{width:36px;height:36px;border:1px solid var(--border-dim);background:var(--bg-card);border-radius:8px;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:16px;text-decoration:none}
+    .btn-icon:hover{border-color:var(--accent-cyan);color:var(--accent-cyan)}
+    .view{padding:16px;max-width:580px;margin:0 auto}
+    .card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:14px;padding:20px;margin-bottom:16px}
+    .form-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:block}
+    .form-input{width:100%;background:var(--bg-elevated);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;font-size:15px;color:var(--text-primary);font-family:'Noto Sans JP',sans-serif;outline:none;transition:border-color .15s;margin-bottom:14px}
+    .form-input:focus{border-color:var(--accent-cyan)}.form-input::placeholder{color:var(--text-muted)}
+    .btn-primary{width:100%;padding:14px 24px;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;transition:all .2s;background:linear-gradient(135deg,var(--accent-cyan),#0098cc);color:var(--bg-deep)}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,.3)}.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .btn-secondary{padding:10px 20px;border:1px solid var(--border-dim);border-radius:10px;font-size:13px;font-weight:500;background:var(--bg-card);color:var(--text-secondary);cursor:pointer;transition:all .15s}
+    .btn-secondary:hover{border-color:var(--accent-cyan);color:var(--text-primary)}
+    .ep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+    .ep-btn{padding:12px 4px;border:1px solid var(--border-dim);border-radius:10px;background:var(--bg-elevated);color:var(--text-secondary);text-align:center;cursor:pointer;transition:all .15s;font-size:14px;font-weight:600}
+    .ep-btn:hover{border-color:var(--accent-cyan);color:var(--text-primary);background:var(--bg-card)}
+    .import-tabs{display:flex;margin-bottom:16px;border-radius:10px;overflow:hidden;border:1px solid var(--border-dim)}
+    .import-tab{flex:1;padding:10px 0;text-align:center;font-size:13px;font-weight:500;background:var(--bg-card);color:var(--text-secondary);cursor:pointer;transition:all .15s;border:none}
+    .import-tab.active{background:var(--accent-cyan);color:var(--bg-deep);font-weight:700}
+    .drop-zone{border:2px dashed var(--border-glow);border-radius:14px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg-card);margin-bottom:16px}
+    .drop-zone:hover,.drop-zone.dragover{border-color:var(--accent-cyan);background:rgba(0,212,255,.04)}
+    .text-import-area{width:100%;min-height:100px;background:var(--bg-elevated);border:1px solid var(--border-dim);border-radius:10px;padding:12px;font-size:15px;color:var(--text-primary);font-family:'Noto Sans JP',sans-serif;outline:none;resize:vertical;line-height:1.7;margin-bottom:16px}
+    .reading-header{background:var(--bg-surface);border-bottom:1px solid var(--border-dim);padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:49px;z-index:90}
+    .reading-meta{flex:1;min-width:0}
+    .reading-anime-name{font-size:13px;font-weight:600;color:var(--accent-cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .reading-episode{font-size:11px;color:var(--text-muted)}
+    .reading-stats{display:flex;gap:12px;font-size:11px;font-family:'IBM Plex Mono',monospace}
+    .dialogue-container{padding:16px;max-width:680px;margin:0 auto}
+    .dialogue-line{margin-bottom:16px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:12px;animation:fadeUp .3s ease-out both}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .dl-timestamp{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted);margin-bottom:6px}
+    .dl-speaker{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;margin-bottom:6px;background:rgba(176,125,255,.15);color:var(--accent-purple);border:1px solid rgba(176,125,255,.25)}
+    .dl-speaker.narrator{background:rgba(85,88,115,.2);color:var(--text-muted);border-color:var(--border-dim)}
+    .dl-text{font-size:20px;line-height:1.8;letter-spacing:.02em}
+    .word-token{display:inline;cursor:pointer;border-radius:3px;padding:1px 2px;transition:all .12s;position:relative}
+    .word-token:hover{background:rgba(255,255,255,.08)}
+    .word-token.known{color:var(--word-known)}.word-token.unknown{color:var(--word-unknown);border-bottom:2px dotted var(--word-unknown)}.word-token.saved{color:var(--word-saved);border-bottom:2px solid var(--word-saved)}.word-token.punct{color:var(--text-muted);cursor:default}
+    .word-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);animation:fadeIn .15s ease-out}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .word-popup{width:100%;max-width:480px;background:var(--bg-elevated);border-top:1px solid var(--border-glow);border-radius:20px 20px 0 0;padding:24px 20px 32px;animation:slideUp .2s ease-out;max-height:70vh;overflow-y:auto}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .popup-handle{width:36px;height:4px;background:var(--border-glow);border-radius:2px;margin:0 auto 18px}
+    .popup-surface{font-size:40px;font-weight:700;text-align:center;margin-bottom:4px}
+    .popup-reading{font-size:18px;color:var(--accent-cyan);font-family:'M PLUS Rounded 1c',sans-serif;text-align:center}
+    .popup-meaning{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:10px;padding:14px 16px;margin:14px 0}
+    .popup-context{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:14px;color:var(--text-secondary);line-height:1.7}
+    .popup-context em{color:var(--accent-pink);font-style:normal;font-weight:600}
+    .popup-tag{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:500;margin-bottom:16px}
+    .popup-tag.known{background:rgba(0,232,143,.12);color:var(--word-known);border:1px solid rgba(0,232,143,.25)}
+    .popup-tag.unknown{background:rgba(255,59,139,.12);color:var(--word-unknown);border:1px solid rgba(255,59,139,.25)}
+    .popup-tag.saved{background:rgba(176,125,255,.12);color:var(--word-saved);border:1px solid rgba(176,125,255,.25)}
+    .btn-save-word{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;transition:all .2s;background:linear-gradient(135deg,var(--accent-pink),#cc2e6f);color:white}
+    .btn-save-word:disabled{opacity:.4;cursor:not-allowed}
+    .btn-save-word.saved{background:linear-gradient(135deg,var(--accent-purple),#8a5fd9)}
+    .btn-remove-word{width:100%;padding:10px;border:1px solid var(--border-dim);border-radius:10px;font-size:12px;background:transparent;color:var(--text-muted);cursor:pointer;margin-top:8px}
+    .summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .summary-stat{text-align:center;padding:12px 8px;background:var(--bg-elevated);border-radius:10px}
+    .summary-stat b{font-size:24px;font-family:'M PLUS Rounded 1c',sans-serif;display:block}
+    .summary-stat small{font-size:10px;color:var(--text-muted);text-transform:uppercase}
+    .word-list-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-dim)}
+    .word-list-item:last-child{border-bottom:none}
+    .login-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+    .btn-google{padding:12px 32px;border:1px solid var(--border-glow);border-radius:12px;background:var(--bg-card);color:var(--text-primary);font-size:14px;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:10px}
+    .btn-google:hover{border-color:var(--accent-cyan);background:var(--bg-elevated)}
+    @media(min-width:640px){.dl-text{font-size:24px}.word-popup{border-radius:20px;margin:auto;max-height:80vh}.word-popup-overlay{align-items:center}}
   </style>
 </head>
 <body>
-  <div id="app"></div>
+<div id="app"></div>
+<script>
+const SUPABASE_URL='https://ulgrfumbwjovbjzjiems.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const segmenter=new Intl.Segmenter('ja',{granularity:'word'});
+const isKanji=c=>c>='\u4E00'&&c<='\u9FFF';
+const isHiragana=c=>c>='\u3040'&&c<='\u309F';
+const isKatakana=c=>c>='\u30A0'&&c<='\u30FF';
+const isJP=s=>[...s].some(c=>isKanji(c)||isHiragana(c)||isKatakana(c));
+const isPunct=s=>/^[\s\p{P}\p{S}\uFF01\uFF1F\u3002\u3001\u300C\u300D\u300E\u300F\uFF08\uFF09\u2026\u2015\uFF5E\u30FB]+$/u.test(s);
 
-  <script>
-    // ===== SUPABASE =====
-    const SUPABASE_URL = 'https://ulgrfumbwjovbjzjiems.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function parseSRT(t){const b=t.trim().replace(/\r\n/g,'\n').split(/\n\n+/),L=[];for(const k of b){const p=k.split('\n');if(p.length<3)continue;const m=p[1].match(/(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})/);if(!m)continue;const d=p.slice(2).join(' ').replace(/<[^>]+>/g,'').replace(/\{[^}]+\}/g,'').trim();if(!d)continue;L.push({start:m[1].replace(',','.'),end:m[2].replace(',','.'),text:d})}return L}
+function parseASS(t){const L=[],re=/^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),[^,]*,[^,]*,\d+,\d+,\d+,[^,]*,(.*)/;for(const l of t.split('\n')){const m=l.match(re);if(!m)continue;const d=m[3].replace(/\{[^}]*\}/g,'').replace(/\\[Nn]/g,' ').trim();if(!d)continue;L.push({start:m[1],end:m[2],text:d})}return L}
+const speakerRe=/^[\uFF08\u0028]([^\uFF09\u0029]+)[\uFF09\u0029]\s*(.*)/;
+function splitSpeaker(text){const m=text.match(speakerRe);return m?{speaker:m[1].trim(),dialogue:m[2].trim()}:{speaker:'',dialogue:text}}
 
-    // ===== JAPANESE SEGMENTER (built-in, zero download) =====
-    const segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
+class AnimeReader{
+  constructor(){
+    this.user=null;this.vocabulary=[];this.vocabLookup={};this.savedAnimeWords={};
+    this.currentView='browse'; // 'browse','episodes','reading','summary','import'
+    this.animeList=[];this.episodeList=[];this.selectedAnime='';this.selectedEpisode=null;
+    this.importMode='srt';this.srtFile=null;this.rawText='';
+    this.dialogueLines=[];this.allTokens=[];this.wordPopup=null;
+    this.sessions=[];this.loading=false;
+    this.init();
+  }
 
-    // Regex helpers for character classification
-    const isKanji = ch => ch >= '\u4E00' && ch <= '\u9FFF';
-    const isHiragana = ch => ch >= '\u3040' && ch <= '\u309F';
-    const isKatakana = ch => ch >= '\u30A0' && ch <= '\u30FF';
-    const isJapanese = str => [...str].some(c => isKanji(c) || isHiragana(c) || isKatakana(c));
-    const isPunctuation = str => /^[\s\p{P}\p{S}！？。、「」『』（）…―～・]+$/u.test(str);
+  async init(){
+    const{data:{session}}=await sb.auth.getSession();
+    if(session)this.user=session.user;
+    sb.auth.onAuthStateChange((ev,session)=>{
+      if(ev==='INITIAL_SESSION')return;
+      this.user=session?.user||null;
+      if(ev==='SIGNED_IN'){this.loadVocabulary();this.loadSavedAnimeWords();this.loadAnimeList()}
+      this.render();
+    });
+    if(this.user)await Promise.all([this.loadVocabulary(),this.loadSavedAnimeWords(),this.loadAnimeList()]);
+    this.render();
+  }
 
-    // ===== PARSERS =====
-    function parseSRT(text) {
-      const blocks = text.trim().replace(/\r\n/g, '\n').split(/\n\n+/);
-      const lines = [];
-      for (const block of blocks) {
-        const parts = block.split('\n');
-        if (parts.length < 3) continue;
-        const tm = parts[1].match(/(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})/);
-        if (!tm) continue;
-        const d = parts.slice(2).join(' ').replace(/<[^>]+>/g, '').replace(/\{[^}]+\}/g, '').trim();
-        if (!d) continue;
-        lines.push({ start: tm[1].replace(',', '.'), end: tm[2].replace(',', '.'), text: d });
-      }
-      return lines;
+  // === DATA ===
+  async loadVocabulary(){
+    try{let a=[],p=0;while(true){const{data,error}=await sb.from('japanese_vocabulary').select('id,kanji,hiragana,meaning_en,hint,level').range(p*1000,(p+1)*1000-1).order('id');if(error||!data?.length)break;a=a.concat(data);if(data.length<1000)break;p++}
+    this.vocabulary=a;this.vocabLookup={};for(const v of a){if(v.kanji)this.vocabLookup[v.kanji]=v;if(v.hiragana&&!this.vocabLookup[v.hiragana])this.vocabLookup[v.hiragana]=v}
+    console.log(`Vocab: ${a.length}`)}catch(e){console.error(e)}
+  }
+  async loadSavedAnimeWords(){
+    if(!this.user)return;try{const{data}=await sb.from('japanese_anime_words').select('*').eq('user_id',this.user.id);this.savedAnimeWords={};for(const w of(data||[]))this.savedAnimeWords[w.base_form]=w}catch(e){console.error(e)}
+  }
+  async loadAnimeList(){
+    try{const{data,error}=await sb.from('japanese_anime_subtitles').select('anime_name').limit(1);
+    if(error){console.log('Subtitles table not ready yet');this.animeList=[];return}
+    const{data:d2}=await sb.rpc('get_anime_list').catch(()=>({data:null}));
+    if(d2){this.animeList=d2}else{
+      // Fallback: get distinct anime names
+      const{data:d3}=await sb.from('japanese_anime_subtitles').select('anime_name').limit(1000);
+      this.animeList=[...new Set((d3||[]).map(r=>r.anime_name))];
+    }}catch(e){console.error(e);this.animeList=[]}
+  }
+  async loadEpisodes(animeName){
+    this.loading=true;this.render();
+    try{const{data}=await sb.from('japanese_anime_subtitles').select('episode').eq('anime_name',animeName).order('episode');
+    this.episodeList=[...new Set((data||[]).map(r=>r.episode))].sort((a,b)=>a-b);
+    }catch(e){console.error(e);this.episodeList=[]}
+    this.loading=false;this.render();
+  }
+  async loadEpisodeDialogue(animeName,episode){
+    this.loading=true;this.render();
+    try{const{data}=await sb.from('japanese_anime_subtitles').select('*').eq('anime_name',animeName).eq('episode',episode).order('line_number');
+    if(!data?.length){alert('No dialogue found');this.loading=false;this.render();return}
+    const rawLines=data.map(r=>({start:r.start_time,end:r.end_time,text:r.dialogue,speaker:r.speaker||''}));
+    this.processDialogue(rawLines,true);
+    this.selectedAnime=animeName;this.selectedEpisode=episode;
+    this.currentView='reading'}catch(e){console.error(e)}
+    this.loading=false;this.render();
+  }
+
+  // === TOKENIZATION ===
+  tokenizeLine(text){
+    return[...segmenter.segment(text)].map(seg=>{
+      const s=seg.segment;
+      if(!seg.isWordLike||isPunct(s))return{surface:s,type:'punct'};
+      const v=this.vocabLookup[s],sv=this.savedAnimeWords[s];
+      let type='unknown';if(v)type='known';else if(sv)type='saved';else if(!isJP(s))type='punct';
+      return{surface:s,type,vocabEntry:v||null,savedEntry:sv||null};
+    });
+  }
+  processDialogue(rawLines,hasSpeaker=false){
+    let lastSpeaker='';
+    this.dialogueLines=rawLines.map((line,i)=>{
+      let speaker=line.speaker||'';
+      let dialogue=line.text||'';
+      if(!hasSpeaker){const sp=splitSpeaker(dialogue);speaker=sp.speaker;dialogue=sp.dialogue;if(speaker)lastSpeaker=speaker;else speaker=lastSpeaker}
+      return{...line,index:i,speaker,dialogue,tokens:this.tokenizeLine(dialogue)};
+    });
+    const seen=new Set();this.allTokens=[];
+    for(const l of this.dialogueLines)for(const t of l.tokens){if(t.type==='punct')continue;if(seen.has(t.surface))continue;seen.add(t.surface);this.allTokens.push(t)}
+  }
+
+  // === ACTIONS ===
+  async startFromFile(){
+    let rawLines;
+    if(this.importMode==='srt'&&this.srtFile){const t=await this.srtFile.text();const ext=this.srtFile.name.toLowerCase();rawLines=(ext.endsWith('.ass')||ext.endsWith('.ssa'))?parseASS(t):parseSRT(t)}
+    else if(this.importMode==='text'&&this.rawText.trim()){rawLines=this.rawText.trim().split('\n').filter(l=>l.trim()).map(l=>({start:'',end:'',text:l.trim()}))}
+    else return;
+    if(!rawLines.length){alert('No lines found');return}
+    this.processDialogue(rawLines,false);
+    this.selectedAnime='File Import';this.selectedEpisode=null;
+    this.currentView='reading';this.render();
+  }
+  async saveWord(token){
+    if(!this.user||!token)return;
+    try{const{data,error}=await sb.from('japanese_anime_words').upsert({user_id:this.user.id,surface_form:token.surface,base_form:token.surface,reading:token.vocabEntry?.hiragana||'',pos:'',pos_detail:'',anime_source:this.selectedAnime||'Unknown',episode:this.selectedEpisode?String(this.selectedEpisode):null,created_at:new Date().toISOString()},{onConflict:'user_id,base_form'}).select();
+    if(error){alert('Save failed');return}
+    this.savedAnimeWords[token.surface]=data?.[0]||{};
+    for(const l of this.dialogueLines)for(const t of l.tokens)if(t.surface===token.surface&&t.type==='unknown'){t.type='saved';t.savedEntry=this.savedAnimeWords[token.surface]}
+    for(const t of this.allTokens)if(t.surface===token.surface){t.type='saved';t.savedEntry=this.savedAnimeWords[token.surface]}
+    this.render();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
+  }
+  async removeWord(token){
+    if(!this.user||!token)return;
+    try{await sb.from('japanese_anime_words').delete().eq('user_id',this.user.id).eq('base_form',token.surface);
+    delete this.savedAnimeWords[token.surface];
+    for(const l of this.dialogueLines)for(const t of l.tokens)if(t.surface===token.surface&&t.type==='saved'){t.type='unknown';t.savedEntry=null}
+    for(const t of this.allTokens)if(t.surface===token.surface){t.type='unknown';t.savedEntry=null}
+    this.render();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
+  }
+  showWordPopup(t){if(!t||t.type==='punct')return;this.wordPopup=t;this.render()}
+  closePopup(){this.wordPopup=null;this.render()}
+  getStats(){const k=this.allTokens.filter(t=>t.type==='known').length,u=this.allTokens.filter(t=>t.type==='unknown').length,s=this.allTokens.filter(t=>t.type==='saved').length;return{known:k,unknown:u,saved:s,total:this.allTokens.length}}
+  async signIn(){await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}})}
+  async signOut(){await sb.auth.signOut();this.user=null;this.render()}
+
+  // === RENDER ===
+  render(){
+    const app=document.getElementById('app');if(!app)return;
+    if(!this.user){app.innerHTML=this.renderLogin();this.bindAll();return}
+    let body='';
+    switch(this.currentView){
+      case'episodes':body=this.renderEpisodes();break;
+      case'reading':body=this.renderReading();break;
+      case'summary':body=this.renderSummary();break;
+      case'import':body=this.renderImport();break;
+      default:body=this.renderBrowse();
     }
+    app.innerHTML=`${this.renderHeader()}${body}${this.wordPopup?this.renderPopup():''}`;
+    this.bindAll();
+  }
 
-    function parseASS(text) {
-      const lines = [];
-      const re = /^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),[^,]*,[^,]*,\d+,\d+,\d+,[^,]*,(.*)/;
-      for (const line of text.split('\n')) {
-        const m = line.match(re);
-        if (!m) continue;
-        const d = m[3].replace(/\{[^}]*\}/g, '').replace(/\\[Nn]/g, ' ').trim();
-        if (!d) continue;
-        lines.push({ start: m[1], end: m[2], text: d });
-      }
-      return lines;
-    }
+  renderLogin(){
+    return`<div class="login-screen"><div style="width:80px;height:80px;border-radius:22px;background:linear-gradient(135deg,var(--accent-cyan),var(--accent-purple));display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:20px;box-shadow:0 8px 40px rgba(0,212,255,.2)">\uD83D\uDCFA</div>
+    <div style="font-family:'M PLUS Rounded 1c',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">\u30A2\u30CB\u30E1 Reading Mode</div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:28px">Import subtitles, learn vocabulary from anime</div>
+    <button class="btn-google" id="loginBtn"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>Sign in with Google</button></div>`;
+  }
 
-    // ===== MAIN APP =====
-    class AnimeReader {
-      constructor() {
-        this.user = null;
-        this.vocabulary = [];
-        this.vocabLookup = {};
-        this.savedAnimeWords = {};
-        this.currentView = 'import';
-        this.importMode = 'srt';
-        this.animeName = '';
-        this.episodeNum = '';
-        this.seasonNum = '';
-        this.srtFile = null;
-        this.rawText = '';
-        this.dialogueLines = [];
-        this.allTokens = [];
-        this.wordPopup = null;
-        this.sessions = [];
-        this.init();
-      }
+  renderHeader(){
+    const backBtn=this.currentView==='browse'?''
+      :this.currentView==='episodes'?`<button class="btn-icon" id="navBackBtn" title="Back">\u2190</button>`
+      :this.currentView==='reading'?`<button class="btn-icon" id="navBackBtn" title="Episodes">\u2190</button><button class="btn-icon" id="summaryBtn" title="Summary">\uD83D\uDCCA</button>`
+      :this.currentView==='summary'?`<button class="btn-icon" id="backToReadingBtn" title="Reading">\u2190</button>`
+      :`<button class="btn-icon" id="navBackBtn" title="Back">\u2190</button>`;
+    return`<header class="app-header"><div class="app-title">\uD83D\uDCFA \u30A2\u30CB\u30E1 Reader</div>
+      <div class="header-actions"><a href="index.html" class="btn-icon" title="Main app">\uD83C\uDFE0</a>${backBtn}<button class="btn-icon" id="signOutBtn">\u23CF</button></div></header>`;
+  }
 
-      async init() {
-        const { data: { session } } = await sb.auth.getSession();
-        if (session) this.user = session.user;
-        sb.auth.onAuthStateChange((event, session) => {
-          if (event === 'INITIAL_SESSION') return;
-          this.user = session?.user || null;
-          if (event === 'SIGNED_IN') { this.loadVocabulary(); this.loadSavedAnimeWords(); this.loadSessions(); }
-          this.render();
-        });
-        if (this.user) await Promise.all([this.loadVocabulary(), this.loadSavedAnimeWords(), this.loadSessions()]);
-        this.render();
-      }
+  // === BROWSE ===
+  renderBrowse(){
+    return`<div class="view">
+      <div style="text-align:center;padding:32px 0 24px"><div style="font-size:48px;margin-bottom:12px">\uD83D\uDCFA</div>
+        <h1 style="font-family:'M PLUS Rounded 1c',sans-serif;font-size:22px;margin-bottom:4px">Anime Dialogue Reader</h1>
+        <p style="font-size:13px;color:var(--text-secondary)">Browse episodes or import subtitle files</p></div>
+      ${this.animeList.length?`<div class="card"><h3 style="font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Available Anime</h3>
+        ${this.animeList.map(a=>`<button data-anime="${this.esc(a)}" class="btn-secondary" style="width:100%;margin-bottom:8px;text-align:left;padding:14px 16px;font-size:15px">\uD83C\uDFAC ${this.esc(a)}</button>`).join('')}</div>`
+      :`<div class="card" style="text-align:center;color:var(--text-muted)"><p style="margin-bottom:8px">No anime imported to database yet.</p><p style="font-size:12px">Run the Python import script first, or use file import below.</p></div>`}
+      <button class="btn-primary" id="goImportBtn" style="background:linear-gradient(135deg,var(--accent-purple),#8a5fd9)">\uD83D\uDCC1 Import from File</button></div>`;
+  }
 
-      // ===== DATA =====
-      async loadVocabulary() {
-        try {
-          let all = [], page = 0;
-          while (true) {
-            const { data, error } = await sb.from('japanese_vocabulary')
-              .select('id,kanji,hiragana,meaning_en,hint,level')
-              .range(page * 1000, (page + 1) * 1000 - 1).order('id');
-            if (error || !data?.length) break;
-            all = all.concat(data);
-            if (data.length < 1000) break;
-            page++;
-          }
-          this.vocabulary = all;
-          this.vocabLookup = {};
-          for (const v of all) {
-            if (v.kanji) this.vocabLookup[v.kanji] = v;
-            if (v.hiragana && !this.vocabLookup[v.hiragana]) this.vocabLookup[v.hiragana] = v;
-          }
-          console.log(`Vocab loaded: ${all.length}`);
-        } catch (e) { console.error('loadVocabulary:', e); }
-      }
+  // === EPISODES ===
+  renderEpisodes(){
+    if(this.loading)return`<div class="view" style="text-align:center;padding:60px 0"><div style="font-size:32px;margin-bottom:12px">\u23F3</div><p style="color:var(--text-muted)">Loading episodes...</p></div>`;
+    return`<div class="view">
+      <div class="card"><h2 style="font-size:18px;font-weight:700;margin-bottom:4px">\uD83C\uDFAC ${this.esc(this.selectedAnime)}</h2>
+        <p style="font-size:12px;color:var(--text-muted)">${this.episodeList.length} episodes available</p></div>
+      <div class="ep-grid">${this.episodeList.map(ep=>`<button data-ep="${ep}" class="ep-btn">${ep}</button>`).join('')}</div></div>`;
+  }
 
-      async loadSavedAnimeWords() {
-        if (!this.user) return;
-        try {
-          const { data, error } = await sb.from('japanese_anime_words').select('*').eq('user_id', this.user.id);
-          if (error) { console.error(error); return; }
-          this.savedAnimeWords = {};
-          for (const w of (data || [])) this.savedAnimeWords[w.base_form] = w;
-        } catch (e) { console.error(e); }
-      }
+  // === IMPORT ===
+  renderImport(){
+    const canStart=(this.importMode==='srt'&&this.srtFile)||(this.importMode==='text'&&this.rawText.trim());
+    return`<div class="view">
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:16px">\uD83D\uDCC1 Import Subtitle File</h2>
+      <div class="import-tabs"><button class="import-tab ${this.importMode==='srt'?'active':''}" data-import-mode="srt">Subtitle File</button><button class="import-tab ${this.importMode==='text'?'active':''}" data-import-mode="text">Paste Text</button></div>
+      ${this.importMode==='srt'?`<div class="drop-zone" id="dropZone"><input type="file" id="fileInput" accept=".srt,.ass,.ssa,.vtt" hidden>
+        <div style="font-size:36px;margin-bottom:10px">\uD83D\uDCC1</div><div style="font-size:14px;color:var(--text-secondary)">Drop subtitle file or tap to browse</div><div style="font-size:11px;color:var(--text-muted);margin-top:6px">.srt .ass .ssa supported</div>
+        ${this.srtFile?`<div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent-green);margin-top:8px">\u2713 ${this.esc(this.srtFile.name)}</div>`:''}</div>`
+      :`<textarea class="text-import-area" id="textImportArea" placeholder="Paste Japanese dialogue...">${this.esc(this.rawText)}</textarea>`}
+      <button class="btn-primary" id="startFileBtn" ${canStart?'':'disabled'}>\uD83C\uDFAC Start Reading</button></div>`;
+  }
 
-      async loadSessions() {
-        if (!this.user) return;
-        try {
-          const { data } = await sb.from('japanese_anime_sessions').select('*')
-            .eq('user_id', this.user.id).order('created_at', { ascending: false }).limit(30);
-          this.sessions = data || [];
-        } catch (e) { console.error(e); }
-      }
+  // === READING ===
+  renderReading(){
+    const stats=this.getStats();
+    // Assign colors per speaker
+    const speakerColors=['#b07dff','#00d4ff','#ff3b8b','#00e88f','#ffb03a','#ff6b6b','#4ecdc4','#f093fb','#a8e6cf','#ffd93d'];
+    const speakers=[...new Set(this.dialogueLines.map(l=>l.speaker).filter(Boolean))];
+    const colorMap={};speakers.forEach((s,i)=>colorMap[s]=speakerColors[i%speakerColors.length]);
 
-      // ===== SEGMENTATION (Intl.Segmenter — instant, no download) =====
-      tokenizeLine(text) {
-        const segments = [...segmenter.segment(text)];
-        return segments.map(seg => {
-          const surface = seg.segment;
-
-          // Punctuation / whitespace
-          if (!seg.isWordLike || isPunctuation(surface)) {
-            return { surface, type: 'punct' };
-          }
-
-          // Try to match against vocabulary DB
-          const vocab = this.vocabLookup[surface];
-          const saved = this.savedAnimeWords[surface];
-
-          let type = 'unknown';
-          if (vocab) type = 'known';
-          else if (saved) type = 'saved';
-          else if (!isJapanese(surface)) type = 'punct'; // roman chars, numbers
-
-          return { surface, type, vocabEntry: vocab || null, savedEntry: saved || null };
-        });
-      }
-
-      processDialogue(rawLines) {
-        this.dialogueLines = rawLines.map((line, i) => ({
-          ...line, index: i, tokens: this.tokenizeLine(line.text),
-        }));
-        const seen = new Set();
-        this.allTokens = [];
-        for (const line of this.dialogueLines) {
-          for (const t of line.tokens) {
-            if (t.type === 'punct') continue;
-            if (seen.has(t.surface)) continue;
-            seen.add(t.surface);
-            this.allTokens.push(t);
-          }
-        }
-      }
-
-      // ===== ACTIONS =====
-      async startReading() {
-        let rawLines;
-        if (this.importMode === 'srt' && this.srtFile) {
-          const text = await this.srtFile.text();
-          const ext = this.srtFile.name.toLowerCase();
-          rawLines = (ext.endsWith('.ass') || ext.endsWith('.ssa')) ? parseASS(text) : parseSRT(text);
-        } else if (this.importMode === 'text' && this.rawText.trim()) {
-          rawLines = this.rawText.trim().split('\n').filter(l => l.trim()).map(l => ({ start: '', end: '', text: l.trim() }));
-        } else return;
-        if (!rawLines.length) { alert('No dialogue lines found.'); return; }
-        this.processDialogue(rawLines);
-        this.saveSession(rawLines.length);
-        this.currentView = 'reading';
-        this.render();
-      }
-
-      async saveSession(lineCount) {
-        if (!this.user || !this.animeName) return;
-        try {
-          await sb.from('japanese_anime_sessions').insert({
-            user_id: this.user.id, anime_name: this.animeName,
-            season: this.seasonNum || null, episode: this.episodeNum || null,
-            line_count: lineCount, created_at: new Date().toISOString(),
-          });
-          this.loadSessions();
-        } catch (e) { console.error(e); }
-      }
-
-      async saveWord(token) {
-        if (!this.user || !token) return;
-        try {
-          const { data, error } = await sb.from('japanese_anime_words').upsert({
-            user_id: this.user.id, surface_form: token.surface,
-            base_form: token.surface, reading: token.vocabEntry?.hiragana || '',
-            pos: '', pos_detail: '',
-            anime_source: this.animeName || 'Unknown',
-            episode: this.episodeNum || null, season: this.seasonNum || null,
-            created_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,base_form' }).select();
-          if (error) { console.error(error); alert('Save failed: ' + error.message); return; }
-          this.savedAnimeWords[token.surface] = data?.[0] || {};
-          for (const line of this.dialogueLines)
-            for (const t of line.tokens)
-              if (t.surface === token.surface && t.type === 'unknown') { t.type = 'saved'; t.savedEntry = this.savedAnimeWords[token.surface]; }
-          for (const t of this.allTokens)
-            if (t.surface === token.surface) { t.type = 'saved'; t.savedEntry = this.savedAnimeWords[token.surface]; }
-          this.render();
-          if (this.wordPopup?.surface === token.surface) this.showWordPopup(token);
-        } catch (e) { console.error(e); }
-      }
-
-      async removeWord(token) {
-        if (!this.user || !token) return;
-        try {
-          await sb.from('japanese_anime_words').delete().eq('user_id', this.user.id).eq('base_form', token.surface);
-          delete this.savedAnimeWords[token.surface];
-          for (const line of this.dialogueLines)
-            for (const t of line.tokens)
-              if (t.surface === token.surface && t.type === 'saved') { t.type = 'unknown'; t.savedEntry = null; }
-          for (const t of this.allTokens)
-            if (t.surface === token.surface) { t.type = 'unknown'; t.savedEntry = null; }
-          this.render();
-          if (this.wordPopup?.surface === token.surface) this.showWordPopup(token);
-        } catch (e) { console.error(e); }
-      }
-
-      showWordPopup(token) { if (!token || token.type === 'punct') return; this.wordPopup = token; this.render(); }
-      closePopup() { this.wordPopup = null; this.render(); }
-
-      getStats() {
-        const known = this.allTokens.filter(t => t.type === 'known').length;
-        const unknown = this.allTokens.filter(t => t.type === 'unknown').length;
-        const saved = this.allTokens.filter(t => t.type === 'saved').length;
-        return { known, unknown, saved, total: this.allTokens.length };
-      }
-
-      async signIn() { await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); }
-      async signOut() { await sb.auth.signOut(); this.user = null; this.render(); }
-
-      // ===== RENDER =====
-      render() {
-        const app = document.getElementById('app');
-        if (!this.user) { app.innerHTML = this.renderLogin(); this.bind(); return; }
-        let body = '';
-        switch (this.currentView) {
-          case 'reading': body = this.renderReadingView(); break;
-          case 'summary': body = this.renderSummaryView(); break;
-          default: body = this.renderImportView();
-        }
-        app.innerHTML = `${this.renderAppHeader()}${body}${this.wordPopup ? this.renderWordPopup() : ''}`;
-        this.bind();
-      }
-
-      renderLogin() {
-        return `<div class="login-screen"><div class="login-logo">\uD83D\uDCFA</div>
-          <div class="login-title">\u30A2\u30CB\u30E1 Reading Mode</div>
-          <div class="login-sub">Import subtitles, learn vocabulary from anime</div>
-          <button class="btn-google" id="loginBtn">
-            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
-            Sign in with Google</button></div>`;
-      }
-
-      renderAppHeader() {
-        return `<header class="app-header"><div class="app-title">\uD83D\uDCFA \u30A2\u30CB\u30E1 Reader</div>
-          <div class="header-actions">
-            <a href="index.html" class="btn-icon" title="Back to main app">\uD83C\uDFE0</a>
-            ${this.currentView !== 'import' ? '<button class="btn-icon" id="backToImportBtn" title="New import">\u21A9</button>' : ''}
-            ${this.currentView === 'reading' ? `<button class="btn-icon" id="summaryBtn" title="Summary">\uD83D\uDCCA</button>` : ''}
-            <button class="btn-icon" id="signOutBtn" title="Sign out">\u23CF</button>
-          </div></header>`;
-      }
-
-      renderImportView() {
-        const canStart = (this.importMode === 'srt' && this.srtFile) || (this.importMode === 'text' && this.rawText.trim());
-        return `<div class="import-view">
-          <div class="import-hero"><div class="import-hero-icon">\uD83D\uDCFA</div>
-            <h1>Anime Dialogue Reader</h1>
-            <p>Import subtitles to study vocabulary in context.<br>Words are auto-detected and matched against your JLPT database.</p></div>
-          <div class="anime-meta-form">
-            <label class="form-label">Anime Title</label>
-            <input class="form-input" id="animeNameInput" placeholder="e.g. \u9032\u6483\u306E\u5DE8\u4EBA" value="${this.esc(this.animeName)}">
-            <div class="form-row">
-              <div><label class="form-label">Season</label><input class="form-input" id="seasonInput" placeholder="1" value="${this.esc(this.seasonNum)}" inputmode="numeric"></div>
-              <div><label class="form-label">Episode</label><input class="form-input" id="episodeInput" placeholder="1" value="${this.esc(this.episodeNum)}" inputmode="numeric"></div>
-            </div></div>
-          <div class="import-tabs">
-            <button class="import-tab ${this.importMode === 'srt' ? 'active' : ''}" data-import-mode="srt">Subtitle File</button>
-            <button class="import-tab ${this.importMode === 'text' ? 'active' : ''}" data-import-mode="text">Paste Text</button></div>
-          ${this.importMode === 'srt' ? `
-            <div class="drop-zone" id="dropZone"><input type="file" id="fileInput" accept=".srt,.ass,.ssa,.vtt" hidden>
-              <div class="drop-zone-icon">\uD83D\uDCC1</div>
-              <div class="drop-zone-text">Drop subtitle file or tap to browse</div>
-              <div class="drop-zone-hint">.srt .ass .ssa supported</div>
-              ${this.srtFile ? `<div class="drop-zone-file">\u2713 ${this.esc(this.srtFile.name)}</div>` : ''}</div>
-          ` : `<textarea class="text-import-area" id="textImportArea" placeholder="Paste Japanese dialogue here...">${this.esc(this.rawText)}</textarea>`}
-          <button class="btn-primary" id="startReadingBtn" ${canStart ? '' : 'disabled'}>\uD83C\uDFAC Start Reading</button>
-          ${this.sessions.length ? `<div style="margin-top:28px"><h3 style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px">Recent Sessions</h3>
-            ${this.sessions.slice(0, 5).map(s => `<div class="session-item"><div><div class="session-anime">${this.esc(s.anime_name)}</div>
-              <div class="session-ep">${s.season ? 'S' + s.season : ''}${s.episode ? 'E' + s.episode : ''} \u00B7 ${s.line_count || '?'} lines</div></div>
-              <div class="session-date">${new Date(s.created_at).toLocaleDateString('ja-JP')}</div></div>`).join('')}</div>` : ''}
+    return`<div class="reading-header"><div class="reading-meta">
+        <div class="reading-anime-name">${this.esc(this.selectedAnime)}</div>
+        <div class="reading-episode">${this.selectedEpisode?'Episode '+this.selectedEpisode:''} \u00B7 ${this.dialogueLines.length} lines</div></div>
+      <div class="reading-stats"><span style="color:var(--word-known)">${stats.known}\u2713</span><span style="color:var(--word-saved)">${stats.saved}\u2605</span><span style="color:var(--word-unknown)">${stats.unknown}?</span></div></div>
+    <div class="dialogue-container hide-sb">
+      ${this.dialogueLines.map((line,i)=>{
+        const sc=colorMap[line.speaker]||'var(--text-muted)';
+        return`<div class="dialogue-line" style="animation-delay:${Math.min(i*20,300)}ms">
+          ${line.start?`<div class="dl-timestamp">${line.start}${line.end?' \u2192 '+line.end:''}</div>`:''}
+          ${line.speaker?`<div class="dl-speaker" style="background:${sc}18;color:${sc};border-color:${sc}40">${this.esc(line.speaker)}</div>`:''}
+          <div class="dl-text">${line.tokens.map((t,j)=>t.type==='punct'?`<span class="word-token punct">${this.esc(t.surface)}</span>`:`<span class="word-token ${t.type}" data-line="${i}" data-token="${j}">${this.esc(t.surface)}</span>`).join('')}</div>
         </div>`;
-      }
+      }).join('')}
+      <div style="height:40px"></div></div>`;
+  }
 
-      renderReadingView() {
-        const stats = this.getStats();
-        return `<div class="reading-header"><div class="reading-meta">
-            <div class="reading-anime-name">${this.esc(this.animeName || 'Untitled')}</div>
-            <div class="reading-episode">${this.episodeNum ? 'Episode ' + this.episodeNum : ''} \u00B7 ${this.dialogueLines.length} lines</div></div>
-          <div class="reading-stats"><span class="stat-known">${stats.known}\u2713</span><span class="stat-saved">${stats.saved}\u2605</span><span class="stat-unknown">${stats.unknown}?</span></div></div>
-          <div class="dialogue-container">
-            ${this.dialogueLines.map((line, i) => `<div class="dialogue-line" style="animation-delay:${Math.min(i * 30, 300)}ms">
-              ${line.start ? `<div class="dialogue-timestamp">${line.start}${line.end ? ' \u2192 ' + line.end : ''}</div>` : ''}
-              <div class="dialogue-text">${line.tokens.map((t, j) =>
-                t.type === 'punct'
-                  ? `<span class="word-token punct">${this.esc(t.surface)}</span>`
-                  : `<span class="word-token ${t.type}" data-line="${i}" data-token="${j}">${this.esc(t.surface)}</span>`
-              ).join('')}</div></div>`).join('')}
-            <div style="height:40px"></div></div>`;
-      }
+  // === POPUP ===
+  renderPopup(){
+    const t=this.wordPopup;if(!t)return'';
+    const v=t.vocabEntry||this.vocabLookup[t.surface],sv=t.savedEntry||this.savedAnimeWords[t.surface];
+    const isK=!!v,isS=!!sv;
+    let ctx='';for(const l of this.dialogueLines){if(l.tokens.some(lt=>lt.surface===t.surface)){ctx=l.tokens.map(lt=>lt.surface===t.surface?`<em>${this.esc(lt.surface)}</em>`:this.esc(lt.surface)).join('');break}}
+    return`<div class="word-popup-overlay" id="popupOverlay"><div class="word-popup"><div class="popup-handle"></div>
+      <div class="popup-surface">${this.esc(t.surface)}</div>
+      ${v?.hiragana?`<div class="popup-reading">${this.esc(v.hiragana)}</div>`:''}
+      <div style="text-align:center;margin:12px 0">
+        ${isK?`<span class="popup-tag known">\u2713 JLPT vocabulary</span>`:isS?`<span class="popup-tag saved">\u2605 Saved from ${this.esc(sv.anime_source||'anime')}</span>`:`<span class="popup-tag unknown">? New word</span>`}
+      </div>
+      ${v?`<div class="popup-meaning"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Meaning</div>
+        <div style="font-size:15px;line-height:1.5">${this.esc(v.meaning_en||'')}</div>
+        ${v.hint?`<div style="font-size:12px;color:var(--accent-amber);margin-top:6px">\uD83D\uDCA1 ${this.esc(v.hint)}</div>`:''}
+        ${v.level?`<div style="font-size:11px;color:var(--text-muted);margin-top:6px">JLPT ${v.level}</div>`:''}</div>`:''}
+      ${ctx?`<div class="popup-context">${ctx}</div>`:''}
+      ${!isK?(isS?`<button class="btn-save-word saved" disabled>\u2605 Already Saved</button><button class="btn-remove-word" id="removeWordBtn">Remove</button>`
+        :`<button class="btn-save-word" id="saveWordBtn">\u2605 Save Word</button>`):''}</div></div>`;
+  }
 
-      renderWordPopup() {
-        const t = this.wordPopup; if (!t) return '';
-        const vocab = t.vocabEntry || this.vocabLookup[t.surface];
-        const saved = t.savedEntry || this.savedAnimeWords[t.surface];
-        const isKnown = !!vocab, isSaved = !!saved;
-        let ctxHTML = '';
-        for (const line of this.dialogueLines) {
-          if (line.tokens.some(lt => lt.surface === t.surface)) {
-            ctxHTML = line.tokens.map(lt => lt.surface === t.surface ? `<em>${this.esc(lt.surface)}</em>` : this.esc(lt.surface)).join('');
-            break;
-          }
-        }
-        return `<div class="word-popup-overlay" id="popupOverlay"><div class="word-popup"><div class="popup-handle"></div>
-          <div class="popup-word-display"><div class="popup-surface">${this.esc(t.surface)}</div>
-            ${vocab?.hiragana ? `<div class="popup-reading">${this.esc(vocab.hiragana)}</div>` : ''}</div>
-          ${isKnown ? `<span class="popup-source-tag known-tag">\u2713 In your JLPT vocabulary</span>`
-            : isSaved ? `<span class="popup-source-tag saved-tag">\u2605 Saved from ${this.esc(saved.anime_source || 'anime')}</span>`
-            : `<span class="popup-source-tag unknown-tag">? New word</span>`}
-          ${vocab ? `<div class="popup-meaning"><div class="popup-meaning-label">Meaning</div>
-            <div class="popup-meaning-text">${this.esc(vocab.meaning_en || '')}</div>
-            ${vocab.hint ? `<div class="popup-meaning-hint">\uD83D\uDCA1 ${this.esc(vocab.hint)}</div>` : ''}
-            ${vocab.level ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">JLPT ${vocab.level}</div>` : ''}</div>` : ''}
-          ${ctxHTML ? `<div class="popup-context">${ctxHTML}</div>` : ''}
-          ${!isKnown ? (isSaved
-            ? `<button class="btn-save-word saved" disabled>\u2605 Already Saved</button><button class="btn-remove-word" id="removeWordBtn">Remove from saved</button>`
-            : `<button class="btn-save-word" id="saveWordBtn">\u2605 Save Word from ${this.esc(this.animeName || 'anime')}</button>`) : ''}
-        </div></div>`;
-      }
+  // === SUMMARY ===
+  renderSummary(){
+    const s=this.getStats(),un=this.allTokens.filter(t=>t.type==='unknown'),kn=this.allTokens.filter(t=>t.type==='known');
+    const pct=s.total>0?Math.round(((s.known+s.saved)/s.total)*100):0;
+    return`<div class="view hide-sb" style="overflow:auto;max-height:calc(100vh - 50px)">
+      <div class="card"><h3 style="font-size:13px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Session Summary</h3>
+        <div style="text-align:center;margin-bottom:16px"><div style="font-size:48px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;background:linear-gradient(135deg,var(--accent-cyan),var(--accent-green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">${pct}%</div>
+        <div style="font-size:12px;color:var(--text-muted)">Comprehension</div></div>
+        <div class="summary-grid"><div class="summary-stat"><b style="color:var(--word-known)">${s.known}</b><small>Known</small></div><div class="summary-stat"><b style="color:var(--word-saved)">${s.saved}</b><small>Saved</small></div><div class="summary-stat"><b style="color:var(--word-unknown)">${s.unknown}</b><small>Unknown</small></div></div></div>
+      ${un.length?`<div class="card"><h3 style="font-size:13px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Unknown (${un.length})</h3>
+        ${un.slice(0,40).map(t=>`<div class="word-list-item"><span style="font-size:18px;font-weight:600;color:var(--word-unknown)">${this.esc(t.surface)}</span>
+          <button class="btn-secondary" data-save-base="${this.esc(t.surface)}" style="padding:6px 12px;font-size:11px">\u2605 Save</button></div>`).join('')}
+        ${un.length>40?`<div style="text-align:center;padding:8px;color:var(--text-muted);font-size:12px">...and ${un.length-40} more</div>`:''}</div>`:''}
+      ${kn.length?`<div class="card"><h3 style="font-size:13px;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Known (${kn.length})</h3>
+        ${kn.slice(0,20).map(t=>`<div class="word-list-item"><div><span style="font-size:16px;font-weight:600;color:var(--word-known)">${this.esc(t.surface)}</span>
+          <span style="font-size:12px;color:var(--accent-cyan);margin-left:8px">${t.vocabEntry?.hiragana||''}</span></div>
+          <span style="font-size:12px;color:var(--text-secondary)">${this.esc(t.vocabEntry?.meaning_en||'')}</span></div>`).join('')}</div>`:''}</div>`;
+  }
 
-      renderSummaryView() {
-        const stats = this.getStats();
-        const unknowns = this.allTokens.filter(t => t.type === 'unknown');
-        const saveds = this.allTokens.filter(t => t.type === 'saved');
-        const knowns = this.allTokens.filter(t => t.type === 'known');
-        const pct = stats.total > 0 ? Math.round(((stats.known + stats.saved) / stats.total) * 100) : 0;
-        return `<div class="summary-view">
-          <div class="summary-card"><h3>Session Summary</h3>
-            <div style="text-align:center;margin-bottom:16px">
-              <div style="font-size:48px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;background:linear-gradient(135deg,var(--accent-cyan),var(--accent-green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">${pct}%</div>
-              <div style="font-size:12px;color:var(--text-muted)">Comprehension Rate</div></div>
-            <div class="summary-grid">
-              <div class="summary-stat"><div class="summary-stat-value" style="color:var(--word-known)">${stats.known}</div><div class="summary-stat-label">Known</div></div>
-              <div class="summary-stat"><div class="summary-stat-value" style="color:var(--word-saved)">${stats.saved}</div><div class="summary-stat-label">Saved</div></div>
-              <div class="summary-stat"><div class="summary-stat-value" style="color:var(--word-unknown)">${stats.unknown}</div><div class="summary-stat-label">Unknown</div></div></div></div>
-          ${unknowns.length ? `<div class="summary-card"><h3>Unknown Words (${unknowns.length})</h3>
-            ${unknowns.map(t => `<div class="word-list-item"><div><span class="word-list-surface" style="color:var(--word-unknown)">${this.esc(t.surface)}</span></div>
-              <button class="btn-secondary" data-save-base="${this.esc(t.surface)}" style="padding:6px 12px;font-size:11px">\u2605 Save</button></div>`).join('')}</div>` : ''}
-          ${saveds.length ? `<div class="summary-card"><h3>Saved from Anime (${saveds.length})</h3>
-            ${saveds.map(t => `<div class="word-list-item"><div><span class="word-list-surface" style="color:var(--word-saved)">${this.esc(t.surface)}</span></div>
-              <div class="word-list-meaning" style="font-size:11px">${this.esc(t.savedEntry?.anime_source || '')}</div></div>`).join('')}</div>` : ''}
-          ${knowns.length ? `<div class="summary-card"><h3>Known JLPT Words (${knowns.length})</h3>
-            ${knowns.slice(0, 30).map(t => `<div class="word-list-item"><div><span class="word-list-surface" style="color:var(--word-known)">${this.esc(t.surface)}</span>
-              <span class="word-list-reading">${t.vocabEntry?.hiragana || ''}</span></div>
-              <div class="word-list-meaning">${this.esc(t.vocabEntry?.meaning_en || '')}</div></div>`).join('')}
-            ${knowns.length > 30 ? `<div style="text-align:center;padding:8px;color:var(--text-muted);font-size:12px">...and ${knowns.length - 30} more</div>` : ''}</div>` : ''}
-          <button class="btn-primary" id="backToReadingBtn" style="margin-bottom:40px">\u2190 Back to Reading</button></div>`;
-      }
-
-      // ===== EVENTS =====
-      bind() {
-        document.getElementById('loginBtn')?.addEventListener('click', () => this.signIn());
-        document.getElementById('signOutBtn')?.addEventListener('click', () => this.signOut());
-        document.getElementById('backToImportBtn')?.addEventListener('click', () => {
-          this.currentView = 'import'; this.dialogueLines = []; this.allTokens = []; this.wordPopup = null; this.render();
-        });
-        document.getElementById('summaryBtn')?.addEventListener('click', () => { this.currentView = 'summary'; this.wordPopup = null; this.render(); });
-        document.querySelectorAll('[data-import-mode]').forEach(b => b.addEventListener('click', () => { this.importMode = b.dataset.importMode; this.render(); }));
-
-        // Form inputs — 'change' for IME safety
-        const n = document.getElementById('animeNameInput'); if (n) n.addEventListener('change', () => this.animeName = n.value);
-        const s = document.getElementById('seasonInput'); if (s) s.addEventListener('change', () => this.seasonNum = s.value);
-        const e = document.getElementById('episodeInput'); if (e) e.addEventListener('change', () => this.episodeNum = e.value);
-        const ta = document.getElementById('textImportArea'); if (ta) ta.addEventListener('input', () => this.rawText = ta.value);
-
-        // File
-        const dz = document.getElementById('dropZone'), fi = document.getElementById('fileInput');
-        if (dz && fi) {
-          dz.addEventListener('click', () => fi.click());
-          dz.addEventListener('dragover', ev => { ev.preventDefault(); dz.classList.add('dragover'); });
-          dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-          dz.addEventListener('drop', ev => { ev.preventDefault(); dz.classList.remove('dragover'); if (ev.dataTransfer?.files?.[0]) { this.srtFile = ev.dataTransfer.files[0]; this.render(); } });
-          fi.addEventListener('change', () => { if (fi.files?.[0]) { this.srtFile = fi.files[0]; this.render(); } });
-        }
-
-        document.getElementById('startReadingBtn')?.addEventListener('click', () => {
-          const nn = document.getElementById('animeNameInput'), ss = document.getElementById('seasonInput'), ee = document.getElementById('episodeInput');
-          if (nn) this.animeName = nn.value; if (ss) this.seasonNum = ss.value; if (ee) this.episodeNum = ee.value;
-          this.startReading();
-        });
-
-        document.querySelectorAll('.word-token[data-line]').forEach(el => el.addEventListener('click', () => {
-          const token = this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];
-          if (token) this.showWordPopup(token);
-        }));
-
-        document.getElementById('popupOverlay')?.addEventListener('click', ev => { if (ev.target.id === 'popupOverlay') this.closePopup(); });
-        document.getElementById('saveWordBtn')?.addEventListener('click', () => { if (this.wordPopup) this.saveWord(this.wordPopup); });
-        document.getElementById('removeWordBtn')?.addEventListener('click', () => { if (this.wordPopup) this.removeWord(this.wordPopup); });
-        document.querySelectorAll('[data-save-base]').forEach(b => b.addEventListener('click', () => {
-          const t = this.allTokens.find(x => x.surface === b.dataset.saveBase); if (t) this.saveWord(t);
-        }));
-        document.getElementById('backToReadingBtn')?.addEventListener('click', () => { this.currentView = 'reading'; this.render(); });
-      }
-
-      esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
-    }
-
-    window.animeReader = new AnimeReader();
-  </script>
+  // === EVENTS ===
+  bindAll(){
+    document.getElementById('loginBtn')?.addEventListener('click',()=>this.signIn());
+    document.getElementById('signOutBtn')?.addEventListener('click',()=>this.signOut());
+    document.getElementById('navBackBtn')?.addEventListener('click',()=>{
+      if(this.currentView==='episodes'){this.currentView='browse'}
+      else if(this.currentView==='reading'){this.currentView=this.selectedEpisode?'episodes':'browse';this.dialogueLines=[];this.allTokens=[];this.wordPopup=null}
+      else if(this.currentView==='import'){this.currentView='browse'}
+      this.render();
+    });
+    document.getElementById('summaryBtn')?.addEventListener('click',()=>{this.currentView='summary';this.wordPopup=null;this.render()});
+    document.getElementById('backToReadingBtn')?.addEventListener('click',()=>{this.currentView='reading';this.render()});
+    document.getElementById('goImportBtn')?.addEventListener('click',()=>{this.currentView='import';this.render()});
+    // Anime selection
+    document.querySelectorAll('[data-anime]').forEach(b=>b.addEventListener('click',()=>{this.selectedAnime=b.dataset.anime;this.currentView='episodes';this.loadEpisodes(this.selectedAnime)}));
+    // Episode selection
+    document.querySelectorAll('[data-ep]').forEach(b=>b.addEventListener('click',()=>this.loadEpisodeDialogue(this.selectedAnime,parseInt(b.dataset.ep))));
+    // Import
+    document.querySelectorAll('[data-import-mode]').forEach(b=>b.addEventListener('click',()=>{this.importMode=b.dataset.importMode;this.render()}));
+    const ta=document.getElementById('textImportArea');if(ta)ta.addEventListener('input',()=>this.rawText=ta.value);
+    const dz=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
+    if(dz&&fi){dz.addEventListener('click',()=>fi.click());dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer?.files?.[0]){this.srtFile=e.dataTransfer.files[0];this.render()}});fi.addEventListener('change',()=>{if(fi.files?.[0]){this.srtFile=fi.files[0];this.render()}})}
+    document.getElementById('startFileBtn')?.addEventListener('click',()=>this.startFromFile());
+    // Word tokens
+    document.querySelectorAll('.word-token[data-line]').forEach(el=>el.addEventListener('click',()=>{const t=this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];if(t)this.showWordPopup(t)}));
+    // Popup
+    document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay')this.closePopup()});
+    document.getElementById('saveWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.saveWord(this.wordPopup)});
+    document.getElementById('removeWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.removeWord(this.wordPopup)});
+    document.querySelectorAll('[data-save-base]').forEach(b=>b.addEventListener('click',()=>{const t=this.allTokens.find(x=>x.surface===b.dataset.saveBase);if(t)this.saveWord(t)}));
+  }
+  esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+}
+window.animeReader=new AnimeReader();
+</script>
 </body>
 </html>
