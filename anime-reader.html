@@ -135,19 +135,29 @@ class AnimeReader{
     if(!this.user)return;try{const{data}=await sb.from('japanese_anime_words').select('*').eq('user_id',this.user.id);this.savedAnimeWords={};for(const w of(data||[]))this.savedAnimeWords[w.base_form]=w}catch(e){console.error(e)}
   }
   async loadAnimeList(){
-    try{const{data,error}=await sb.from('japanese_anime_subtitles').select('anime_name').limit(1);
-    if(error){console.log('Subtitles table not ready yet');this.animeList=[];return}
-    const{data:d2}=await sb.rpc('get_anime_list').catch(()=>({data:null}));
-    if(d2){this.animeList=d2}else{
-      // Fallback: get distinct anime names
-      const{data:d3}=await sb.from('japanese_anime_subtitles').select('anime_name').limit(1000);
-      this.animeList=[...new Set((d3||[]).map(r=>r.anime_name))];
-    }}catch(e){console.error(e);this.animeList=[]}
+    try{
+      // Just fetch a small sample to get unique anime names
+      const{data,error}=await sb.from('japanese_anime_subtitles').select('anime_name').limit(100);
+      if(error){console.log('Subtitles table error:',error.message);this.animeList=[];return}
+      if(!data||data.length===0){this.animeList=[];return}
+      this.animeList=[...new Set(data.map(r=>r.anime_name))];
+      console.log('Anime found:',this.animeList);
+    }catch(e){console.error('loadAnimeList:',e);this.animeList=[]}
   }
   async loadEpisodes(animeName){
     this.loading=true;this.render();
-    try{const{data}=await sb.from('japanese_anime_subtitles').select('episode').eq('anime_name',animeName).order('episode');
-    this.episodeList=[...new Set((data||[]).map(r=>r.episode))].sort((a,b)=>a-b);
+    try{
+      // Get episode numbers by paginating through all rows (just episode column, very light)
+      const eps=new Set();let page=0;
+      while(true){
+        const{data,error}=await sb.from('japanese_anime_subtitles').select('episode').eq('anime_name',animeName).range(page*1000,(page+1)*1000-1);
+        if(error||!data?.length)break;
+        data.forEach(r=>eps.add(r.episode));
+        if(data.length<1000)break;
+        page++;
+      }
+      this.episodeList=[...eps].sort((a,b)=>a-b);
+      console.log(`Found ${this.episodeList.length} episodes`);
     }catch(e){console.error(e);this.episodeList=[]}
     this.loading=false;this.render();
   }
