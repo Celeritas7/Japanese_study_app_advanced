@@ -147,10 +147,17 @@ class AnimeReader{
   async loadEpisodes(animeName){
     this.loading=true;this.render();
     try{
-      // Only fetch first line of each episode — ~457 rows instead of 109K
-      const{data,error}=await sb.from('japanese_anime_subtitles').select('episode').eq('anime_name',animeName).eq('line_number',1).order('episode');
-      if(error){console.error(error);this.episodeList=[];} 
-      else{this.episodeList=(data||[]).map(r=>r.episode);console.log(`Found ${this.episodeList.length} episodes`)}
+      // Get episode numbers by paginating through all rows (just episode column, very light)
+      const eps=new Set();let page=0;
+      while(true){
+        const{data,error}=await sb.from('japanese_anime_subtitles').select('episode').eq('anime_name',animeName).range(page*1000,(page+1)*1000-1);
+        if(error||!data?.length)break;
+        data.forEach(r=>eps.add(r.episode));
+        if(data.length<1000)break;
+        page++;
+      }
+      this.episodeList=[...eps].sort((a,b)=>a-b);
+      console.log(`Found ${this.episodeList.length} episodes`);
     }catch(e){console.error(e);this.episodeList=[]}
     this.loading=false;this.render();
   }
