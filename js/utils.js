@@ -172,49 +172,66 @@ function containsKanji(str) {
  */
 export function renderTappableSentence(text, currentWordKanji, knownKanjiSet) {
   if (!text) return '';
-  
+
   // Fallback: plain escaped text if Segmenter unavailable
   if (typeof Intl === 'undefined' || !Intl.Segmenter) {
     return escapeHtml(text);
   }
-  
+
   try {
+    // Step 1: Split text around the study word FIRST.
+    // This handles compound phrases like 頭が固い that span multiple
+    // Intl.Segmenter segments (頭 + が + 固い).
+    let chunks; // array of { text, isStudyWord }
+    if (currentWordKanji && text.includes(currentWordKanji)) {
+      chunks = [];
+      let remaining = text;
+      while (remaining.includes(currentWordKanji)) {
+        const idx = remaining.indexOf(currentWordKanji);
+        if (idx > 0) chunks.push({ text: remaining.substring(0, idx), isStudyWord: false });
+        chunks.push({ text: currentWordKanji, isStudyWord: true });
+        remaining = remaining.substring(idx + currentWordKanji.length);
+      }
+      if (remaining) chunks.push({ text: remaining, isStudyWord: false });
+    } else {
+      chunks = [{ text, isStudyWord: false }];
+    }
+
+    // Step 2: For each chunk, either render as study-word highlight
+    // or segment into tappable words via Intl.Segmenter
     const segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
-    const segments = [...segmenter.segment(text)];
-    
-    return segments.map(seg => {
-      const word = seg.segment;
-      const escaped = escapeHtml(word);
-      
-      // Non-word-like segments (punctuation, spaces, particles) — plain
-      if (!seg.isWordLike) {
-        return escaped;
+
+    return chunks.map(chunk => {
+      // Study word chunk — render as single highlighted span
+      if (chunk.isStudyWord) {
+        return `<span class="tap-word--current">${escapeHtml(chunk.text)}</span>`;
       }
-      
-      // Current study word — special highlight, not tappable
-      if (word === currentWordKanji) {
-        return `<span class="tap-word--current">${escaped}</span>`;
-      }
-      
-      // Short pure-kana (1-2 chars hiragana/katakana) — grammar particles, skip
-      if (/^[\u3040-\u309F\u30A0-\u30FF]{1,2}$/.test(word)) {
-        return escaped;
-      }
-      
-      // Does this word contain kanji? If not, only tappable if katakana 3+ chars
-      const hasKanji = containsKanji(word);
-      const isLongKatakana = /^[\u30A0-\u30FF]{3,}$/.test(word);
-      if (!hasKanji && !isLongKatakana) {
-        return escaped;
-      }
-      
-      // Already in DB — show "saved" style
-      if (knownKanjiSet && knownKanjiSet.has(word)) {
-        return `<span class="tap-word tap-word--saved" data-tap-word="${escaped}">${escaped}</span>`;
-      }
-      
-      // Tappable unknown word
-      return `<span class="tap-word" data-tap-word="${escaped}">${escaped}</span>`;
+
+      // Non-study-word chunk — segment into tappable words
+      const segments = [...segmenter.segment(chunk.text)];
+      return segments.map(seg => {
+        const word = seg.segment;
+        const escaped = escapeHtml(word);
+
+        // Non-word-like segments (punctuation, spaces) — plain
+        if (!seg.isWordLike) return escaped;
+
+        // Short pure-kana (1-2 chars) — grammar particles, skip
+        if (/^[\u3040-\u309F\u30A0-\u30FF]{1,2}$/.test(word)) return escaped;
+
+        // Only tappable if contains kanji or is long katakana (3+ chars)
+        const hasKanji = containsKanji(word);
+        const isLongKatakana = /^[\u30A0-\u30FF]{3,}$/.test(word);
+        if (!hasKanji && !isLongKatakana) return escaped;
+
+        // Already in DB — show "saved" style
+        if (knownKanjiSet && knownKanjiSet.has(word)) {
+          return `<span class="tap-word tap-word--saved" data-tap-word="${escaped}">${escaped}</span>`;
+        }
+
+        // Tappable unknown word
+        return `<span class="tap-word" data-tap-word="${escaped}">${escaped}</span>`;
+      }).join('');
     }).join('');
   } catch (e) {
     console.warn('renderTappableSentence error:', e);
