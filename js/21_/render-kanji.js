@@ -465,9 +465,13 @@ export function renderSentencePanel(app) {
                 const rating = item.rating;
                 const linkId = item.link_id;
                 
-                // Use tappable sentence segmentation
-                const wordKanji = word.kanji || word.raw || '';
-                const tappableSentence = app.renderTappableSentence(sentText, wordKanji);
+                // Highlight the kanji in the sentence
+                const parts = sentText.split(new RegExp(`(${escapeRegex(word.kanji || '')})`));
+                const highlightedSentence = parts.map(part => 
+                  part === (word.kanji || '')
+                    ? `<span class="text-indigo-400 font-bold bg-indigo-500/15 px-0.5 rounded">${escapeHtml(part)}</span>`
+                    : escapeHtml(part)
+                ).join('');
                 
                 const sourceIcon = SOURCE_ICONS[item.source] || '📄';
                 
@@ -479,7 +483,7 @@ export function renderSentencePanel(app) {
                   }">
                     <div class="flex items-start justify-between gap-2">
                       <div class="flex-1 min-w-0">
-                        <div class="text-sm leading-relaxed text-slate-200">${tappableSentence}</div>
+                        <div class="text-sm leading-relaxed text-slate-200">${highlightedSentence}</div>
                         ${item.meaning_en ? `<div class="text-xs text-slate-500 mt-1">${escapeHtml(item.meaning_en)}</div>` : ''}
                         <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                           <span class="text-[10px] text-slate-600">${sourceIcon} ${escapeHtml(item.source || '')}</span>
@@ -527,12 +531,19 @@ export function renderSentencePanel(app) {
               <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(wordKanji)}」</div>
               <div class="space-y-1.5">
                 ${unlinked.map(s => {
-                  const tappableUnlinked = app.renderTappableSentence(s.sentence, wordKanji);
+                  // Highlight the word in the sentence
+                  const hlTerm = searchTerms.find(t => s.sentence.includes(t)) || highlightTerm;
+                  const parts = hlTerm ? s.sentence.split(new RegExp(`(${escapeRegex(hlTerm)})`)) : [s.sentence];
+                  const highlighted = parts.map(part =>
+                    part === hlTerm
+                      ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>`
+                      : escapeHtml(part)
+                  ).join('');
                   
                   return `
                     <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30">
                       <div class="flex-1 min-w-0 mr-2">
-                        <div class="text-xs text-slate-400 leading-relaxed">${tappableUnlinked}</div>
+                        <div class="text-xs text-slate-400 leading-relaxed">${highlighted}</div>
                         ${s.meaning_en ? `<div class="text-[10px] text-slate-600 mt-0.5 truncate">${escapeHtml(s.meaning_en)}</div>` : ''}
                       </div>
                       <button data-link-sentence="${s.id}" data-link-word="${unifiedWordId || 0}"

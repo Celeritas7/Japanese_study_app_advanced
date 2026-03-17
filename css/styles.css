@@ -189,3 +189,136 @@ ruby rt {
 .story-studying-tag { position: absolute; top: -9px; right: 14px; font-size: 10px; padding: 2px 10px; border-radius: 10px; background: #818cf8; color: white; font-weight: 700; }
 .story-btn { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(236,72,153,0.15)); border: 1.5px solid rgba(168,85,247,0.4); color: #d8b4fe; }
 .story-btn:hover { background: linear-gradient(135deg, rgba(168,85,247,0.25), rgba(236,72,153,0.25)); }
+/* ===== TAP-TO-SAVE: Append to bottom of styles.css ===== */
+
+/* Tappable word segments in sentences */
+.tap-word {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: 0 1px;
+  transition: background-color 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: rgba(59, 130, 246, 0.2);
+  display: inline;
+}
+.tap-word:hover,
+.tap-word:active {
+  background-color: rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+}
+
+/* Already-saved word indicator */
+.tap-word--saved {
+  border-bottom: 2px dotted #10b981;
+  color: #6ee7b7;
+}
+.tap-word--saved:hover,
+.tap-word--saved:active {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+
+/* The current study word (highlighted, not tappable) */
+.tap-word--current {
+  font-weight: 700;
+  color: #818cf8;
+  background: rgba(99, 102, 241, 0.12);
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+/* Save popup */
+.word-save-popup {
+  position: absolute;
+  z-index: 9999;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 140px;
+}
+.word-save-popup__word {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  white-space: nowrap;
+}
+.word-save-popup__actions {
+  display: flex;
+  gap: 6px;
+}
+.word-save-popup__btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.15s;
+  white-space: nowrap;
+}
+.word-save-popup__btn:active {
+  transform: scale(0.95);
+}
+.word-save-popup__btn--save {
+  background: #059669;
+  color: white;
+}
+.word-save-popup__btn--save:hover {
+  background: #047857;
+}
+.word-save-popup__btn--cancel {
+  background: #475569;
+  color: #cbd5e1;
+  padding: 6px 8px;
+}
+.word-save-popup__btn--cancel:hover {
+  background: #64748b;
+}
+
+/* Toast notification */
+.save-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: toastSlideUp 0.3s ease-out;
+  pointer-events: none;
+}
+.save-toast--success { background: #059669; }
+.save-toast--error { background: #dc2626; }
+.save-toast--fade {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+@keyframes toastSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Tappable sentence container */
+.sentence-tappable {
+  line-height: 2;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Hint label */
+.tap-hint {
+  text-align: center;
+  font-size: 0.65rem;
+  color: #64748b;
+  margin-top: 4px;
+  opacity: 0.7;
+}

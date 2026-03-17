@@ -26,10 +26,6 @@ import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './re
 import { renderRelationsTab, getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, getCurrentStudyWord } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
-import {
-  segmentSentence, showSavePopup, hideSavePopup, showSaveToast,
-  saveUnknownWord, saveWordMarking
-} from './word-saver.js';
 
 // Guest user ID for testing (matches your Google OAuth user ID)
 const GUEST_USER_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
@@ -109,10 +105,6 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
-    
-    // Tap-to-save state
-    this.savedWordsCache = new Set();
-    this.tapSaveEnabled = true;
     
     this.selectedStoryGroup = null;
     this.storyFilter = '';
@@ -605,126 +597,6 @@ class JLPTStudyApp {
         this.removeTagFromSentence(parseInt(btn.dataset.removeTag), btn.dataset.tagValue);
       });
     });
-    // Tap-to-save: word taps in sentence panel
-    document.querySelectorAll('#flashcardExtraContent [data-tap-word]').forEach(span => {
-      span.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const wordText = span.dataset.tapWord;
-        if (wordText) this.handleWordTap(wordText, span);
-      });
-    });
-  }
-  
-  // ===== TAP-TO-SAVE UNKNOWN WORDS =====
-  
-  handleWordTap(wordText, targetEl) {
-    if (!this.tapSaveEnabled) return;
-    
-    if (this.savedWordsCache.has(wordText)) {
-      showSaveToast(wordText + ' (already saved)', true);
-      hideSavePopup();
-      return;
-    }
-    
-    // Check if word already exists in loaded kanjiWords
-    const alreadyKnown = this.kanjiWords.find(w => w.kanji === wordText);
-    if (alreadyKnown && alreadyKnown.hiragana) {
-      // Word exists and has reading — probably already in a textbook
-      showSaveToast(wordText + ' (already in database)', true);
-      hideSavePopup();
-      return;
-    }
-    
-    showSavePopup(
-      wordText,
-      targetEl,
-      (word) => this.confirmSaveWord(word),
-      () => hideSavePopup()
-    );
-  }
-  
-  async confirmSaveWord(kanji) {
-    hideSavePopup();
-    
-    const sb = window.sb;
-    if (!sb || !this.user) {
-      showSaveToast('Save failed — not logged in', false);
-      return;
-    }
-    
-    const result = await saveUnknownWord(sb, kanji, 'flashcard_tap');
-    
-    if (result) {
-      this.savedWordsCache.add(kanji);
-      
-      // Mark as "Don't Know" (5) if genuinely new
-      if (!result._alreadyExisted) {
-        await saveWordMarking(sb, this.user.id, kanji, 5);
-        // Also add to local kanjiWords cache so it shows up immediately
-        const newWord = {
-          ...result,
-          meaning: result.meaning_en || '',
-          level: '',
-          raw: kanji,
-          supporting_word_1: '',
-          supporting_word_2: '',
-          sentence_before: '',
-          sentence_after: '',
-        };
-        this.kanjiWords.push(newWord);
-        // Update local markings
-        this.markings[kanji] = 5;
-      }
-      
-      showSaveToast(result._alreadyExisted ? `${kanji} (already exists)` : `${kanji} saved`, true);
-      
-      // Surgical update: refresh only tappable sentence containers
-      this.updateSentenceHighlights();
-    } else {
-      showSaveToast(`Failed to save ${kanji}`, false);
-    }
-  }
-  
-  /**
-   * Surgically update sentence containers to show newly saved word highlights.
-   * Avoids full re-render which would destroy canvas / IME state.
-   */
-  updateSentenceHighlights() {
-    document.querySelectorAll('.sentence-tappable').forEach(container => {
-      const rawText = container.dataset.rawSentence;
-      const currentKanji = container.dataset.currentKanji || '';
-      if (rawText) {
-        container.innerHTML = segmentSentence(rawText, this.savedWordsCache, currentKanji);
-        // Re-attach tap listeners on the refreshed content
-        container.querySelectorAll('[data-tap-word]').forEach(span => {
-          span.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.handleWordTap(span.dataset.tapWord, span);
-          });
-        });
-      }
-    });
-  }
-  
-  /**
-   * Render a sentence with tappable word segments.
-   * Call from render.js / render-kanji.js wherever sentences appear.
-   */
-  renderTappableSentence(sentenceText, currentKanji = '') {
-    if (!sentenceText) return '';
-    
-    const segmented = segmentSentence(sentenceText, this.savedWordsCache, currentKanji);
-    const escaped = sentenceText.replace(/"/g, '&quot;');
-    const kanjiEscaped = (currentKanji || '').replace(/"/g, '&quot;');
-    
-    return `
-      <div class="sentence-tappable" 
-           data-raw-sentence="${escaped}" 
-           data-current-kanji="${kanjiEscaped}">
-        ${segmented}
-      </div>
-      <div class="tap-hint">tap words to save${this.savedWordsCache.size > 0 ? ` \u00B7 ${this.savedWordsCache.size} saved this session` : ''}</div>
-    `;
   }
   
   // ===== ADD SENTENCE BOTTOM SHEET =====
@@ -1158,7 +1030,6 @@ class JLPTStudyApp {
   }
   
   nextWord() {
-    hideSavePopup();
     if (this.currentIndex < this.studyWords.length - 1) {
       this.currentIndex++;
       this.revealStep = 0;
@@ -1168,7 +1039,6 @@ class JLPTStudyApp {
   }
   
   prevWord() {
-    hideSavePopup();
     if (this.currentIndex > 0) {
       this.currentIndex--;
       this.revealStep = 0;
@@ -1178,7 +1048,6 @@ class JLPTStudyApp {
   }
   
   randomWord() {
-    hideSavePopup();
     if (this.studyWords.length > 1) {
       let n; do { n = Math.floor(Math.random() * this.studyWords.length); } while (n === this.currentIndex);
       this.currentIndex = n;
