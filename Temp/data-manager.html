@@ -354,15 +354,12 @@
     const state = {
       user: null,
       authChecked: false,
-      tab: 'stats',    // stats, sentences, bulk, story-flags, word-flags, incomplete
+      tab: 'sentences',    // sentences, bulk, story-flags, word-flags
       loading: true,
       
       // Data pools
       sentences: [],
       words: [],       // from japanese_unified_words (includes all Goi + Kanji words)
-      wordBooks: [],   // from japanese_unified_word_books
-      wordGroups: [],  // from japanese_word_groups
-      wordGroupMembers: [], // from japanese_word_group_members
       storyAlerts: [],
       wordAlerts: [],
       stories: [],
@@ -390,10 +387,6 @@
       // Flags
       flagFilter: 'open', // open, resolved, all
       flagPage: 0,
-      
-      // Incomplete words tab
-      incompleteFilter: 'all', // all, sentence_tap, textbook, other
-      incompletePage: 0,
     };
     
     // ========== HELPERS ==========
@@ -501,12 +494,9 @@
     
     async function loadAll() {
       state.loading = true; render();
-      const [sentences, words, wordBooks, wordGroups, wordGroupMembers, storyAlerts, wordAlerts, stories, storyGroups] = await Promise.all([
+      const [sentences, words, storyAlerts, wordAlerts, stories, storyGroups] = await Promise.all([
         loadPaginated('japanese_unified_sentences'),
         loadPaginated('japanese_unified_words'),
-        loadPaginated('japanese_unified_word_books'),
-        loadPaginated('japanese_word_groups'),
-        loadPaginated('japanese_word_group_members'),
         loadPaginated('japanese_story_alerts'),
         loadPaginated('japanese_word_alerts'),
         loadPaginated('japanese_kanji_stories'),
@@ -514,9 +504,6 @@
       ]);
       state.sentences = sentences;
       state.words = words;
-      state.wordBooks = wordBooks;
-      state.wordGroups = wordGroups;
-      state.wordGroupMembers = wordGroupMembers;
       state.storyAlerts = storyAlerts;
       state.wordAlerts = wordAlerts;
       state.stories = stories;
@@ -832,14 +819,10 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} words · ${state.sentences.length} sentences`}</span>
           </div>
           <div class="tab-bar">
-            <button class="tab-btn ${state.tab === 'stats' ? 'active' : ''}" data-tab="stats">📊 Stats</button>
             <button class="tab-btn ${state.tab === 'sentences' ? 'active' : ''}" data-tab="sentences">
               💬 Sentences ${unverified > 0 ? `(${unverified})` : ''}
             </button>
             <button class="tab-btn ${state.tab === 'bulk' ? 'active' : ''}" data-tab="bulk">📝 Bulk Import</button>
-            <button class="tab-btn ${state.tab === 'incomplete' ? 'active' : ''}" data-tab="incomplete">
-              🔧 Incomplete ${state.words.filter(w => !w.hiragana && !w.meaning_en).length > 0 ? `(${state.words.filter(w => !w.hiragana && !w.meaning_en).length})` : ''}
-            </button>
             <button class="tab-btn ${state.tab === 'story-flags' ? 'active' : ''}" data-tab="story-flags">
               📖 Story Flags ${openStoryFlags > 0 ? `(${openStoryFlags})` : ''}
             </button>
@@ -860,277 +843,12 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
     
     function renderTab() {
       switch (state.tab) {
-        case 'stats': return renderStatsTab();
         case 'sentences': return renderSentencesTab();
         case 'bulk': return renderBulkTab();
-        case 'incomplete': return renderIncompleteTab();
         case 'story-flags': return renderStoryFlagsTab();
         case 'word-flags': return renderWordFlagsTab();
-        default: return renderStatsTab();
+        default: return '';
       }
-    }
-    
-    // ========== STATS DASHBOARD TAB ==========
-    function renderStatsTab() {
-      // Word stats
-      const totalWords = state.words.length;
-      const wordsWithHiragana = state.words.filter(w => w.hiragana).length;
-      const wordsWithMeaning = state.words.filter(w => w.meaning_en).length;
-      const incompleteWords = state.words.filter(w => !w.hiragana || !w.meaning_en).length;
-      const sentenceTapWords = state.words.filter(w => w.source === 'sentence_tap').length;
-      
-      // Per-book word counts
-      const bookCounts = {};
-      state.wordBooks.forEach(wb => {
-        if (!bookCounts[wb.book_code]) bookCounts[wb.book_code] = { code: wb.book_code, name: wb.book_name || wb.book_code, count: 0 };
-        bookCounts[wb.book_code].count++;
-      });
-      const books = Object.values(bookCounts).sort((a, b) => b.count - a.count);
-      
-      // Sentence stats
-      const totalSentences = state.sentences.length;
-      const sentUnverified = state.sentences.filter(s => (s.verified || 'unverified') === 'unverified').length;
-      const sentVerified = state.sentences.filter(s => s.verified === 'verified').length;
-      const sentRejected = state.sentences.filter(s => s.verified === 'rejected').length;
-      
-      // Source breakdown
-      const sentSources = {};
-      state.sentences.forEach(s => {
-        const src = s.source || 'unknown';
-        sentSources[src] = (sentSources[src] || 0) + 1;
-      });
-      
-      // Flag stats
-      const openStoryFlags = state.storyAlerts.filter(a => !a.resolved).length;
-      const openWordFlags = state.wordAlerts.filter(a => !a.resolved).length;
-      const totalStoryFlags = state.storyAlerts.length;
-      const totalWordFlags = state.wordAlerts.length;
-      
-      // Story stats
-      const totalStoryGroups = state.storyGroups.length;
-      const totalStories = state.stories.length;
-      
-      // Word group stats
-      const totalGroups = state.wordGroups.length;
-      const totalGroupLinks = state.wordGroupMembers.length;
-      const groupsByType = {};
-      state.wordGroups.forEach(g => {
-        groupsByType[g.group_type] = (groupsByType[g.group_type] || 0) + 1;
-      });
-      
-      return `
-        <div style="margin-bottom:24px;">
-          <h2 style="font-size:18px; font-weight:700; margin-bottom:16px;">📊 Database Overview</h2>
-          
-          <!-- Top-level numbers -->
-          <div class="stats-row" style="margin-bottom:20px;">
-            <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${totalWords}</div><div class="stat-label">Total Words</div></div>
-            <div class="stat-card"><div class="stat-num" style="color:var(--emerald)">${totalSentences}</div><div class="stat-label">Sentences</div></div>
-            <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${totalStoryGroups}</div><div class="stat-label">Story Groups</div></div>
-            <div class="stat-card"><div class="stat-num" style="color:var(--rose)">${totalGroups}</div><div class="stat-label">Word Groups</div></div>
-          </div>
-          
-          <!-- Action items -->
-          <h3 style="font-size:14px; font-weight:700; color:var(--amber); margin-bottom:10px;">⚠️ Needs Attention</h3>
-          <div class="stats-row" style="margin-bottom:20px;">
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='incomplete'; render();">
-              <div class="stat-num" style="color:${incompleteWords > 0 ? 'var(--red)' : 'var(--emerald)'}">${incompleteWords}</div>
-              <div class="stat-label">Incomplete Words</div>
-              <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Missing reading or meaning</div>
-            </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='sentences'; state.sentFilter='unverified'; render();">
-              <div class="stat-num" style="color:${sentUnverified > 0 ? 'var(--amber)' : 'var(--emerald)'}">${sentUnverified}</div>
-              <div class="stat-label">Unverified Sentences</div>
-            </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='story-flags'; state.flagFilter='open'; render();">
-              <div class="stat-num" style="color:${openStoryFlags > 0 ? 'var(--amber)' : 'var(--emerald)'}">${openStoryFlags}</div>
-              <div class="stat-label">Open Story Flags</div>
-            </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='word-flags'; state.flagFilter='open'; render();">
-              <div class="stat-num" style="color:${openWordFlags > 0 ? 'var(--amber)' : 'var(--emerald)'}">${openWordFlags}</div>
-              <div class="stat-label">Open Word Flags</div>
-            </div>
-          </div>
-          
-          <!-- Words detail -->
-          <div class="card" style="margin-bottom:16px;">
-            <div class="card-header" style="padding:14px 20px;">
-              <h3 style="font-size:13px; font-weight:700;">📚 Words Breakdown</h3>
-            </div>
-            <div style="padding:12px 20px;">
-              <div style="display:flex; gap:24px; flex-wrap:wrap; font-size:12px; margin-bottom:12px;">
-                <span>Has reading: <strong style="color:var(--emerald)">${wordsWithHiragana}</strong> / ${totalWords}</span>
-                <span>Has meaning: <strong style="color:var(--emerald)">${wordsWithMeaning}</strong> / ${totalWords}</span>
-                <span>From sentence tap: <strong style="color:var(--accent)">${sentenceTapWords}</strong></span>
-              </div>
-              <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                ${books.map(b => `
-                  <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:11px;">
-                    <div style="font-weight:600; color:var(--text-primary);">${escapeHtml(b.name || b.code)}</div>
-                    <div style="color:var(--accent); font-weight:700;">${b.count} words</div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-          
-          <!-- Sentences detail -->
-          <div class="card" style="margin-bottom:16px;">
-            <div class="card-header" style="padding:14px 20px;">
-              <h3 style="font-size:13px; font-weight:700;">💬 Sentences Breakdown</h3>
-            </div>
-            <div style="padding:12px 20px;">
-              <div style="display:flex; gap:16px; font-size:12px; margin-bottom:12px;">
-                <span>✓ Verified: <strong style="color:var(--emerald)">${sentVerified}</strong></span>
-                <span>○ Unverified: <strong style="color:var(--amber)">${sentUnverified}</strong></span>
-                <span>✕ Rejected: <strong style="color:var(--red)">${sentRejected}</strong></span>
-              </div>
-              <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                ${Object.entries(sentSources).sort((a, b) => b[1] - a[1]).map(([src, count]) => `
-                  <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:11px;">
-                    <span style="color:var(--text-secondary);">${escapeHtml(src)}</span>
-                    <strong style="color:var(--text-primary); margin-left:4px;">${count}</strong>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-          
-          <!-- Groups + Stories -->
-          <div style="display:flex; gap:16px;">
-            <div class="card" style="flex:1;">
-              <div class="card-header" style="padding:14px 20px;">
-                <h3 style="font-size:13px; font-weight:700;">🔗 Word Groups</h3>
-              </div>
-              <div style="padding:12px 20px; font-size:12px;">
-                <div style="margin-bottom:8px;">${totalGroups} groups · ${totalGroupLinks} word links</div>
-                ${Object.entries(groupsByType).sort((a, b) => b[1] - a[1]).map(([type, count]) => `
-                  <div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--border);">
-                    <span style="color:var(--text-secondary);">${escapeHtml(type)}</span>
-                    <strong>${count}</strong>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-            <div class="card" style="flex:1;">
-              <div class="card-header" style="padding:14px 20px;">
-                <h3 style="font-size:13px; font-weight:700;">📖 Kanji Stories</h3>
-              </div>
-              <div style="padding:12px 20px; font-size:12px;">
-                <div>${totalStoryGroups} story groups</div>
-                <div>${totalStories} individual kanji stories</div>
-                <div style="margin-top:8px;">
-                  <span style="color:var(--text-muted);">Flags:</span>
-                  <span style="color:var(--amber); margin-left:4px;">${openStoryFlags} open</span> /
-                  <span style="color:var(--emerald); margin-left:4px;">${totalStoryFlags - openStoryFlags} resolved</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-    
-    // ========== INCOMPLETE WORDS TAB ==========
-    function renderIncompleteTab() {
-      let incomplete = state.words.filter(w => !w.hiragana || !w.meaning_en);
-      
-      // Filter by source
-      if (state.incompleteFilter === 'sentence_tap') {
-        incomplete = incomplete.filter(w => w.source === 'sentence_tap');
-      } else if (state.incompleteFilter === 'textbook') {
-        incomplete = incomplete.filter(w => !w.source || w.source === 'textbook');
-      } else if (state.incompleteFilter === 'other') {
-        incomplete = incomplete.filter(w => w.source && w.source !== 'sentence_tap' && w.source !== 'textbook');
-      }
-      
-      incomplete.sort((a, b) => (b.id || 0) - (a.id || 0)); // newest first
-      
-      const page = state.incompletePage || 0;
-      const pageSize = 20;
-      const totalPages = Math.ceil(incomplete.length / pageSize);
-      const pageItems = incomplete.slice(page * pageSize, (page + 1) * pageSize);
-      
-      const sourceCounts = {
-        all: state.words.filter(w => !w.hiragana || !w.meaning_en).length,
-        sentence_tap: state.words.filter(w => (!w.hiragana || !w.meaning_en) && w.source === 'sentence_tap').length,
-        textbook: state.words.filter(w => (!w.hiragana || !w.meaning_en) && (!w.source || w.source === 'textbook')).length,
-      };
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">🔧 Incomplete Words</h2>
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">Words missing hiragana or meaning — fill in and save inline.</p>
-        </div>
-        
-        <div class="stats-row" style="margin-bottom:16px;">
-          <div class="stat-card"><div class="stat-num" style="color:var(--red)">${sourceCounts.all}</div><div class="stat-label">Total Incomplete</div></div>
-          <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${sourceCounts.sentence_tap}</div><div class="stat-label">From Sentence Tap</div></div>
-          <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${sourceCounts.textbook}</div><div class="stat-label">From Textbook</div></div>
-        </div>
-        
-        <div class="filter-bar" style="margin-bottom:16px;">
-          ${[
-            { key: 'all', label: 'All' },
-            { key: 'sentence_tap', label: 'Sentence Tap' },
-            { key: 'textbook', label: 'Textbook' },
-            { key: 'other', label: 'Other' }
-          ].map(f => `
-            <button class="btn btn-sm ${state.incompleteFilter === f.key ? 'btn-primary' : 'btn-ghost'}" data-incomplete-filter="${f.key}">${f.label}</button>
-          `).join('')}
-        </div>
-        
-        ${pageItems.length === 0 ? `
-          <div style="text-align:center; padding:40px; color:var(--text-muted);">
-            <div style="font-size:32px; margin-bottom:8px;">✅</div>
-            <div>No incomplete words${state.incompleteFilter !== 'all' ? ' in this filter' : ''}!</div>
-          </div>
-        ` : `
-          <div style="display:flex; flex-direction:column; gap:8px;">
-            ${pageItems.map(w => {
-              const missingHiragana = !w.hiragana;
-              const missingMeaning = !w.meaning_en;
-              return `
-                <div class="card" style="padding:12px 16px;">
-                  <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-                    <span style="font-size:24px; font-weight:700; color:var(--text-primary); min-width:80px;">${escapeHtml(w.kanji || '')}</span>
-                    <span class="mono" style="font-size:10px; color:var(--text-muted);">ID: ${w.id}</span>
-                    ${w.source ? `<span style="font-size:10px; padding:2px 8px; border-radius:4px; background:var(--bg-input); color:var(--accent); border:1px solid var(--border);">${escapeHtml(w.source)}</span>` : ''}
-                    ${missingHiragana ? '<span style="font-size:10px; color:var(--red);">⚠ no reading</span>' : ''}
-                    ${missingMeaning ? '<span style="font-size:10px; color:var(--red);">⚠ no meaning</span>' : ''}
-                  </div>
-                  <div style="display:flex; gap:8px; align-items:flex-end;">
-                    <div style="flex:1;">
-                      <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px;">Hiragana</label>
-                      <input type="text" data-inc-hiragana="${w.id}" value="${escapeHtml(w.hiragana || '')}"
-                        style="width:100%; padding:6px 10px; background:var(--bg-input); border:1px solid ${missingHiragana ? 'var(--red)' : 'var(--border)'}; border-radius:6px; color:var(--text-primary); font-size:13px;">
-                    </div>
-                    <div style="flex:1;">
-                      <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px;">Meaning</label>
-                      <input type="text" data-inc-meaning="${w.id}" value="${escapeHtml(w.meaning_en || '')}"
-                        style="width:100%; padding:6px 10px; background:var(--bg-input); border:1px solid ${missingMeaning ? 'var(--red)' : 'var(--border)'}; border-radius:6px; color:var(--text-primary); font-size:13px;">
-                    </div>
-                    <div style="flex:0.6;">
-                      <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px;">Hint</label>
-                      <input type="text" data-inc-hint="${w.id}" value="${escapeHtml(w.hint || '')}"
-                        style="width:100%; padding:6px 10px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:13px;">
-                    </div>
-                    <button class="btn btn-sm btn-primary" data-save-incomplete="${w.id}" style="padding:6px 14px; white-space:nowrap;">💾 Save</button>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `}
-        
-        ${totalPages > 1 ? `
-          <div class="pagination" style="margin-top:16px;">
-            <button class="btn btn-sm btn-ghost" id="incPrev" ${page === 0 ? 'disabled' : ''}>← Prev</button>
-            <span style="font-size:12px; color:var(--text-muted);">${page + 1} / ${totalPages} (${incomplete.length} items)</span>
-            <button class="btn btn-sm btn-ghost" id="incNext" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
-          </div>
-        ` : ''}
-      `;
     }
     
     // ========== SENTENCES TAB ==========
@@ -1664,42 +1382,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       document.getElementById('clearAIResultsBtn')?.addEventListener('click', () => { state.aiResults = null; render(); });
       document.querySelectorAll('[data-apply-ai]').forEach(btn => {
         btn.addEventListener('click', () => applyAIResult(parseInt(btn.dataset.applyAi)));
-      });
-      
-      // ===== INCOMPLETE TAB =====
-      document.querySelectorAll('[data-incomplete-filter]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          state.incompleteFilter = btn.dataset.incompleteFilter;
-          state.incompletePage = 0;
-          render();
-        });
-      });
-      
-      document.getElementById('incPrev')?.addEventListener('click', () => { state.incompletePage--; render(); });
-      document.getElementById('incNext')?.addEventListener('click', () => { state.incompletePage++; render(); });
-      
-      // Save incomplete word inline edits
-      document.querySelectorAll('[data-save-incomplete]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const wordId = parseInt(btn.dataset.saveIncomplete);
-          const hiragana = document.querySelector(`[data-inc-hiragana="${wordId}"]`)?.value || '';
-          const meaning_en = document.querySelector(`[data-inc-meaning="${wordId}"]`)?.value || '';
-          const hint = document.querySelector(`[data-inc-hint="${wordId}"]`)?.value || '';
-          
-          const { error } = await sb.from('japanese_unified_words')
-            .update({ hiragana, meaning_en, hint })
-            .eq('id', wordId);
-          
-          if (error) {
-            toast('Save failed: ' + error.message, 'error');
-          } else {
-            // Update local state
-            const w = state.words.find(w => w.id === wordId);
-            if (w) { w.hiragana = hiragana; w.meaning_en = meaning_en; w.hint = hint; }
-            toast('Word updated!');
-            render();
-          }
-        });
       });
     }
     
