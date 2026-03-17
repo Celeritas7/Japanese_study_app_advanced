@@ -1,7 +1,7 @@
 // JLPT Vocabulary Master - Kanji Tab Renderer
 // Reads from japanese_unified_words + japanese_unified_word_books
 
-import { getMarking, escapeHtml, renderTappableSentence } from './utils.js';
+import { getMarking, escapeHtml } from './utils.js';
 
 // Natural sort for chapter names like "1週1日", "1章1課"
 function naturalSort(a, b) {
@@ -442,12 +442,6 @@ export function renderSentencePanel(app) {
   const sentenceCount = linked.length;
   const isExpanded = app.sentencePanelExpanded;
   
-  // Build set of known kanji for tap-to-save highlighting
-  const knownKanjiSet = new Set();
-  if (app.kanjiWords) {
-    app.kanjiWords.forEach(w => { if (w.kanji) knownKanjiSet.add(w.kanji); });
-  }
-  
   return `
     <div class="mt-4">
       <!-- Toggle Button -->
@@ -462,7 +456,6 @@ export function renderSentencePanel(app) {
       
       ${isExpanded ? `
         <div class="mt-3 space-y-3 animate-fadeIn">
-          <p class="tap-hint">\uD83D\uDC46 Tap words in sentences to save them for study later</p>
           
           <!-- Linked Sentences -->
           ${linked.length > 0 ? `
@@ -472,8 +465,13 @@ export function renderSentencePanel(app) {
                 const rating = item.rating;
                 const linkId = item.link_id;
                 
-                // Tappable sentence: segments become tap targets
-                const tappableHtml = renderTappableSentence(sentText, wordKanji, knownKanjiSet);
+                // Highlight the kanji in the sentence
+                const parts = sentText.split(new RegExp(`(${escapeRegex(word.kanji || '')})`));
+                const highlightedSentence = parts.map(part => 
+                  part === (word.kanji || '')
+                    ? `<span class="text-indigo-400 font-bold bg-indigo-500/15 px-0.5 rounded">${escapeHtml(part)}</span>`
+                    : escapeHtml(part)
+                ).join('');
                 
                 const sourceIcon = SOURCE_ICONS[item.source] || '📄';
                 
@@ -485,7 +483,7 @@ export function renderSentencePanel(app) {
                   }">
                     <div class="flex items-start justify-between gap-2">
                       <div class="flex-1 min-w-0">
-                        <div class="sentence-tappable text-sm leading-relaxed text-slate-200">${tappableHtml}</div>
+                        <div class="text-sm leading-relaxed text-slate-200">${highlightedSentence}</div>
                         ${item.meaning_en ? `<div class="text-xs text-slate-500 mt-1">${escapeHtml(item.meaning_en)}</div>` : ''}
                         <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                           <span class="text-[10px] text-slate-600">${sourceIcon} ${escapeHtml(item.source || '')}</span>
@@ -533,13 +531,19 @@ export function renderSentencePanel(app) {
               <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(wordKanji)}」</div>
               <div class="space-y-1.5">
                 ${unlinked.map(s => {
-                  // Render sentence with tappable word segments
-                  const tappableUnlinked = renderTappableSentence(s.sentence || '', wordKanji, knownKanjiSet);
+                  // Highlight the word in the sentence
+                  const hlTerm = searchTerms.find(t => s.sentence.includes(t)) || highlightTerm;
+                  const parts = hlTerm ? s.sentence.split(new RegExp(`(${escapeRegex(hlTerm)})`)) : [s.sentence];
+                  const highlighted = parts.map(part =>
+                    part === hlTerm
+                      ? `<span class="text-indigo-400 font-bold">${escapeHtml(part)}</span>`
+                      : escapeHtml(part)
+                  ).join('');
                   
                   return `
                     <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30">
                       <div class="flex-1 min-w-0 mr-2">
-                        <div class="sentence-tappable text-xs text-slate-400 leading-relaxed">${tappableUnlinked}</div>
+                        <div class="text-xs text-slate-400 leading-relaxed">${highlighted}</div>
                         ${s.meaning_en ? `<div class="text-[10px] text-slate-600 mt-0.5 truncate">${escapeHtml(s.meaning_en)}</div>` : ''}
                       </div>
                       <button data-link-sentence="${s.id}" data-link-word="${unifiedWordId || 0}"

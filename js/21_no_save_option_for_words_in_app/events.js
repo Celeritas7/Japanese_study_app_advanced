@@ -160,17 +160,6 @@ export function attachEventListeners(app) {
   // Tap-to-reveal box (new two-box flashcard layout)
   document.getElementById('revealBox')?.addEventListener('click', () => app.revealNext());
   
-  // ===== TAP-TO-SAVE: flashcard context words =====
-  // (Sentence panel tap-words are handled separately in attachSentencePanelListeners)
-  document.querySelectorAll('[data-tap-word]').forEach(span => {
-    span.addEventListener('click', (e) => {
-      e.stopPropagation(); // prevent revealBox click
-      const kanji = span.dataset.tapWord;
-      if (!kanji || !app._showWordSavePopup) return;
-      app._showWordSavePopup(kanji, span);
-    });
-  });
-  
   // ===== CANVAS =====
   document.getElementById('clearCanvasBtn')?.addEventListener('click', () => {
     clearCanvas('writingCanvas');

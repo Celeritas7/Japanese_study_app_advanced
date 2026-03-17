@@ -1,7 +1,7 @@
 // JLPT Vocabulary Master - Render Functions (Study Tab)
 
 import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
-import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml, renderTappableSentence } from './utils.js';
+import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml } from './utils.js';
 import { getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 
 // Dynamic font size for kanji display based on character count
@@ -609,22 +609,15 @@ export function renderFlashcard(app) {
 function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
   const type = app.selectedTestType;
   
-  // Build tappable versions of context for tap-to-save
-  const wordKanji = word.kanji || word.raw || '';
-  const knownKanjiSet = new Set();
-  if (app.kanjiWords) app.kanjiWords.forEach(w => { if (w.kanji) knownKanjiSet.add(w.kanji); });
-  const tappableBefore = ctxBefore ? renderTappableSentence(ctxBefore, wordKanji, knownKanjiSet) : '';
-  const tappableAfter = ctxAfter ? renderTappableSentence(ctxAfter, wordKanji, knownKanjiSet) : '';
-  
   if (type === 'kanji') {
     // Kanji Recognition: Kanji → Hint → Context → Hiragana → Meaning
     return `
       <!-- Sentence Box: Kanji always visible, context grows in -->
       <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex items-center justify-center">
         <p class="text-center leading-relaxed">
-          ${app.revealStep >= 2 && tappableBefore ? `<span class="context-text sentence-tappable">${tappableBefore}</span>` : ''}
+          ${app.revealStep >= 2 && ctxBefore ? `<span class="context-text">${ctxBefore}</span>` : ''}
           <span class="kanji-highlight mx-1" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</span>
-          ${app.revealStep >= 2 && tappableAfter ? `<span class="context-text sentence-tappable">${tappableAfter}</span>` : ''}
+          ${app.revealStep >= 2 && ctxAfter ? `<span class="context-text">${ctxAfter}</span>` : ''}
         </p>
       </div>
       
@@ -652,9 +645,9 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
         <p class="meaning-display text-amber-800">${word.meaning}</p>
         ${app.revealStep >= 2 && hasContext ? `
           <div class="mt-3 text-center animate-fadeIn">
-            <span class="context-text sentence-tappable">${tappableBefore}</span>
+            <span class="context-text">${ctxBefore}</span>
             <span class="text-red-500 font-bold mx-1">\uFF1F</span>
-            <span class="context-text sentence-tappable">${tappableAfter}</span>
+            <span class="context-text">${ctxAfter}</span>
           </div>
         ` : ''}
       </div>
@@ -696,9 +689,9 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
           ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
           ${app.revealStep >= 2 && hasContext ? `
             <div class="mb-3 animate-fadeIn">
-              <span class="context-text sentence-tappable">${tappableBefore}</span>
+              <span class="context-text">${ctxBefore}</span>
               <span class="text-red-500 font-bold mx-1">\uFF1F</span>
-              <span class="context-text sentence-tappable">${tappableAfter}</span>
+              <span class="context-text">${ctxAfter}</span>
             </div>
           ` : ''}
           ${app.revealStep >= 3 ? `<p class="text-2xl text-blue-600 mb-3 animate-fadeIn">${word.hiragana || ''}</p>` : ''}

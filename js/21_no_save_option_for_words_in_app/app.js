@@ -2,7 +2,7 @@
 // Version 12.0
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast, escapeHtml } from './utils.js';
+import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast } from './utils.js';
 import { 
   loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
@@ -12,8 +12,7 @@ import {
   loadAllUnifiedSentences, updateSentenceRating, linkSentenceToWord,
   addNewSentenceAndLink, bulkAddSentences, bulkLinkSentences,
   updateSentenceVerified, addSentenceTag, removeSentenceTag,
-  loadWordGroups, loadWordGroupMembers,
-  insertUnknownWord
+  loadWordGroups, loadWordGroupMembers
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import { 
@@ -598,117 +597,6 @@ class JLPTStudyApp {
         this.removeTagFromSentence(parseInt(btn.dataset.removeTag), btn.dataset.tagValue);
       });
     });
-    
-    // ===== TAP-TO-SAVE: word taps in sentence panel =====
-    document.querySelectorAll('#flashcardExtraContent [data-tap-word]').forEach(span => {
-      span.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const kanji = span.dataset.tapWord;
-        if (!kanji) return;
-        this._showWordSavePopup(kanji, span);
-      });
-    });
-  }
-  
-  // ===== TAP-TO-SAVE: popup + DB insert =====
-  
-  _dismissWordSavePopup() {
-    document.querySelector('.word-save-popup')?.remove();
-  }
-  
-  _showWordSavePopup(kanji, anchorEl) {
-    // Remove any existing popup
-    this._dismissWordSavePopup();
-    
-    // Check if already saved
-    const alreadySaved = this.kanjiWords.some(w => w.kanji === kanji);
-    
-    // Create popup element
-    const popup = document.createElement('div');
-    popup.className = 'word-save-popup';
-    const kanjiEsc = escapeHtml(kanji);
-    popup.innerHTML = `
-      <span class="word-save-popup__word">${kanjiEsc}</span>
-      <div class="word-save-popup__actions">
-        ${alreadySaved
-          ? `<span style="color:#6ee7b7; font-size:0.8rem; font-weight:600;">Already saved \u2713</span>`
-          : `<button class="word-save-popup__btn word-save-popup__btn--save" data-save-tap-word="${kanjiEsc}">Save \u274C</button>`
-        }
-        <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>\u2715</button>
-      </div>
-    `;
-    
-    // Position below the tapped word
-    const rect = anchorEl.getBoundingClientRect();
-    
-    popup.style.position = 'fixed';
-    popup.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 200))}px`;
-    popup.style.top = `${rect.bottom + 6}px`;
-    
-    document.body.appendChild(popup);
-    
-    // Wire save button
-    popup.querySelector('[data-save-tap-word]')?.addEventListener('click', async () => {
-      const btn = popup.querySelector('[data-save-tap-word]');
-      if (btn) { btn.textContent = '...'; btn.disabled = true; }
-      await this.saveUnknownWord(kanji);
-      this._dismissWordSavePopup();
-    });
-    
-    // Wire cancel
-    popup.querySelector('[data-dismiss-tap-popup]')?.addEventListener('click', () => {
-      this._dismissWordSavePopup();
-    });
-    
-    // Auto-dismiss on outside click (delay to avoid immediate trigger)
-    setTimeout(() => {
-      const handler = (e) => {
-        if (!popup.contains(e.target)) {
-          this._dismissWordSavePopup();
-          document.removeEventListener('click', handler, true);
-        }
-      };
-      document.addEventListener('click', handler, true);
-    }, 50);
-    
-    // Auto-dismiss if already saved after 1.5s
-    if (alreadySaved) {
-      setTimeout(() => this._dismissWordSavePopup(), 1500);
-    }
-  }
-  
-  async saveUnknownWord(kanji) {
-    if (!kanji) return;
-    
-    const result = await insertUnknownWord(this.supabase, kanji);
-    
-    if (result.success) {
-      // Add to local kanjiWords cache so it immediately shows as "saved"
-      const newWord = {
-        ...result.word,
-        meaning: '',
-        level: '',
-        raw: kanji,
-        supporting_word_1: '',
-        supporting_word_2: '',
-        sentence_before: '',
-        sentence_after: '',
-      };
-      this.kanjiWords.push(newWord);
-      
-      // Surgically refresh sentence panel to update tap-word styles
-      const container = document.getElementById('flashcardExtraContent');
-      if (container) {
-        container.innerHTML = renderSentencePanel(this);
-        this.attachSentencePanelListeners();
-      }
-      
-      showToast(`「${kanji}」saved — add reading/meaning in Data Manager`, 'success');
-    } else if (result.reason === 'exists') {
-      showToast(`「${kanji}」already in database`, 'warn');
-    } else {
-      showToast('Save failed: ' + (result.error || 'Unknown error'), 'error');
-    }
   }
   
   // ===== ADD SENTENCE BOTTOM SHEET =====
