@@ -2,16 +2,15 @@
 
 import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
 import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml, renderTappableSentence } from './utils.js';
-import { getWordGroupBadges } from './render-relations.js';
+import { getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 
 // Dynamic font size for kanji display based on character count
 function kanjiFontSize(text) {
   const len = [...(text || '')].length;
   if (len <= 2) return 'font-size:4rem;';
-  if (len === 3) return 'font-size:3.2rem;';
-  if (len === 4) return 'font-size:2.8rem;';
-  if (len === 5) return 'font-size:2.4rem;';
-  return 'font-size:2rem;'; // 6+ chars
+  if (len === 3) return 'font-size:3rem;';
+  if (len === 4) return 'font-size:2.5rem;';
+  return 'font-size:2rem;'; // 5+ chars
 }
 
 // ===== WORD ALERT FORM =====
@@ -550,6 +549,12 @@ export function renderFlashcard(app) {
       <!-- Card Content -->
       <div class="flex-1 flex flex-col items-center justify-start p-4 overflow-auto">
         <div class="w-full max-w-2xl">
+          ${(() => {
+            const badges = getWordGroupBadges(app, word);
+            return badges.length > 0 ? `
+              <div class="flex gap-1.5 mb-3 flex-wrap justify-center">${renderGroupBadges(badges)}</div>
+            ` : '';
+          })()}
           ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter)}
           
           <!-- Story + Add Sentence + Flag Buttons -->
@@ -611,23 +616,11 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
   const tappableBefore = ctxBefore ? renderTappableSentence(ctxBefore, wordKanji, knownKanjiSet) : '';
   const tappableAfter = ctxAfter ? renderTappableSentence(ctxAfter, wordKanji, knownKanjiSet) : '';
   
-  // Badge HTML for word group relations (rendered inside sentence box on yellow bg)
-  const badges = getWordGroupBadges(app, word);
-  const badgeHtml = badges.length > 0
-    ? `<div class="flex gap-1.5 flex-wrap justify-center mb-2">${badges.map(b => `
-        <button data-view-group="${b.group.id}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-80"
-          style="background:${b.info.hex}; color:white; border:none; opacity:0.85;">
-          ${b.info.icon} ${b.memberCount} ${b.info.label.toLowerCase()}
-        </button>
-      `).join('')}</div>`
-    : '';
-  
   if (type === 'kanji') {
     // Kanji Recognition: Kanji → Hint → Context → Hiragana → Meaning
     return `
       <!-- Sentence Box: Kanji always visible, context grows in -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex flex-col items-center justify-center">
-        ${badgeHtml}
+      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex items-center justify-center">
         <p class="text-center leading-relaxed">
           ${app.revealStep >= 2 && tappableBefore ? `<span class="context-text sentence-tappable">${tappableBefore}</span>` : ''}
           <span class="kanji-highlight mx-1" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</span>
@@ -655,7 +648,6 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
     return `
       <!-- Sentence Box: Hiragana + Meaning always visible -->
       <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex flex-col items-center justify-center">
-        ${badgeHtml}
         <p class="reading-display text-blue-700 font-bold mb-2">${word.hiragana || ''}</p>
         <p class="meaning-display text-amber-800">${word.meaning}</p>
         ${app.revealStep >= 2 && hasContext ? `
@@ -685,8 +677,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
     // Writing Test: Meaning → Canvas → Hint → Context → Hiragana → Kanji
     return `
       <!-- Sentence Box: Meaning always visible -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[100px] flex flex-col items-center justify-center">
-        ${badgeHtml}
+      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[100px] flex items-center justify-center">
         <p class="meaning-display text-amber-800 font-bold text-center">${word.meaning}</p>
       </div>
       
