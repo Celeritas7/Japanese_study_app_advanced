@@ -2,7 +2,6 @@
 
 import { initCanvas, clearCanvas } from './canvas.js';
 import { renderStorySearchResults } from './render-stories.js';
-import { hideSavePopup } from './word-saver.js';
 
 // Helper: attach listeners to story search results (after surgical update)
 function attachStoryResultListeners(app) {
@@ -641,21 +640,6 @@ export function attachEventListeners(app) {
   
   document.getElementById('submitTopicBtn')?.addEventListener('click', () => app.submitNewTopic());
   document.getElementById('submitWordBtn')?.addEventListener('click', () => app.submitNewWord());
-  
-  // ===== TAP-TO-SAVE: Word tap delegation =====
-  document.querySelectorAll('[data-tap-word]').forEach(span => {
-    span.addEventListener('click', (e) => {
-      e.stopPropagation(); // Don't trigger revealNext or parent handlers
-      const wordText = span.dataset.tapWord;
-      if (wordText) app.handleWordTap(wordText, span);
-    });
-  });
-  
-  // Dismiss save popup on reveal tap (revealBox click)
-  const revealBox = document.getElementById('revealBox');
-  if (revealBox) {
-    revealBox.addEventListener('click', () => hideSavePopup());
-  }
 }
 
 function updateSRSButton(app) {
