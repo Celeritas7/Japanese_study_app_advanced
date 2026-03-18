@@ -1539,6 +1539,7 @@ class JLPTStudyApp {
   // ===== INLINE GROUP PREVIEW (from flashcard badges) =====
   _dismissGroupPreview() {
     document.querySelector('.group-preview-popup')?.remove();
+    document.querySelector('.group-preview-backdrop')?.remove();
   }
   
   _showGroupPreview(groupId, anchorEl) {
@@ -1557,7 +1558,7 @@ class JLPTStudyApp {
     popup.className = 'group-preview-popup';
     popup.innerHTML = `
       <div class="group-preview-popup__header">
-        <span class="group-preview-popup__title">${escapeHtml(group.group_name || group.group_key)}</span>
+        <span class="group-preview-popup__title">${escapeHtml(group.group_name || group.group_key)} (${memberWords.length} words)</span>
         <button class="group-preview-popup__close" data-dismiss-group-preview>\u2715</button>
       </div>
       <div class="group-preview-popup__words">
