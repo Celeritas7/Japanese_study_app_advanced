@@ -363,7 +363,6 @@
       wordBooks: [],   // from japanese_unified_word_books
       wordGroups: [],  // from japanese_word_groups
       wordGroupMembers: [], // from japanese_word_group_members
-      wordSentenceLinks: [], // from japanese_unified_word_sentences
       storyAlerts: [],
       wordAlerts: [],
       stories: [],
@@ -395,27 +394,6 @@
       // Incomplete words tab
       incompleteFilter: 'all', // all, sentence_tap, textbook, other
       incompletePage: 0,
-      
-      // Verification queue
-      verifySource: 'all',
-      verifyIdx: 0, // current card index in filtered list
-      
-      // Anime word review
-      animeWords: [],
-      animeFilter: 'pending', // pending, promoted, dismissed
-      animePage: 0,
-      
-      // Word group editor
-      groupEditorType: 'all', // all, synonym, near_synonym, alt_kanji, alt_reading, context_variant
-      groupEditorSearch: '',
-      groupEditorPage: 0,
-      editingGroup: null, // group object being edited
-      
-      // Duplicates
-      dupePage: 0,
-      
-      // Orphans
-      orphanResults: null, // { wordBookOrphans, sentenceLinkOrphans, groupMemberOrphans }
     };
     
     // ========== HELPERS ==========
@@ -523,7 +501,7 @@
     
     async function loadAll() {
       state.loading = true; render();
-      const [sentences, words, wordBooks, wordGroups, wordGroupMembers, storyAlerts, wordAlerts, stories, storyGroups, wordSentenceLinks, animeWords] = await Promise.all([
+      const [sentences, words, wordBooks, wordGroups, wordGroupMembers, storyAlerts, wordAlerts, stories, storyGroups] = await Promise.all([
         loadPaginated('japanese_unified_sentences'),
         loadPaginated('japanese_unified_words'),
         loadPaginated('japanese_unified_word_books'),
@@ -533,8 +511,6 @@
         loadPaginated('japanese_word_alerts'),
         loadPaginated('japanese_kanji_stories'),
         loadPaginated('japanese_kanji_story_groups'),
-        loadPaginated('japanese_unified_word_sentences', 'id,word_id,sentence_id,rating'),
-        loadPaginated('japanese_anime_words').catch(() => []),
       ]);
       state.sentences = sentences;
       state.words = words;
@@ -545,19 +521,11 @@
       state.wordAlerts = wordAlerts;
       state.stories = stories;
       state.storyGroups = storyGroups;
-      state.wordSentenceLinks = wordSentenceLinks;
-      state.animeWords = animeWords;
       state.loading = false;
       render();
     }
     
     // ========== DATA OPERATIONS ==========
-    function getVerifyQueue() {
-      let queue = state.sentences.filter(s => (s.verified || 'unverified') === 'unverified');
-      if (state.verifySource !== 'all') queue = queue.filter(s => s.source === state.verifySource);
-      return queue.sort((a, b) => (b.id || 0) - (a.id || 0));
-    }
-    
     async function updateSentence(id, updates) {
       const { error } = await sb.from('japanese_unified_sentences').update(updates).eq('id', id);
       if (error) { toast('Update failed: ' + error.message, 'error'); return false; }
@@ -863,20 +831,14 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             <span>JLPT Data Manager</span>
             <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} words · ${state.sentences.length} sentences`}</span>
           </div>
-          <div class="tab-bar" style="flex-wrap:wrap;">
+          <div class="tab-bar">
             <button class="tab-btn ${state.tab === 'stats' ? 'active' : ''}" data-tab="stats">📊 Stats</button>
             <button class="tab-btn ${state.tab === 'sentences' ? 'active' : ''}" data-tab="sentences">
               💬 Sentences ${unverified > 0 ? `(${unverified})` : ''}
             </button>
-            <button class="tab-btn ${state.tab === 'verify' ? 'active' : ''}" data-tab="verify">
-              ✅ Verify ${unverified > 0 ? `(${unverified})` : ''}
-            </button>
             <button class="tab-btn ${state.tab === 'bulk' ? 'active' : ''}" data-tab="bulk">📝 Bulk Import</button>
             <button class="tab-btn ${state.tab === 'incomplete' ? 'active' : ''}" data-tab="incomplete">
               🔧 Incomplete ${state.words.filter(w => !w.hiragana && !w.meaning_en).length > 0 ? `(${state.words.filter(w => !w.hiragana && !w.meaning_en).length})` : ''}
-            </button>
-            <button class="tab-btn ${state.tab === 'anime' ? 'active' : ''}" data-tab="anime">
-              📺 Anime ${state.animeWords.filter(a => !a.promoted && !a.dismissed).length > 0 ? `(${state.animeWords.filter(a => !a.promoted && !a.dismissed).length})` : ''}
             </button>
             <button class="tab-btn ${state.tab === 'story-flags' ? 'active' : ''}" data-tab="story-flags">
               📖 Story Flags ${openStoryFlags > 0 ? `(${openStoryFlags})` : ''}
@@ -884,9 +846,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             <button class="tab-btn ${state.tab === 'word-flags' ? 'active' : ''}" data-tab="word-flags">
               🚩 Word Flags ${openWordFlags > 0 ? `(${openWordFlags})` : ''}
             </button>
-            <button class="tab-btn ${state.tab === 'groups' ? 'active' : ''}" data-tab="groups">🔗 Groups</button>
-            <button class="tab-btn ${state.tab === 'dupes' ? 'active' : ''}" data-tab="dupes">🔍 Dupes</button>
-            <button class="tab-btn ${state.tab === 'orphans' ? 'active' : ''}" data-tab="orphans">🧹 Orphans</button>
             <button class="tab-btn" id="adminSignOutBtn" style="margin-left:8px; color:var(--text-muted);">↩ Sign Out</button>
           </div>
         </header>
@@ -903,15 +862,10 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       switch (state.tab) {
         case 'stats': return renderStatsTab();
         case 'sentences': return renderSentencesTab();
-        case 'verify': return renderVerifyQueueTab();
         case 'bulk': return renderBulkTab();
         case 'incomplete': return renderIncompleteTab();
-        case 'anime': return renderAnimeReviewTab();
         case 'story-flags': return renderStoryFlagsTab();
         case 'word-flags': return renderWordFlagsTab();
-        case 'groups': return renderGroupEditorTab();
-        case 'dupes': return renderDupesTab();
-        case 'orphans': return renderOrphansTab();
         default: return renderStatsTab();
       }
     }
@@ -984,13 +938,9 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
               <div class="stat-label">Incomplete Words</div>
               <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Missing reading or meaning</div>
             </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='verify'; state.verifyIdx=0; render();">
+            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='sentences'; state.sentFilter='unverified'; render();">
               <div class="stat-num" style="color:${sentUnverified > 0 ? 'var(--amber)' : 'var(--emerald)'}">${sentUnverified}</div>
               <div class="stat-label">Unverified Sentences</div>
-            </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='anime'; state.animeFilter='pending'; render();">
-              <div class="stat-num" style="color:${(state.animeWords || []).filter(a => !a.promoted && !a.dismissed).length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${(state.animeWords || []).filter(a => !a.promoted && !a.dismissed).length}</div>
-              <div class="stat-label">Anime Words Pending</div>
             </div>
             <div class="stat-card" style="cursor:pointer;" onclick="state.tab='story-flags'; state.flagFilter='open'; render();">
               <div class="stat-num" style="color:${openStoryFlags > 0 ? 'var(--amber)' : 'var(--emerald)'}">${openStoryFlags}</div>
@@ -1180,211 +1130,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             <button class="btn btn-sm btn-ghost" id="incNext" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
           </div>
         ` : ''}
-      `;
-    }
-    
-    // ========== VERIFY QUEUE TAB ==========
-    function renderVerifyQueueTab() {
-      // Get unverified sentences, optionally filtered by source
-      let queue = state.sentences.filter(s => (s.verified || 'unverified') === 'unverified');
-      if (state.verifySource !== 'all') {
-        queue = queue.filter(s => s.source === state.verifySource);
-      }
-      queue.sort((a, b) => (b.id || 0) - (a.id || 0)); // newest first
-      
-      const sources = [...new Set(state.sentences.filter(s => (s.verified || 'unverified') === 'unverified').map(s => s.source).filter(Boolean))].sort();
-      const total = queue.length;
-      const idx = Math.min(state.verifyIdx || 0, Math.max(0, total - 1));
-      const current = queue[idx] || null;
-      
-      // Find linked words for current sentence
-      let linkedWords = [];
-      if (current) {
-        const links = (state.wordSentenceLinks || []).filter(l => l.sentence_id === current.id);
-        linkedWords = links.map(l => state.words.find(w => w.id === l.word_id)).filter(Boolean);
-      }
-      
-      const stemMap = buildStemMap();
-      const sortedStems = Object.keys(stemMap).sort((a, b) => b.length - a.length);
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">✅ Sentence Verification Queue</h2>
-          <p style="font-size:12px; color:var(--text-muted);">Review unverified sentences one by one. Verify or reject with one click.</p>
-        </div>
-        
-        <div class="stats-row" style="margin-bottom:16px;">
-          <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${total}</div><div class="stat-label">In Queue</div></div>
-          <div class="stat-card"><div class="stat-num" style="color:var(--emerald)">${state.sentences.filter(s => s.verified === 'verified').length}</div><div class="stat-label">Verified</div></div>
-          <div class="stat-card"><div class="stat-num" style="color:var(--red)">${state.sentences.filter(s => s.verified === 'rejected').length}</div><div class="stat-label">Rejected</div></div>
-        </div>
-        
-        <!-- Source filter -->
-        <div class="filter-bar" style="margin-bottom:16px;">
-          <button class="btn btn-sm ${state.verifySource === 'all' ? 'btn-primary' : 'btn-ghost'}" data-verify-source="all">All Sources</button>
-          ${sources.map(s => `
-            <button class="btn btn-sm ${state.verifySource === s ? 'btn-primary' : 'btn-ghost'}" data-verify-source="${escapeHtml(s)}">${escapeHtml(s)}</button>
-          `).join('')}
-        </div>
-        
-        ${!current ? `
-          <div style="text-align:center; padding:60px 20px; color:var(--text-muted);">
-            <div style="font-size:48px; margin-bottom:12px;">🎉</div>
-            <div style="font-size:16px; font-weight:600;">All sentences verified!</div>
-            <div style="font-size:12px; margin-top:4px;">No unverified sentences${state.verifySource !== 'all' ? ' for this source' : ''} remaining.</div>
-          </div>
-        ` : `
-          <!-- Card counter -->
-          <div style="text-align:center; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
-            ${idx + 1} / ${total}
-          </div>
-          
-          <!-- Current sentence card -->
-          <div class="card" style="margin-bottom:16px; border:2px solid var(--border);">
-            <div style="padding:20px;">
-              <!-- Sentence text with highlighted words -->
-              <div style="font-size:18px; line-height:1.8; margin-bottom:12px; color:var(--text-primary);">
-                ${highlightWords(current.sentence || '', detectWords(current.sentence || '', stemMap, sortedStems))}
-              </div>
-              
-              <!-- Meaning -->
-              ${current.meaning_en ? `<div style="font-size:13px; color:var(--text-secondary); margin-bottom:12px; padding:8px 12px; background:var(--bg-input); border-radius:8px;">${escapeHtml(current.meaning_en)}</div>` : ''}
-              
-              <!-- Metadata -->
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; font-size:11px;">
-                ${current.source ? `<span style="padding:3px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; color:var(--accent);">${escapeHtml(current.source)}</span>` : ''}
-                ${current.jlpt_level ? `<span style="padding:3px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; color:var(--text-secondary);">${current.jlpt_level}</span>` : ''}
-                <span style="color:var(--text-muted);">ID: ${current.id}</span>
-                ${(current.tags || []).map(t => `<span class="tag ${tagClass(t)}">${escapeHtml(t)}</span>`).join('')}
-              </div>
-              
-              <!-- Linked words -->
-              ${linkedWords.length > 0 ? `
-                <div style="margin-bottom:12px;">
-                  <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px; font-weight:600;">LINKED WORDS:</div>
-                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                    ${linkedWords.map(w => `
-                      <span style="font-size:12px; padding:4px 10px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:6px; border:1px solid rgba(99,102,241,0.2);">
-                        ${escapeHtml(w.kanji)} <span style="opacity:0.5; font-size:10px;">${escapeHtml(w.hiragana || '')}</span>
-                      </span>
-                    `).join('')}
-                  </div>
-                </div>
-              ` : '<div style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">No linked words</div>'}
-              
-              <!-- Action buttons -->
-              <div style="display:flex; gap:10px; justify-content:center;">
-                <button class="btn btn-primary" id="verifyAcceptBtn" style="flex:1; padding:14px; font-size:14px; font-weight:700; background:var(--emerald);">✓ Verify</button>
-                <button class="btn btn-ghost" id="verifyRejectBtn" style="flex:1; padding:14px; font-size:14px; font-weight:700; color:var(--red); border-color:var(--red);">✕ Reject</button>
-                <button class="btn btn-ghost" id="verifySkipBtn" style="padding:14px 20px; font-size:14px;">Skip →</button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Navigation -->
-          <div style="display:flex; justify-content:center; gap:12px; align-items:center;">
-            <button class="btn btn-sm btn-ghost" id="verifyPrevBtn" ${idx <= 0 ? 'disabled' : ''}>← Prev</button>
-            <span style="font-size:11px; color:var(--text-muted);">Card ${idx + 1} of ${total}</span>
-            <button class="btn btn-sm btn-ghost" id="verifyNextBtn" ${idx >= total - 1 ? 'disabled' : ''}>Next →</button>
-          </div>
-        `}
-      `;
-    }
-    
-    // ========== ANIME WORD REVIEW TAB ==========
-    function renderAnimeReviewTab() {
-      const knownKanji = new Set(state.words.map(w => w.kanji));
-      
-      // Categorize anime words
-      let items = state.animeWords || [];
-      const pendingCount = items.filter(a => !a.promoted && !a.dismissed).length;
-      const promotedCount = items.filter(a => a.promoted).length;
-      const dismissedCount = items.filter(a => a.dismissed).length;
-      
-      // Filter
-      if (state.animeFilter === 'pending') items = items.filter(a => !a.promoted && !a.dismissed);
-      else if (state.animeFilter === 'promoted') items = items.filter(a => a.promoted);
-      else if (state.animeFilter === 'dismissed') items = items.filter(a => a.dismissed);
-      
-      // Mark which are already in unified words
-      items = items.map(a => ({
-        ...a,
-        alreadyInDB: knownKanji.has(a.word || a.kanji),
-      }));
-      
-      const page = state.animePage || 0;
-      const pageSize = 20;
-      const totalPages = Math.ceil(items.length / pageSize);
-      const pageItems = items.slice(page * pageSize, (page + 1) * pageSize);
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">📺 Anime Word Review</h2>
-          <p style="font-size:12px; color:var(--text-muted);">Words discovered from anime subtitles. Promote to unified words DB or dismiss.</p>
-        </div>
-        
-        <div class="stats-row" style="margin-bottom:16px;">
-          <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${pendingCount}</div><div class="stat-label">Pending</div></div>
-          <div class="stat-card"><div class="stat-num" style="color:var(--emerald)">${promotedCount}</div><div class="stat-label">Promoted</div></div>
-          <div class="stat-card"><div class="stat-num" style="color:var(--text-muted)">${dismissedCount}</div><div class="stat-label">Dismissed</div></div>
-          <div class="stat-card"><div class="stat-num">${state.animeWords.length}</div><div class="stat-label">Total</div></div>
-        </div>
-        
-        <div class="filter-bar" style="margin-bottom:16px;">
-          ${['pending', 'promoted', 'dismissed', 'all'].map(f => `
-            <button class="btn btn-sm ${state.animeFilter === f ? 'btn-primary' : 'btn-ghost'}" data-anime-filter="${f}">${f.charAt(0).toUpperCase() + f.slice(1)}</button>
-          `).join('')}
-        </div>
-        
-        ${items.length === 0 ? `
-          <div style="text-align:center; padding:40px; color:var(--text-muted);">
-            <div style="font-size:32px; margin-bottom:8px;">📺</div>
-            <div>${state.animeFilter === 'pending' ? 'No pending anime words to review!' : 'No anime words in this filter.'}</div>
-            ${state.animeWords.length === 0 ? '<div style="font-size:11px; margin-top:8px;">The japanese_anime_words table may be empty or not yet created.</div>' : ''}
-          </div>
-        ` : `
-          <div style="display:flex; flex-direction:column; gap:8px;">
-            ${pageItems.map(a => {
-              const wordText = a.word || a.kanji || '';
-              return `
-                <div class="card" style="padding:12px 16px; ${a.alreadyInDB ? 'border-left:3px solid var(--emerald);' : ''} ${a.dismissed ? 'opacity:0.5;' : ''}">
-                  <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-                    <span style="font-size:22px; font-weight:700; color:var(--text-primary);">${escapeHtml(wordText)}</span>
-                    ${a.reading || a.hiragana ? `<span style="font-size:13px; color:#60a5fa;">${escapeHtml(a.reading || a.hiragana || '')}</span>` : ''}
-                    ${a.meaning || a.meaning_en ? `<span style="font-size:12px; color:var(--emerald);">${escapeHtml(a.meaning || a.meaning_en || '')}</span>` : ''}
-                    ${a.alreadyInDB ? '<span style="font-size:10px; padding:2px 6px; background:rgba(16,185,129,0.15); color:var(--emerald); border-radius:4px;">Already in DB</span>' : ''}
-                    ${a.promoted ? '<span style="font-size:10px; padding:2px 6px; background:rgba(16,185,129,0.15); color:var(--emerald); border-radius:4px;">✓ Promoted</span>' : ''}
-                    ${a.dismissed ? '<span style="font-size:10px; padding:2px 6px; background:var(--bg-input); color:var(--text-muted); border-radius:4px;">Dismissed</span>' : ''}
-                  </div>
-                  ${a.episode ? `<div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">📺 Episode: ${escapeHtml(String(a.episode))} ${a.context ? `· "${escapeHtml(a.context)}"` : ''}</div>` : ''}
-                  ${!a.promoted && !a.dismissed ? `
-                    <div style="display:flex; gap:8px; margin-top:8px;">
-                      ${!a.alreadyInDB ? `
-                        <!-- Promote form -->
-                        <div style="flex:1; display:flex; gap:4px; align-items:center;">
-                          <input type="text" data-anime-hiragana="${a.id}" placeholder="hiragana" value="${escapeHtml(a.reading || a.hiragana || '')}" style="width:100px; font-size:11px; padding:4px 8px;">
-                          <input type="text" data-anime-meaning="${a.id}" placeholder="meaning" value="${escapeHtml(a.meaning || a.meaning_en || '')}" style="flex:1; font-size:11px; padding:4px 8px;">
-                          <button class="btn btn-sm btn-primary" data-anime-promote="${a.id}" data-anime-word="${escapeHtml(wordText)}">Promote ↑</button>
-                        </div>
-                      ` : `
-                        <button class="btn btn-sm btn-ghost" data-anime-promote="${a.id}" data-anime-word="${escapeHtml(wordText)}" style="color:var(--emerald);">Mark Promoted</button>
-                      `}
-                      <button class="btn btn-sm btn-ghost" data-anime-dismiss="${a.id}" style="color:var(--text-muted);">Dismiss</button>
-                    </div>
-                  ` : ''}
-                </div>
-              `;
-            }).join('')}
-          </div>
-          
-          ${totalPages > 1 ? `
-            <div class="pagination" style="margin-top:16px;">
-              <button class="btn btn-sm btn-ghost" id="animePrev" ${page === 0 ? 'disabled' : ''}>← Prev</button>
-              <span style="font-size:12px; color:var(--text-muted);">${page + 1} / ${totalPages}</span>
-              <button class="btn btn-sm btn-ghost" id="animeNext" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
-            </div>
-          ` : ''}
-        `}
       `;
     }
     
@@ -1839,342 +1584,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       `;
     }
     
-    // ========== WORD GROUP EDITOR TAB ==========
-    function renderGroupEditorTab() {
-      const types = ['all', 'synonym', 'near_synonym', 'alt_kanji', 'alt_reading', 'context_variant'];
-      const typeLabels = { all: 'All', synonym: 'Synonym', near_synonym: 'Near Synonym', alt_kanji: 'Alt Kanji', alt_reading: 'Alt Reading', context_variant: 'Context' };
-      
-      let groups = state.wordGroups || [];
-      if (state.groupEditorType !== 'all') groups = groups.filter(g => g.group_type === state.groupEditorType);
-      if (state.groupEditorSearch) {
-        const q = state.groupEditorSearch.toLowerCase();
-        groups = groups.filter(g => 
-          (g.group_name || '').toLowerCase().includes(q) ||
-          (g.group_key || '').includes(state.groupEditorSearch)
-        );
-      }
-      groups.sort((a, b) => (b.id || 0) - (a.id || 0));
-      
-      const page = state.groupEditorPage || 0;
-      const pageSize = 20;
-      const totalPages = Math.ceil(groups.length / pageSize);
-      const pageItems = groups.slice(page * pageSize, (page + 1) * pageSize);
-      
-      // Editing a specific group?
-      if (state.editingGroup) return renderGroupEditDetail();
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">🔗 Word Group Editor</h2>
-              <p style="font-size:12px; color:var(--text-muted);">${state.wordGroups.length} groups · ${(state.wordGroupMembers || []).length} word links</p>
-            </div>
-            <button class="btn btn-primary" id="createGroupBtn" style="font-size:12px;">+ New Group</button>
-          </div>
-        </div>
-        
-        <div class="filter-bar" style="margin-bottom:12px;">
-          ${types.map(t => `
-            <button class="btn btn-sm ${state.groupEditorType === t ? 'btn-primary' : 'btn-ghost'}" data-ge-type="${t}">${typeLabels[t] || t}</button>
-          `).join('')}
-        </div>
-        
-        <div style="margin-bottom:12px;">
-          <input type="text" id="groupEditorSearch" placeholder="Search groups..." value="${escapeHtml(state.groupEditorSearch)}" style="width:100%;">
-        </div>
-        
-        ${pageItems.length === 0 ? `
-          <div style="text-align:center; padding:40px; color:var(--text-muted);">No groups found</div>
-        ` : `
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            ${pageItems.map(g => {
-              const members = (state.wordGroupMembers || []).filter(m => m.group_id === g.id);
-              const memberWords = members.map(m => state.words.find(w => w.id === m.word_id)).filter(Boolean);
-              return `
-                <div class="card" style="padding:10px 16px; cursor:pointer;" data-edit-group="${g.id}">
-                  <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                      <span style="font-size:10px; padding:2px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:4px; color:var(--accent);">${escapeHtml(g.group_type)}</span>
-                      <span style="font-weight:600; font-size:14px; color:var(--text-primary);">${escapeHtml(g.group_name || g.group_key)}</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                      <span style="font-size:11px; color:var(--text-muted);">${memberWords.length} words</span>
-                      <span style="font-size:11px; color:var(--text-secondary);">${memberWords.slice(0, 4).map(w => w.kanji).join(' ')}${memberWords.length > 4 ? '...' : ''}</span>
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-          
-          ${totalPages > 1 ? `
-            <div class="pagination" style="margin-top:12px;">
-              <button class="btn btn-sm btn-ghost" id="gePrev" ${page === 0 ? 'disabled' : ''}>← Prev</button>
-              <span style="font-size:12px; color:var(--text-muted);">${page + 1} / ${totalPages}</span>
-              <button class="btn btn-sm btn-ghost" id="geNext" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
-            </div>
-          ` : ''}
-        `}
-        
-        <!-- Create group form (hidden) -->
-        <div id="createGroupForm" style="display:none; margin-top:16px;">
-          <div class="card" style="padding:16px;">
-            <div style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px;">CREATE NEW GROUP</div>
-            <div class="flex gap-2 mb-2">
-              <div style="flex:1;"><label>Name *</label><input type="text" id="newGroupName" placeholder="e.g. bothersome"></div>
-              <div style="width:150px;"><label>Type *</label>
-                <select id="newGroupType">
-                  ${types.filter(t => t !== 'all').map(t => `<option value="${t}">${typeLabels[t]}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            <div class="flex gap-2 mb-2">
-              <div style="flex:1;"><label>Key</label><input type="text" id="newGroupKey" placeholder="group key"></div>
-              <div style="flex:1;"><label>Description</label><input type="text" id="newGroupDesc" placeholder="optional"></div>
-            </div>
-            <div class="flex gap-2">
-              <button class="btn btn-sm btn-primary" id="submitCreateGroup">💾 Create</button>
-              <button class="btn btn-sm btn-ghost" id="cancelCreateGroup">Cancel</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-    
-    function renderGroupEditDetail() {
-      const g = state.editingGroup;
-      const members = (state.wordGroupMembers || []).filter(m => m.group_id === g.id);
-      const memberWords = members.map(m => {
-        const w = state.words.find(w => w.id === m.word_id);
-        return w ? { ...w, memberId: m.id, sortOrder: m.sort_order } : null;
-      }).filter(Boolean).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <button class="btn btn-sm btn-ghost" id="backToGroupListBtn" style="margin-bottom:12px;">← Back to groups</button>
-          <div class="card" style="padding:16px;">
-            <div style="font-size:10px; color:var(--accent); font-weight:700; margin-bottom:8px;">EDIT GROUP #${g.id}</div>
-            <div class="flex gap-2 mb-2">
-              <div style="flex:1;"><label>Name</label><input type="text" id="editGroupName" value="${escapeHtml(g.group_name || '')}"></div>
-              <div style="width:150px;"><label>Type</label><input type="text" value="${escapeHtml(g.group_type || '')}" disabled style="opacity:0.5;"></div>
-            </div>
-            <div class="flex gap-2 mb-2">
-              <div style="flex:1;"><label>Key</label><input type="text" id="editGroupKey" value="${escapeHtml(g.group_key || '')}"></div>
-              <div style="flex:1;"><label>Description</label><input type="text" id="editGroupDesc" value="${escapeHtml(g.description || '')}"></div>
-            </div>
-            <div class="flex gap-2">
-              <button class="btn btn-sm btn-primary" id="saveGroupMetaBtn">💾 Save</button>
-              ${memberWords.length === 0 ? `<button class="btn btn-sm btn-ghost" id="deleteGroupBtn" style="color:var(--red);">🗑 Delete Empty Group</button>` : ''}
-            </div>
-          </div>
-        </div>
-        
-        <div style="margin-bottom:8px; font-size:13px; font-weight:700; color:var(--text-primary);">Members (${memberWords.length})</div>
-        <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:16px;">
-          ${memberWords.map(w => `
-            <div class="card" style="padding:8px 14px; display:flex; align-items:center; justify-content:space-between;">
-              <div style="display:flex; align-items:center; gap:10px;">
-                <span style="font-size:18px; font-weight:700; color:var(--text-primary);">${escapeHtml(w.kanji)}</span>
-                <span style="font-size:12px; color:#60a5fa;">${escapeHtml(w.hiragana || '')}</span>
-                <span style="font-size:11px; color:var(--emerald);">${escapeHtml(w.meaning_en || w.meaning || '')}</span>
-              </div>
-              <button class="btn btn-sm btn-ghost" data-remove-member="${w.memberId}" style="color:var(--red); font-size:10px;">✕ Remove</button>
-            </div>
-          `).join('')}
-        </div>
-        
-        <div class="card" style="padding:12px 16px;">
-          <div style="font-size:10px; font-weight:700; color:var(--accent); margin-bottom:6px;">ADD WORD TO GROUP</div>
-          <div class="flex gap-2">
-            <input type="text" id="addMemberKanji" placeholder="Type kanji..." style="flex:1;">
-            <button class="btn btn-sm btn-primary" id="addMemberBtn">+ Add</button>
-          </div>
-        </div>
-      `;
-    }
-    
-    // ========== DUPLICATE DETECTION TAB ==========
-    function renderDupesTab() {
-      // Find words with duplicate kanji
-      const kanjiCount = {};
-      state.words.forEach(w => {
-        if (!w.kanji) return;
-        if (!kanjiCount[w.kanji]) kanjiCount[w.kanji] = [];
-        kanjiCount[w.kanji].push(w);
-      });
-      
-      const dupes = Object.entries(kanjiCount)
-        .filter(([k, arr]) => arr.length > 1)
-        .sort((a, b) => b[1].length - a[1].length);
-      
-      const page = state.dupePage || 0;
-      const pageSize = 15;
-      const totalPages = Math.ceil(dupes.length / pageSize);
-      const pageItems = dupes.slice(page * pageSize, (page + 1) * pageSize);
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">🔍 Duplicate Detection</h2>
-          <p style="font-size:12px; color:var(--text-muted);">Words with the same kanji appearing multiple times in the database.</p>
-        </div>
-        
-        <div class="stats-row" style="margin-bottom:16px;">
-          <div class="stat-card"><div class="stat-num" style="color:${dupes.length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${dupes.length}</div><div class="stat-label">Duplicate Kanji</div></div>
-          <div class="stat-card"><div class="stat-num">${dupes.reduce((a, [, arr]) => a + arr.length, 0)}</div><div class="stat-label">Total Duplicate Rows</div></div>
-        </div>
-        
-        ${dupes.length === 0 ? `
-          <div style="text-align:center; padding:40px; color:var(--text-muted);">
-            <div style="font-size:32px; margin-bottom:8px;">✅</div>
-            <div>No duplicate words found!</div>
-          </div>
-        ` : `
-          <div style="display:flex; flex-direction:column; gap:10px;">
-            ${pageItems.map(([kanji, words]) => {
-              // Find which word has most links (sentences, books)
-              return `
-                <div class="card" style="padding:14px 16px;">
-                  <div style="font-size:20px; font-weight:700; color:var(--text-primary); margin-bottom:8px;">${escapeHtml(kanji)} <span style="font-size:12px; font-weight:400; color:var(--amber);">(${words.length} copies)</span></div>
-                  <div style="display:flex; flex-direction:column; gap:6px;">
-                    ${words.map(w => {
-                      const bookLinks = (state.wordBooks || []).filter(wb => wb.word_id === w.id).length;
-                      const sentLinks = (state.wordSentenceLinks || []).filter(l => l.word_id === w.id).length;
-                      const groupLinks = (state.wordGroupMembers || []).filter(m => m.word_id === w.id).length;
-                      const totalLinks = bookLinks + sentLinks + groupLinks;
-                      return `
-                        <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">
-                          <div style="display:flex; align-items:center; gap:8px; flex:1;">
-                            <span class="mono" style="font-size:10px; color:var(--text-muted);">ID:${w.id}</span>
-                            <span style="font-size:12px; color:#60a5fa;">${escapeHtml(w.hiragana || '—')}</span>
-                            <span style="font-size:11px; color:var(--emerald);">${escapeHtml(w.meaning_en || '—')}</span>
-                            <span style="font-size:10px; color:var(--text-muted);">${w.source || 'textbook'}</span>
-                          </div>
-                          <div style="display:flex; align-items:center; gap:6px;">
-                            <span style="font-size:10px; color:var(--text-muted);" title="Books / Sentences / Groups">${bookLinks}B ${sentLinks}S ${groupLinks}G</span>
-                            ${totalLinks === 0 ? `<button class="btn btn-sm btn-ghost" data-delete-word="${w.id}" style="color:var(--red); font-size:10px;">🗑 Delete</button>` : `<span style="font-size:9px; color:var(--text-muted);">has links</span>`}
-                          </div>
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-          
-          ${totalPages > 1 ? `
-            <div class="pagination" style="margin-top:12px;">
-              <button class="btn btn-sm btn-ghost" id="dupePrev" ${page === 0 ? 'disabled' : ''}>← Prev</button>
-              <span style="font-size:12px; color:var(--text-muted);">${page + 1} / ${totalPages}</span>
-              <button class="btn btn-sm btn-ghost" id="dupeNext" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
-            </div>
-          ` : ''}
-        `}
-      `;
-    }
-    
-    // ========== ORPHANED DATA CLEANUP TAB ==========
-    function renderOrphansTab() {
-      const wordIds = new Set(state.words.map(w => w.id));
-      const sentIds = new Set(state.sentences.map(s => s.id));
-      const groupIds = new Set((state.wordGroups || []).map(g => g.id));
-      
-      // Check for orphans
-      const orphanedBookLinks = (state.wordBooks || []).filter(wb => !wordIds.has(wb.word_id));
-      const orphanedSentLinks = (state.wordSentenceLinks || []).filter(l => !wordIds.has(l.word_id) || !sentIds.has(l.sentence_id));
-      const orphanedGroupMembers = (state.wordGroupMembers || []).filter(m => !wordIds.has(m.word_id) || !groupIds.has(m.group_id));
-      
-      const totalOrphans = orphanedBookLinks.length + orphanedSentLinks.length + orphanedGroupMembers.length;
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">🧹 Orphaned Data Cleanup</h2>
-          <p style="font-size:12px; color:var(--text-muted);">Find broken links: word-book links pointing to deleted words, sentence links with missing data, group members referencing non-existent IDs.</p>
-        </div>
-        
-        <div class="stats-row" style="margin-bottom:20px;">
-          <div class="stat-card">
-            <div class="stat-num" style="color:${orphanedBookLinks.length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${orphanedBookLinks.length}</div>
-            <div class="stat-label">Orphaned Book Links</div>
-            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">word_books → deleted words</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-num" style="color:${orphanedSentLinks.length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${orphanedSentLinks.length}</div>
-            <div class="stat-label">Orphaned Sentence Links</div>
-            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">word_sentences → missing data</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-num" style="color:${orphanedGroupMembers.length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${orphanedGroupMembers.length}</div>
-            <div class="stat-label">Orphaned Group Members</div>
-            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">group_members → missing IDs</div>
-          </div>
-        </div>
-        
-        ${totalOrphans === 0 ? `
-          <div style="text-align:center; padding:40px; color:var(--text-muted);">
-            <div style="font-size:48px; margin-bottom:12px;">✨</div>
-            <div style="font-size:16px; font-weight:600;">Database is clean!</div>
-            <div style="font-size:12px; margin-top:4px;">No orphaned records found.</div>
-          </div>
-        ` : `
-          <!-- Orphaned Book Links -->
-          ${orphanedBookLinks.length > 0 ? `
-            <div class="card" style="margin-bottom:16px;">
-              <div class="card-header" style="padding:12px 16px;">
-                <span style="font-size:13px; font-weight:700;">📚 Orphaned Book Links (${orphanedBookLinks.length})</span>
-                <button class="btn btn-sm btn-ghost" data-clean-orphan="book" style="color:var(--red);">🗑 Clean All</button>
-              </div>
-              <div style="padding:8px 16px; max-height:200px; overflow-y:auto;">
-                ${orphanedBookLinks.slice(0, 20).map(wb => `
-                  <div style="font-size:11px; padding:4px 0; border-bottom:1px solid var(--border); color:var(--text-secondary);">
-                    Link ID:${wb.id} → word_id:${wb.word_id} (missing) · book:${escapeHtml(wb.book_code || '')}
-                  </div>
-                `).join('')}
-                ${orphanedBookLinks.length > 20 ? `<div style="font-size:11px; color:var(--text-muted); padding:4px 0;">... and ${orphanedBookLinks.length - 20} more</div>` : ''}
-              </div>
-            </div>
-          ` : ''}
-          
-          <!-- Orphaned Sentence Links -->
-          ${orphanedSentLinks.length > 0 ? `
-            <div class="card" style="margin-bottom:16px;">
-              <div class="card-header" style="padding:12px 16px;">
-                <span style="font-size:13px; font-weight:700;">💬 Orphaned Sentence Links (${orphanedSentLinks.length})</span>
-                <button class="btn btn-sm btn-ghost" data-clean-orphan="sentence" style="color:var(--red);">🗑 Clean All</button>
-              </div>
-              <div style="padding:8px 16px; max-height:200px; overflow-y:auto;">
-                ${orphanedSentLinks.slice(0, 20).map(l => `
-                  <div style="font-size:11px; padding:4px 0; border-bottom:1px solid var(--border); color:var(--text-secondary);">
-                    Link ID:${l.id} → word:${l.word_id}${!wordIds.has(l.word_id) ? '(missing)' : ''} · sent:${l.sentence_id}${!sentIds.has(l.sentence_id) ? '(missing)' : ''}
-                  </div>
-                `).join('')}
-                ${orphanedSentLinks.length > 20 ? `<div style="font-size:11px; color:var(--text-muted); padding:4px 0;">... and ${orphanedSentLinks.length - 20} more</div>` : ''}
-              </div>
-            </div>
-          ` : ''}
-          
-          <!-- Orphaned Group Members -->
-          ${orphanedGroupMembers.length > 0 ? `
-            <div class="card" style="margin-bottom:16px;">
-              <div class="card-header" style="padding:12px 16px;">
-                <span style="font-size:13px; font-weight:700;">🔗 Orphaned Group Members (${orphanedGroupMembers.length})</span>
-                <button class="btn btn-sm btn-ghost" data-clean-orphan="group" style="color:var(--red);">🗑 Clean All</button>
-              </div>
-              <div style="padding:8px 16px; max-height:200px; overflow-y:auto;">
-                ${orphanedGroupMembers.slice(0, 20).map(m => `
-                  <div style="font-size:11px; padding:4px 0; border-bottom:1px solid var(--border); color:var(--text-secondary);">
-                    Member ID:${m.id} → word:${m.word_id}${!wordIds.has(m.word_id) ? '(missing)' : ''} · group:${m.group_id}${!groupIds.has(m.group_id) ? '(missing)' : ''}
-                  </div>
-                `).join('')}
-                ${orphanedGroupMembers.length > 20 ? `<div style="font-size:11px; color:var(--text-muted); padding:4px 0;">... and ${orphanedGroupMembers.length - 20} more</div>` : ''}
-              </div>
-            </div>
-          ` : ''}
-        `}
-      `;
-    }
-    
     // ========== EVENT LISTENERS ==========
     function attachListeners() {
       // Tabs
@@ -2404,285 +1813,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             toast('Word updated!');
             render();
           }
-        });
-      });
-      
-      // ===== VERIFY QUEUE TAB =====
-      document.querySelectorAll('[data-verify-source]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          state.verifySource = btn.dataset.verifySource;
-          state.verifyIdx = 0;
-          render();
-        });
-      });
-      
-      document.getElementById('verifyAcceptBtn')?.addEventListener('click', async () => {
-        const queue = getVerifyQueue();
-        const sent = queue[state.verifyIdx];
-        if (!sent) return;
-        const ok = await verifySentence(sent.id, 'verified');
-        if (ok) {
-          toast('✓ Verified');
-          // Stay at same index (next unverified slides in)
-          const newQueue = getVerifyQueue();
-          if (state.verifyIdx >= newQueue.length) state.verifyIdx = Math.max(0, newQueue.length - 1);
-          render();
-        }
-      });
-      
-      document.getElementById('verifyRejectBtn')?.addEventListener('click', async () => {
-        const queue = getVerifyQueue();
-        const sent = queue[state.verifyIdx];
-        if (!sent) return;
-        const ok = await verifySentence(sent.id, 'rejected');
-        if (ok) {
-          toast('✕ Rejected');
-          const newQueue = getVerifyQueue();
-          if (state.verifyIdx >= newQueue.length) state.verifyIdx = Math.max(0, newQueue.length - 1);
-          render();
-        }
-      });
-      
-      document.getElementById('verifySkipBtn')?.addEventListener('click', () => {
-        const queue = getVerifyQueue();
-        if (state.verifyIdx < queue.length - 1) { state.verifyIdx++; render(); }
-      });
-      
-      document.getElementById('verifyPrevBtn')?.addEventListener('click', () => {
-        if (state.verifyIdx > 0) { state.verifyIdx--; render(); }
-      });
-      document.getElementById('verifyNextBtn')?.addEventListener('click', () => {
-        const queue = getVerifyQueue();
-        if (state.verifyIdx < queue.length - 1) { state.verifyIdx++; render(); }
-      });
-      
-      // ===== ANIME REVIEW TAB =====
-      document.querySelectorAll('[data-anime-filter]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          state.animeFilter = btn.dataset.animeFilter;
-          state.animePage = 0;
-          render();
-        });
-      });
-      
-      document.getElementById('animePrev')?.addEventListener('click', () => { state.animePage--; render(); });
-      document.getElementById('animeNext')?.addEventListener('click', () => { state.animePage++; render(); });
-      
-      // Promote anime word to unified words
-      document.querySelectorAll('[data-anime-promote]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const animeId = parseInt(btn.dataset.animePromote);
-          const wordText = btn.dataset.animeWord;
-          const hiragana = document.querySelector(`[data-anime-hiragana="${animeId}"]`)?.value?.trim() || '';
-          const meaning = document.querySelector(`[data-anime-meaning="${animeId}"]`)?.value?.trim() || '';
-          
-          // Check if already in unified words
-          const existing = state.words.find(w => w.kanji === wordText);
-          if (!existing) {
-            // Insert into japanese_unified_words
-            const insertData = { kanji: wordText, hiragana, meaning_en: meaning, hint: '', jlpt_level: '', source: 'anime' };
-            let { data, error } = await sb.from('japanese_unified_words').insert(insertData).select();
-            if (error && (error.message?.includes('source') || error.code === 'PGRST204')) {
-              const { source, ...withoutSource } = insertData;
-              const retry = await sb.from('japanese_unified_words').insert(withoutSource).select();
-              data = retry.data; error = retry.error;
-            }
-            if (error) { toast('Insert failed: ' + error.message, 'error'); return; }
-            if (data?.[0]) state.words.push(data[0]);
-          }
-          
-          // Mark as promoted in anime_words
-          await sb.from('japanese_anime_words').update({ promoted: true }).eq('id', animeId);
-          const aw = state.animeWords.find(a => a.id === animeId);
-          if (aw) aw.promoted = true;
-          
-          toast(`「${wordText}」promoted!`);
-          render();
-        });
-      });
-      
-      // Dismiss anime word
-      document.querySelectorAll('[data-anime-dismiss]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const animeId = parseInt(btn.dataset.animeDismiss);
-          await sb.from('japanese_anime_words').update({ dismissed: true }).eq('id', animeId);
-          const aw = state.animeWords.find(a => a.id === animeId);
-          if (aw) aw.dismissed = true;
-          toast('Dismissed');
-          render();
-        });
-      });
-      
-      // ===== GROUP EDITOR TAB =====
-      document.querySelectorAll('[data-ge-type]').forEach(btn => {
-        btn.addEventListener('click', () => { state.groupEditorType = btn.dataset.geType; state.groupEditorPage = 0; render(); });
-      });
-      
-      let geSearchTimer;
-      document.getElementById('groupEditorSearch')?.addEventListener('input', e => {
-        clearTimeout(geSearchTimer);
-        geSearchTimer = setTimeout(() => { state.groupEditorSearch = e.target.value; state.groupEditorPage = 0; render(); }, 300);
-      });
-      
-      document.getElementById('gePrev')?.addEventListener('click', () => { state.groupEditorPage--; render(); });
-      document.getElementById('geNext')?.addEventListener('click', () => { state.groupEditorPage++; render(); });
-      
-      // Click group to edit
-      document.querySelectorAll('[data-edit-group]').forEach(el => {
-        el.addEventListener('click', () => {
-          const gid = parseInt(el.dataset.editGroup);
-          state.editingGroup = state.wordGroups.find(g => g.id === gid) || null;
-          render();
-        });
-      });
-      
-      // Back from group detail
-      document.getElementById('backToGroupListBtn')?.addEventListener('click', () => { state.editingGroup = null; render(); });
-      
-      // Save group metadata
-      document.getElementById('saveGroupMetaBtn')?.addEventListener('click', async () => {
-        const g = state.editingGroup;
-        if (!g) return;
-        const name = document.getElementById('editGroupName')?.value?.trim() || '';
-        const key = document.getElementById('editGroupKey')?.value?.trim() || '';
-        const desc = document.getElementById('editGroupDesc')?.value?.trim() || '';
-        const { error } = await sb.from('japanese_word_groups').update({ group_name: name, group_key: key, description: desc }).eq('id', g.id);
-        if (error) { toast('Save failed: ' + error.message, 'error'); return; }
-        g.group_name = name; g.group_key = key; g.description = desc;
-        toast('Group updated!'); render();
-      });
-      
-      // Delete empty group
-      document.getElementById('deleteGroupBtn')?.addEventListener('click', async () => {
-        const g = state.editingGroup;
-        if (!g) return;
-        if (!confirm(`Delete group "${g.group_name || g.group_key}"?`)) return;
-        const { error } = await sb.from('japanese_word_groups').delete().eq('id', g.id);
-        if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
-        state.wordGroups = state.wordGroups.filter(gr => gr.id !== g.id);
-        state.editingGroup = null;
-        toast('Group deleted!'); render();
-      });
-      
-      // Remove member from group
-      document.querySelectorAll('[data-remove-member]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const memberId = parseInt(btn.dataset.removeMember);
-          const { error } = await sb.from('japanese_word_group_members').delete().eq('id', memberId);
-          if (error) { toast('Remove failed: ' + error.message, 'error'); return; }
-          state.wordGroupMembers = state.wordGroupMembers.filter(m => m.id !== memberId);
-          toast('Member removed'); render();
-        });
-      });
-      
-      // Add member to group
-      document.getElementById('addMemberBtn')?.addEventListener('click', async () => {
-        const g = state.editingGroup;
-        if (!g) return;
-        const kanji = document.getElementById('addMemberKanji')?.value?.trim();
-        if (!kanji) return;
-        
-        let word = state.words.find(w => w.kanji === kanji);
-        if (!word) {
-          // Insert new word
-          const insertData = { kanji, hiragana: '', meaning_en: '', hint: '', jlpt_level: '', source: 'group_add' };
-          let { data, error } = await sb.from('japanese_unified_words').insert(insertData).select();
-          if (error && (error.message?.includes('source') || error.code === 'PGRST204')) {
-            const { source, ...ws } = insertData;
-            const retry = await sb.from('japanese_unified_words').insert(ws).select();
-            data = retry.data; error = retry.error;
-          }
-          if (error) { toast('Word insert failed: ' + error.message, 'error'); return; }
-          word = data[0]; state.words.push(word);
-        }
-        
-        // Check if already in group
-        if (state.wordGroupMembers.some(m => m.group_id === g.id && m.word_id === word.id)) {
-          toast('Already in this group', 'warn'); return;
-        }
-        
-        const nextSort = state.wordGroupMembers.filter(m => m.group_id === g.id).length + 1;
-        const { data, error } = await sb.from('japanese_word_group_members').insert({ group_id: g.id, word_id: word.id, sort_order: nextSort }).select();
-        if (error) { toast('Link failed: ' + error.message, 'error'); return; }
-        state.wordGroupMembers.push(data[0]);
-        toast(`「${kanji}」added to group!`); render();
-      });
-      
-      // Create new group
-      document.getElementById('createGroupBtn')?.addEventListener('click', () => {
-        const form = document.getElementById('createGroupForm');
-        if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
-      });
-      document.getElementById('cancelCreateGroup')?.addEventListener('click', () => {
-        document.getElementById('createGroupForm').style.display = 'none';
-      });
-      document.getElementById('submitCreateGroup')?.addEventListener('click', async () => {
-        const name = document.getElementById('newGroupName')?.value?.trim();
-        const type = document.getElementById('newGroupType')?.value;
-        const key = document.getElementById('newGroupKey')?.value?.trim() || name;
-        const desc = document.getElementById('newGroupDesc')?.value?.trim() || '';
-        if (!name || !type) { toast('Name and type required', 'error'); return; }
-        
-        const { data, error } = await sb.from('japanese_word_groups').insert({ group_name: name, group_type: type, group_key: key, description: desc, status: 'draft' }).select();
-        if (error) { toast('Create failed: ' + error.message, 'error'); return; }
-        state.wordGroups.push(data[0]);
-        toast('Group created!'); render();
-      });
-      
-      // ===== DUPLICATE TAB =====
-      document.getElementById('dupePrev')?.addEventListener('click', () => { state.dupePage--; render(); });
-      document.getElementById('dupeNext')?.addEventListener('click', () => { state.dupePage++; render(); });
-      
-      document.querySelectorAll('[data-delete-word]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const wordId = parseInt(btn.dataset.deleteWord);
-          const word = state.words.find(w => w.id === wordId);
-          if (!confirm(`Delete word "${word?.kanji}" (ID:${wordId})?`)) return;
-          const { error } = await sb.from('japanese_unified_words').delete().eq('id', wordId);
-          if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
-          state.words = state.words.filter(w => w.id !== wordId);
-          toast('Word deleted!'); render();
-        });
-      });
-      
-      // ===== ORPHAN CLEANUP =====
-      document.querySelectorAll('[data-clean-orphan]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const type = btn.dataset.cleanOrphan;
-          const wordIds = new Set(state.words.map(w => w.id));
-          const sentIds = new Set(state.sentences.map(s => s.id));
-          const groupIds = new Set((state.wordGroups || []).map(g => g.id));
-          
-          let table, orphanIds;
-          if (type === 'book') {
-            table = 'japanese_unified_word_books';
-            orphanIds = (state.wordBooks || []).filter(wb => !wordIds.has(wb.word_id)).map(wb => wb.id);
-          } else if (type === 'sentence') {
-            table = 'japanese_unified_word_sentences';
-            orphanIds = (state.wordSentenceLinks || []).filter(l => !wordIds.has(l.word_id) || !sentIds.has(l.sentence_id)).map(l => l.id);
-          } else if (type === 'group') {
-            table = 'japanese_word_group_members';
-            orphanIds = (state.wordGroupMembers || []).filter(m => !wordIds.has(m.word_id) || !groupIds.has(m.group_id)).map(m => m.id);
-          }
-          
-          if (!orphanIds?.length) { toast('Nothing to clean'); return; }
-          if (!confirm(`Delete ${orphanIds.length} orphaned rows from ${table}?`)) return;
-          
-          // Delete in batches of 500
-          let deleted = 0;
-          for (let i = 0; i < orphanIds.length; i += 500) {
-            const batch = orphanIds.slice(i, i + 500);
-            const { error } = await sb.from(table).delete().in('id', batch);
-            if (error) { toast('Partial cleanup error: ' + error.message, 'error'); break; }
-            deleted += batch.length;
-          }
-          
-          // Update local state
-          if (type === 'book') state.wordBooks = state.wordBooks.filter(wb => !orphanIds.includes(wb.id));
-          else if (type === 'sentence') state.wordSentenceLinks = state.wordSentenceLinks.filter(l => !orphanIds.includes(l.id));
-          else if (type === 'group') state.wordGroupMembers = state.wordGroupMembers.filter(m => !orphanIds.includes(m.id));
-          
-          toast(`Cleaned ${deleted} orphaned rows!`); render();
         });
       });
     }
