@@ -177,14 +177,10 @@ function renderBreakdown(app) {
               <button data-flag-story="${sd.kanji}" data-flag-group="${sd.group_kanji || ''}" class="text-slate-500 hover:text-amber-400 text-xs px-2 py-0.5 rounded bg-slate-800 border border-slate-600 hover:border-amber-500 transition-all">⚠️ Flag</button>
             </div>
             <div class="text-slate-200 text-sm leading-relaxed">${sd.story}</div>
-          </div>` : `<div class="text-slate-500 text-sm mb-2">No story available</div><button data-request-story="${sd.kanji}" class="px-3 py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-semibold hover:bg-amber-500/25 transition-all">\uD83D\uDCDD Request Story</button>`}
+          </div>` : '<div class="text-slate-500 text-sm">No story available</div>'}
         ${group ? `<button data-story-go-group="${group.group_kanji}" data-story-highlight="${expandedPart}" class="w-full py-3 rounded-xl text-center transition-all story-btn">View ${group.group_kanji} group (${group.group_meaning || ''}) →</button>` : ''}
       </div>
-    ` : `<div class="bg-slate-800 rounded-xl p-6 text-center">
-        <div class="text-4xl mb-2">${expandedPart}</div>
-        <p class="text-slate-400 mb-4">No story found</p>
-        <button data-request-story="${expandedPart}" class="px-4 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 text-sm font-semibold hover:bg-amber-500/25 transition-all">\uD83D\uDCDD Request Story</button>
-      </div>`}
+    ` : `<div class="bg-slate-800 rounded-xl p-6 text-center"><div class="text-4xl mb-2">${expandedPart}</div><p class="text-slate-400">No story found</p></div>`}
   `;
 }
 

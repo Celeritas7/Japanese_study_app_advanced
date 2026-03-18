@@ -622,25 +622,15 @@ export function attachEventListeners(app) {
     }
   });
   
-  // View group from flashcard badge — show inline preview instead of navigating away
+  // View group from flashcard badge
   document.querySelectorAll('[data-view-group]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const groupId = parseInt(btn.dataset.viewGroup);
-      if (app._showGroupPreview) {
-        app._showGroupPreview(groupId, btn);
-      }
-    });
-  });
-  
-  // Request missing story from story overlay
-  document.querySelectorAll('[data-request-story]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const kanji = btn.dataset.requestStory;
-      if (kanji && app.requestMissingStory) {
-        app.requestMissingStory(kanji);
-      }
+      const group = app.wordGroups.find(g => g.id === groupId);
+      app.currentTab = 'similar';
+      if (group) app.relationsCategory = group.group_type;
+      app.selectWordGroup(groupId);
     });
   });
   
