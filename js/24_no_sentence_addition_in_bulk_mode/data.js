@@ -1004,7 +1004,7 @@ export async function insertUnknownWord(supabase, kanji) {
     
     // Insert with kanji only, source marks it for data-manager cleanup
     // Try with source column first; if column doesn't exist, retry without
-    let insertData = { kanji, hiragana: '', meaning_en: '', hint: '', jlpt_level: '', source: 'sentence_tap' };
+    let insertData = { kanji, hiragana: '', meaning_en: '', hint: '', source: 'sentence_tap' };
     let { data, error } = await supabase
       .from('japanese_unified_words')
       .insert(insertData)

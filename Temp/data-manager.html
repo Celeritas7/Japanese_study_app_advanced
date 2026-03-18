@@ -1332,11 +1332,56 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
               ${state.bulkParsed.map((p, i) => `
                 <div class="sent-item ${p.linked ? 'resolved' : ''}">
                   <div class="sent-text">${highlightWords(p.sentence, p.detectedWords)}</div>
-                  <div class="flex gap-2 flex-wrap mt-2">
+                  <div class="flex gap-2 flex-wrap mt-2 items-center">
                     ${p.detectedWords.length > 0 
                       ? p.detectedWords.map(w => `<span style="font-size:11px; padding:2px 6px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:4px;">${escapeHtml(w.kanji)} <span style="opacity:0.5">${escapeHtml(w.hiragana||'')}</span></span>`).join('')
                       : '<span style="font-size:11px; color:var(--text-muted);">No words detected</span>'
                     }
+                    ${p.addedWords ? p.addedWords.map(w => `<span style="font-size:11px; padding:2px 6px; background:rgba(16,185,129,0.15); color:var(--emerald); border-radius:4px; border:1px solid rgba(16,185,129,0.3);">+ ${escapeHtml(w.kanji)} <span style="opacity:0.6">${escapeHtml(w.hiragana||'')}</span></span>`).join('') : ''}
+                    <button class="btn btn-sm btn-ghost" data-bulk-add-word="${i}" style="font-size:10px; padding:2px 8px;">+ Add Word</button>
+                  </div>
+                  <!-- Inline add word form (hidden until clicked) -->
+                  <div id="bulkAddWordForm_${i}" style="display:none; margin-top:8px; padding:10px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px;">
+                    <div style="font-size:10px; color:var(--accent); font-weight:700; margin-bottom:6px;">ADD NEW WORD TO DATABASE</div>
+                    <div class="flex gap-2 mb-2">
+                      <div style="flex:1;">
+                        <label style="font-size:10px;">Kanji *</label>
+                        <input type="text" data-baw-kanji="${i}" placeholder="繁忙期" style="font-size:13px;">
+                      </div>
+                      <div style="flex:1;">
+                        <label style="font-size:10px;">Hiragana</label>
+                        <input type="text" data-baw-hiragana="${i}" placeholder="はんぼうき" style="font-size:13px;">
+                      </div>
+                    </div>
+                    <div class="flex gap-2 mb-2">
+                      <div style="flex:1;">
+                        <label style="font-size:10px;">Meaning</label>
+                        <input type="text" data-baw-meaning="${i}" placeholder="busy period" style="font-size:13px;">
+                      </div>
+                      <div style="width:80px;">
+                        <label style="font-size:10px;">Level</label>
+                        <select data-baw-level="${i}">
+                          <option value="">—</option>
+                          <option value="N1">N1</option>
+                          <option value="N2">N2</option>
+                          <option value="N3">N3</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="flex gap-2 mb-2">
+                      <div style="flex:1;">
+                        <label style="font-size:10px;">Hint</label>
+                        <input type="text" data-baw-hint="${i}" placeholder="Memory hint" style="font-size:13px;">
+                      </div>
+                      <div style="flex:1;">
+                        <label style="font-size:10px;">Word Type</label>
+                        <input type="text" data-baw-type="${i}" placeholder="noun, verb, adj..." style="font-size:13px;">
+                      </div>
+                    </div>
+                    <div class="flex gap-2">
+                      <button class="btn btn-sm btn-primary" data-baw-save="${i}">💾 Save Word & Link</button>
+                      <button class="btn btn-sm btn-ghost" data-baw-cancel="${i}">Cancel</button>
+                    </div>
                   </div>
                   ${p.linked ? '<span style="font-size:11px; color:var(--emerald);">✓ Saved</span>' : ''}
                 </div>
@@ -1588,6 +1633,76 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       // Bulk
       document.getElementById('parseBulkBtn')?.addEventListener('click', parseBulk);
       document.getElementById('bulkSaveBtn')?.addEventListener('click', bulkSaveAll);
+      
+      // Bulk: Add new word per sentence
+      document.querySelectorAll('[data-bulk-add-word]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = btn.dataset.bulkAddWord;
+          const form = document.getElementById(`bulkAddWordForm_${idx}`);
+          if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        });
+      });
+      
+      document.querySelectorAll('[data-baw-cancel]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const form = document.getElementById(`bulkAddWordForm_${btn.dataset.bawCancel}`);
+          if (form) form.style.display = 'none';
+        });
+      });
+      
+      document.querySelectorAll('[data-baw-save]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const idx = parseInt(btn.dataset.bawSave);
+          const kanji = document.querySelector(`[data-baw-kanji="${idx}"]`)?.value?.trim();
+          if (!kanji) { toast('Please enter kanji', 'error'); return; }
+          
+          const hiragana = document.querySelector(`[data-baw-hiragana="${idx}"]`)?.value?.trim() || '';
+          const meaning_en = document.querySelector(`[data-baw-meaning="${idx}"]`)?.value?.trim() || '';
+          const jlpt_level = document.querySelector(`[data-baw-level="${idx}"]`)?.value || '';
+          const hint = document.querySelector(`[data-baw-hint="${idx}"]`)?.value?.trim() || '';
+          const word_type = document.querySelector(`[data-baw-type="${idx}"]`)?.value?.trim() || '';
+          
+          // Check if word already exists
+          const existing = state.words.find(w => w.kanji === kanji);
+          if (existing) {
+            toast(`「${kanji}」already exists (ID: ${existing.id})`, 'warn');
+            return;
+          }
+          
+          // Insert new word
+          const insertData = { kanji, hiragana, meaning_en, hint, word_type };
+          if (jlpt_level) insertData.jlpt_level = jlpt_level;
+          
+          // Try with source column
+          insertData.source = 'bulk_add';
+          let { data, error } = await sb.from('japanese_unified_words').insert(insertData).select();
+          if (error && (error.message?.includes('source') || error.code === 'PGRST204')) {
+            const { source, ...withoutSource } = insertData;
+            const retry = await sb.from('japanese_unified_words').insert(withoutSource).select();
+            data = retry.data;
+            error = retry.error;
+          }
+          
+          if (error) {
+            toast('Save failed: ' + error.message, 'error');
+            return;
+          }
+          
+          const newWord = data[0];
+          state.words.push(newWord);
+          
+          // Add to this sentence's detected words so it gets linked on "Save All"
+          const parsed = state.bulkParsed?.[idx];
+          if (parsed) {
+            parsed.detectedWords.push(newWord);
+            if (!parsed.addedWords) parsed.addedWords = [];
+            parsed.addedWords.push(newWord);
+          }
+          
+          toast(`「${kanji}」added! Will be linked on Save All.`);
+          render();
+        });
+      });
       
       // Flag filters
       document.querySelectorAll('[data-flag-filter]').forEach(btn => {

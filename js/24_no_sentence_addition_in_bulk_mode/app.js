@@ -319,7 +319,7 @@ class JLPTStudyApp {
       try {
         const { data, error } = await this.supabase
           .from('japanese_unified_words')
-          .insert({ kanji: kanji, hiragana: '', meaning_en: '', hint: '', jlpt_level: '' })
+          .insert({ kanji: kanji, hiragana: '', meaning_en: '', hint: '' })
           .select();
         if (error) { console.error('Insert word error:', error); alert('Failed to add word: ' + error.message); return; }
         wordId = data[0].id;
