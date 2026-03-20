@@ -1097,6 +1097,30 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       `;
       
       attachListeners();
+      
+      // Persist tab/filter state for browser reload recovery
+      saveStateToSession();
+      
+      // ===== FORM DRAFT PERSISTENCE =====
+      // Auto-save any story/word edit input to sessionStorage
+      document.querySelectorAll('[data-story-edit-meaning], [data-story-edit-story], [data-story-edit-onyomi], [data-story-edit-kunyomi], [data-story-new-meaning], [data-story-new-story], [data-story-new-onyomi], [data-story-new-kunyomi]').forEach(input => {
+        const key = Array.from(input.attributes).find(a => a.name.startsWith('data-story-'))?.name + '_' + input.getAttribute(Array.from(input.attributes).find(a => a.name.startsWith('data-story-'))?.name);
+        // Restore draft
+        const draft = getDraft(key);
+        if (draft && !input.value) input.value = draft;
+        // Save on input
+        input.addEventListener('input', () => saveDraft(key, input.value));
+      });
+      
+      // Also save incomplete word edit drafts
+      document.querySelectorAll('[data-inc-hiragana], [data-inc-meaning], [data-inc-hint]').forEach(input => {
+        const attr = Array.from(input.attributes).find(a => a.name.startsWith('data-inc-'));
+        if (!attr) return;
+        const key = attr.name + '_' + input.getAttribute(attr.name);
+        const draft = getDraft(key);
+        if (draft && !input.value) input.value = draft;
+        input.addEventListener('input', () => saveDraft(key, input.value));
+      });
     }
     
     function renderTab() {
@@ -2866,7 +2890,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
             const a = state.storyAlerts.find(a => a.id === alertId);
             if (a) a.resolved = true;
           }
-          if (ok) { toast('Story updated & resolved!'); render(); }
+          if (ok) { clearDrafts('data-story-edit'); toast('Story updated & resolved!'); render(); }
         });
       });
       
@@ -2910,6 +2934,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
             if (a) a.resolved = true;
           }
           
+          clearDrafts('data-story-new');
           toast('Story created & resolved!');
           render();
         });
@@ -3232,6 +3257,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
             // Update local state
             const w = state.words.find(w => w.id === wordId);
             if (w) { w.hiragana = hiragana; w.meaning_en = meaning_en; w.hint = hint; }
+            clearDrafts(`data-inc-`);
             toast('Word updated!');
             render();
           }
@@ -3567,8 +3593,77 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       });
     }
     
+    // ========== STATE PERSISTENCE (survives tab reload) ==========
+    const SESSION_KEY = 'dm_state';
+    const DRAFT_KEY = 'dm_drafts';
+    
+    function saveStateToSession() {
+      try {
+        const persist = {
+          tab: state.tab,
+          flagFilter: state.flagFilter,
+          flagPage: state.flagPage,
+          sentFilter: state.sentFilter,
+          sentSource: state.sentSource,
+          sentPage: state.sentPage,
+          incompleteFilter: state.incompleteFilter,
+          incompletePage: state.incompletePage,
+          verifySource: state.verifySource,
+          verifyIdx: state.verifyIdx,
+          animeFilter: state.animeFilter,
+          animePage: state.animePage,
+          groupEditorType: state.groupEditorType,
+          groupEditorPage: state.groupEditorPage,
+          dupePage: state.dupePage,
+          auditPage: state.auditPage,
+          showBulkAI: state.showBulkAI,
+        };
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(persist));
+      } catch { /* storage unavailable */ }
+    }
+    
+    function restoreStateFromSession() {
+      try {
+        const saved = sessionStorage.getItem(SESSION_KEY);
+        if (!saved) return;
+        const persist = JSON.parse(saved);
+        Object.keys(persist).forEach(k => {
+          if (persist[k] !== undefined && state[k] !== undefined) {
+            state[k] = persist[k];
+          }
+        });
+      } catch { /* ignore */ }
+    }
+    
+    // Save form drafts (story edits, word edits) on every input
+    function saveDraft(key, value) {
+      try {
+        const drafts = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+        drafts[key] = value;
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
+      } catch { /* storage unavailable */ }
+    }
+    
+    function getDraft(key) {
+      try {
+        const drafts = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+        return drafts[key] || '';
+      } catch { return ''; }
+    }
+    
+    function clearDrafts(prefix) {
+      try {
+        const drafts = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+        Object.keys(drafts).forEach(k => { if (k.startsWith(prefix)) delete drafts[k]; });
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
+      } catch { /* ignore */ }
+    }
+    
     // ========== INIT ==========
     async function init() {
+      // Restore tab/filter state from sessionStorage (survives browser tab reload)
+      restoreStateFromSession();
+      
       render(); // show "checking auth..."
       
       // Check existing session
