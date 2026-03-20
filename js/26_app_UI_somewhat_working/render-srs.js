@@ -133,7 +133,7 @@ function renderSRSSetup(app) {
               ${[3,5,10].map(n => `<button data-srs-mark-all="${n}" class="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all">All ${n}</button>`).join('')}
             </div>
           </div>
-          ${[1,2,3,4,5,6].map(k => {
+          ${[1,2,3,4,5].map(k => {
             const cat = app.markingCategories[k];
             const avail = markStats[k];
             const curVal = app.srsConfig.markingCounts[k] || 0;
@@ -166,38 +166,6 @@ function renderSRSSetup(app) {
           \u25B6 Start Test <span class="bg-white/20 rounded-lg px-2.5 py-0.5 text-sm">${markingTotal} words</span>
         </button>
         `}
-        
-        <!-- Today's Practice Words -->
-        ${(() => {
-          const today = app.getTodayPractice();
-          const wordList = Object.values(today.words || {});
-          const sessions = today.sessions || [];
-          if (wordList.length === 0) return '';
-          const totalCorrect = sessions.reduce((a, s) => a + (s.correct || 0), 0);
-          const totalAttempts = sessions.reduce((a, s) => a + (s.total || 0), 0);
-          return `
-            <div class="bg-slate-800 rounded-xl p-4 mt-4">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-bold text-white">\uD83D\uDCCA Today's Words (${wordList.length})</h3>
-                ${totalAttempts > 0 ? `<span class="text-xs text-slate-400">${totalCorrect}/${totalAttempts} correct (${Math.round(totalCorrect/totalAttempts*100)}%)</span>` : ''}
-              </div>
-              <div class="space-y-1 max-h-60 overflow-y-auto">
-                ${wordList.map(w => {
-                  const pct = w.attempts ? Math.round((w.correctCount || 0) / w.attempts * 100) : -1;
-                  const pctCls = pct >= 80 ? 'bg-emerald-500/20 text-emerald-400' : pct >= 50 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400';
-                  return `
-                    <div class="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50">
-                      <span class="text-base font-bold text-white min-w-[60px]">${escapeHtml(w.kanji)}</span>
-                      <span class="text-xs text-blue-400">${escapeHtml(w.hiragana || '')}</span>
-                      <span class="text-xs text-slate-400 flex-1 truncate">${escapeHtml(w.meaning || '')}</span>
-                      ${pct >= 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded ${pctCls}">${pct}%</span>` : ''}
-                    </div>`;
-                }).join('')}
-              </div>
-              ${sessions.length > 0 ? `<div class="mt-2 text-[10px] text-slate-500">${sessions.length} session${sessions.length > 1 ? 's' : ''} today \u00B7 Resets at midnight</div>` : ''}
-            </div>`;
-        })()}
-        
       </div>
     </div>
   `;

@@ -1710,7 +1710,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       // Mark which are already in unified words
       items = items.map(a => ({
         ...a,
-        alreadyInDB: knownKanji.has(a.word || a.kanji),
+        alreadyInDB: knownKanji.has(a.word || a.kanji || a.base_form || a.surface_form),
       }));
       
       const page = state.animePage || 0;
@@ -1747,26 +1747,28 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
         ` : `
           <div style="display:flex; flex-direction:column; gap:8px;">
             ${pageItems.map(a => {
-              const wordText = a.word || a.kanji || '';
+              const wordText = a.word || a.kanji || a.base_form || a.surface_form || '';
+              const surfaceText = a.surface_form || '';
+              const showSurface = surfaceText && surfaceText !== wordText;
               return `
                 <div class="card" style="padding:12px 16px; ${a.alreadyInDB ? 'border-left:3px solid var(--emerald);' : ''} ${a.dismissed ? 'opacity:0.5;' : ''}">
-                  <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
                     <span style="font-size:22px; font-weight:700; color:var(--text-primary);">${escapeHtml(wordText)}</span>
+                    ${showSurface ? `<span style="font-size:13px; color:var(--text-muted);">(${escapeHtml(surfaceText)})</span>` : ''}
                     ${a.reading || a.hiragana ? `<span style="font-size:13px; color:#60a5fa;">${escapeHtml(a.reading || a.hiragana || '')}</span>` : ''}
-                    ${a.meaning || a.meaning_en ? `<span style="font-size:12px; color:var(--emerald);">${escapeHtml(a.meaning || a.meaning_en || '')}</span>` : ''}
-                    ${a.alreadyInDB ? '<span style="font-size:10px; padding:2px 6px; background:rgba(16,185,129,0.15); color:var(--emerald); border-radius:4px;">Already in DB</span>' : ''}
-                    ${a.promoted ? '<span style="font-size:10px; padding:2px 6px; background:rgba(16,185,129,0.15); color:var(--emerald); border-radius:4px;">✓ Promoted</span>' : ''}
+                    ${a.pos ? `<span style="font-size:10px; padding:2px 6px; background:var(--bg-input); border:1px solid var(--border); border-radius:4px; color:var(--text-muted);">${escapeHtml(a.pos)}</span>` : ''}
+                    ${a.alreadyInDB ? '<span style="font-size:10px; padding:2px 6px; background:rgba(16,185,129,0.15); color:var(--emerald); border-radius:4px;">In DB</span>' : ''}
+                    ${a.promoted ? '<span style="font-size:10px; padding:2px 6px; background:rgba(16,185,129,0.15); color:var(--emerald); border-radius:4px;">\u2713 Promoted</span>' : ''}
                     ${a.dismissed ? '<span style="font-size:10px; padding:2px 6px; background:var(--bg-input); color:var(--text-muted); border-radius:4px;">Dismissed</span>' : ''}
                   </div>
-                  ${a.episode ? `<div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">📺 Episode: ${escapeHtml(String(a.episode))} ${a.context ? `· "${escapeHtml(a.context)}"` : ''}</div>` : ''}
+                  ${a.episode || a.anime_source ? `<div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">\uD83D\uDCFA ${escapeHtml(a.anime_source || '')} ${a.episode ? 'Ep.' + escapeHtml(String(a.episode)) : ''} ${a.context ? '\u00B7 "' + escapeHtml(a.context) + '"' : ''}</div>` : ''}
                   ${!a.promoted && !a.dismissed ? `
-                    <div style="display:flex; gap:8px; margin-top:8px;">
+                    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
                       ${!a.alreadyInDB ? `
-                        <!-- Promote form -->
-                        <div style="flex:1; display:flex; gap:4px; align-items:center;">
+                        <div style="flex:1; display:flex; gap:4px; align-items:center; min-width:200px;">
                           <input type="text" data-anime-hiragana="${a.id}" placeholder="hiragana" value="${escapeHtml(a.reading || a.hiragana || '')}" style="width:100px; font-size:11px; padding:4px 8px;">
                           <input type="text" data-anime-meaning="${a.id}" placeholder="meaning" value="${escapeHtml(a.meaning || a.meaning_en || '')}" style="flex:1; font-size:11px; padding:4px 8px;">
-                          <button class="btn btn-sm btn-primary" data-anime-promote="${a.id}" data-anime-word="${escapeHtml(wordText)}">Promote ↑</button>
+                          <button class="btn btn-sm btn-primary" data-anime-promote="${a.id}" data-anime-word="${escapeHtml(wordText)}">Promote \u2191</button>
                         </div>
                       ` : `
                         <button class="btn btn-sm btn-ghost" data-anime-promote="${a.id}" data-anime-word="${escapeHtml(wordText)}" style="color:var(--emerald);">Mark Promoted</button>
@@ -3328,8 +3330,9 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       // Anime words export/import
       document.getElementById('animeExportBtn')?.addEventListener('click', () => {
         const data = (state.animeWords || []).filter(a => !a.promoted && !a.dismissed).map(a => ({
-          id: a.id, word: a.word || a.kanji || '', reading: a.reading || a.hiragana || '',
-          meaning: a.meaning || a.meaning_en || '', episode: a.episode || '', context: a.context || ''
+          id: a.id, word: a.word || a.kanji || a.base_form || a.surface_form || '', reading: a.reading || a.hiragana || '',
+          meaning: a.meaning || a.meaning_en || '', episode: a.episode || '', context: a.context || '',
+          pos: a.pos || '',
         }));
         exportJSON(`anime_words_${new Date().toISOString().slice(0,10)}.json`, data);
       });

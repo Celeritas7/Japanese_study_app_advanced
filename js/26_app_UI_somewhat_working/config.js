@@ -20,7 +20,6 @@ export const MARKING_CATEGORIES = {
   3: { label: "Can't Write", color: 'bg-orange-500', lightColor: 'bg-orange-100', textColor: 'text-orange-700', icon: '\u270D', border: 'border-orange-400' },    // ✍
   4: { label: "Can't Use", color: 'bg-pink-500', lightColor: 'bg-pink-100', textColor: 'text-pink-700', icon: '\uD83E\uDD14', border: 'border-pink-400' },      // 🤔
   5: { label: "Don't Know", color: 'bg-red-500', lightColor: 'bg-red-100', textColor: 'text-red-700', icon: '\u274C', border: 'border-red-400' },          // ❌
-  6: { label: "Deep Study", color: 'bg-cyan-500', lightColor: 'bg-cyan-100', textColor: 'text-cyan-700', icon: '\u2B50', border: 'border-cyan-400' },        // ⭐
 };
 
 // Test Types

@@ -133,7 +133,7 @@ class JLPTStudyApp {
       n1Count: 0, n2Count: 0, n3Count: 0, 
       testType: 'hiragana_to_kanji',
       selectionMode: 'level', // 'level' or 'marking'
-      markingCounts: { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3, 6: 3 },
+      markingCounts: { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3 },
       levelMode: 'all', // 'all' or 'custom' (within By Level)
       levelPreset: 5
     };
@@ -1214,10 +1214,10 @@ class JLPTStudyApp {
     const wordPool = this.kanjiWords;
     
     if (this.srsConfig.selectionMode === 'marking') {
-      for (let k = 1; k <= 6; k++) {
+      for (let k = 1; k <= 5; k++) {
         this.srsConfig.markingCounts[k] = parseInt(document.getElementById(`srsMarkCount${k}`)?.value) || 0;
       }
-      for (let k = 1; k <= 6; k++) {
+      for (let k = 1; k <= 5; k++) {
         const count = this.srsConfig.markingCounts[k];
         if (count <= 0) continue;
         const pool = wordPool.filter(w => getMarking(this.markings, w) === k);
@@ -1249,9 +1249,6 @@ class JLPTStudyApp {
     this.generateMCQOptions();
     this.srsView = 'test';
     this.render();
-    
-    // Save today's practice words
-    this._saveTodayPractice(this.srsWords);
     
     // Load sentences in background (non-blocking)
     this.loadSentencesForStudyWords(this.srsWords);
@@ -1399,7 +1396,6 @@ class JLPTStudyApp {
       this.render();
     } else {
       this.srsView = 'results';
-      this._saveTodayResults(this.srsAnswers);
       this.render();
     }
   }
@@ -1435,72 +1431,6 @@ class JLPTStudyApp {
     this.srsShowResult = false;
     this.canvasImageData = null;
     this.render();
-  }
-  
-  // ===== DAILY PRACTICE HISTORY =====
-  _todayKey() {
-    return 'practice_' + new Date().toISOString().slice(0, 10);
-  }
-  
-  _saveTodayPractice(words) {
-    try {
-      const key = this._todayKey();
-      const existing = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"words":{}}');
-      // Add words to today's set (dedup by kanji)
-      words.forEach(w => {
-        const k = w.kanji || w.raw || '';
-        if (k && !existing.words[k]) {
-          existing.words[k] = { kanji: k, hiragana: w.hiragana || '', meaning: w.meaning || w.meaning_en || '', level: w.level || '' };
-        }
-      });
-      localStorage.setItem(key, JSON.stringify(existing));
-      this._cleanOldPracticeData();
-    } catch(e) { console.warn('_saveTodayPractice:', e); }
-  }
-  
-  _saveTodayResults(answers) {
-    try {
-      const key = this._todayKey();
-      const existing = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"words":{}}');
-      const session = {
-        time: new Date().toISOString(),
-        total: answers.length,
-        correct: answers.filter(a => a.correct).length,
-        wrong: answers.filter(a => !a.correct).map(a => a.word?.kanji || a.word?.raw || ''),
-      };
-      existing.sessions.push(session);
-      // Update word results
-      answers.forEach(a => {
-        const k = a.word?.kanji || a.word?.raw || '';
-        if (k && existing.words[k]) {
-          if (!existing.words[k].attempts) existing.words[k].attempts = 0;
-          if (!existing.words[k].correctCount) existing.words[k].correctCount = 0;
-          existing.words[k].attempts++;
-          if (a.correct) existing.words[k].correctCount++;
-        }
-      });
-      localStorage.setItem(key, JSON.stringify(existing));
-    } catch(e) { console.warn('_saveTodayResults:', e); }
-  }
-  
-  getTodayPractice() {
-    try {
-      const key = this._todayKey();
-      return JSON.parse(localStorage.getItem(key) || '{"sessions":[],"words":{}}');
-    } catch { return { sessions: [], words: {} }; }
-  }
-  
-  _cleanOldPracticeData() {
-    // Remove practice data older than today
-    try {
-      const todayKey = this._todayKey();
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('practice_') && k !== todayKey) {
-          localStorage.removeItem(k);
-        }
-      }
-    } catch { }
   }
   
   async submitNewTopic() {
@@ -1738,7 +1668,7 @@ class JLPTStudyApp {
   // ===== HELPERS =====
   getMarkingStats() {
     const stats = {};
-    for (let k = 0; k <= 6; k++) {
+    for (let k = 0; k <= 5; k++) {
       stats[k] = this.kanjiWords.filter(w => getMarking(this.markings, w) === k).length;
     }
     return stats;

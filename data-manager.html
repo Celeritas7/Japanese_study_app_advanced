@@ -1663,15 +1663,31 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
               ${linkedWords.length > 0 ? `
                 <div style="margin-bottom:12px;">
                   <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px; font-weight:600;">LINKED WORDS:</div>
-                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                    ${linkedWords.map(w => `
-                      <span style="font-size:12px; padding:4px 10px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:6px; border:1px solid rgba(99,102,241,0.2);">
-                        ${escapeHtml(w.kanji)} <span style="opacity:0.5; font-size:10px;">${escapeHtml(w.hiragana || '')}</span>
-                      </span>
-                    `).join('')}
+                  <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                    ${linkedWords.map(w => {
+                      const lnk = (state.wordSentenceLinks || []).find(l => l.sentence_id === current.id && l.word_id === w.id);
+                      return `
+                        <span style="font-size:12px; padding:4px 10px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:6px; border:1px solid rgba(99,102,241,0.2); display:inline-flex; align-items:center; gap:4px;">
+                          ${escapeHtml(w.kanji)} <span style="opacity:0.5; font-size:10px;">${escapeHtml(w.hiragana || '')}</span>
+                          ${lnk ? `<button data-unlink-word="${lnk.id}" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:10px; padding:0 2px;" title="Unlink">\u00D7</button>` : ''}
+                        </span>`;
+                    }).join('')}
+                    <button class="btn btn-sm btn-ghost" id="verifyToggleLinkForm" style="font-size:10px; padding:2px 8px;">+ Link Word</button>
                   </div>
                 </div>
-              ` : '<div style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">No linked words</div>'}
+              ` : `
+                <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  No linked words
+                  <button class="btn btn-sm btn-ghost" id="verifyToggleLinkForm" style="font-size:10px; padding:2px 8px;">+ Link Word</button>
+                </div>
+              `}
+              <!-- Quick link form -->
+              <div id="verifyLinkForm" style="display:none; margin-bottom:12px;">
+                <div style="display:flex; gap:4px; align-items:center;">
+                  <input type="text" id="verifyLinkInput" placeholder="Type kanji to link..." style="flex:1; font-size:12px; padding:6px 8px;">
+                  <button class="btn btn-sm btn-primary" id="verifyDoLinkBtn">Link</button>
+                </div>
+              </div>
               
               <!-- Action buttons -->
               <div style="display:flex; gap:10px; justify-content:center;">
@@ -1895,6 +1911,12 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
         ${items.map(s => {
           const v = s.verified || 'unverified';
           const words = detectWords(s.sentence || '', stemMap, sortedStems);
+          // Find linked words for this sentence
+          const sentLinks = (state.wordSentenceLinks || []).filter(l => l.sentence_id === s.id);
+          const linkedWords = sentLinks.map(l => {
+            const w = state.words.find(w => w.id === l.word_id);
+            return w ? { ...w, linkId: l.id } : null;
+          }).filter(Boolean);
           return `
             <div class="sent-item">
               <div class="sent-text">${highlightWords(s.sentence || '', words)}</div>
@@ -1907,6 +1929,23 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
                 <span class="mono" style="font-size:10px; color:var(--text-muted);">#${s.id}</span>
               </div>
               
+              <!-- Linked Words -->
+              <div class="flex gap-2 flex-wrap items-center mb-2">
+                ${linkedWords.map(w => `
+                  <span style="font-size:11px; padding:2px 8px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:4px; border:1px solid rgba(99,102,241,0.2); display:inline-flex; align-items:center; gap:4px;">
+                    ${escapeHtml(w.kanji)} <span style="opacity:0.5; font-size:9px;">${escapeHtml(w.hiragana || '')}</span>
+                    <button data-unlink-word="${w.linkId}" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:10px; padding:0 2px;" title="Unlink">\u00D7</button>
+                  </span>
+                `).join('')}
+                <button class="btn btn-sm btn-ghost" data-toggle-link-form="${s.id}" style="font-size:10px; padding:2px 8px;">+ Link Word</button>
+              </div>
+              <div id="linkWordForm_${s.id}" style="display:none; margin-bottom:8px;">
+                <div style="display:flex; gap:4px; align-items:center;">
+                  <input type="text" data-link-word-input="${s.id}" placeholder="Type kanji to link..." style="flex:1; font-size:12px; padding:4px 8px;">
+                  <button class="btn btn-sm btn-primary" data-do-link-word="${s.id}">Link</button>
+                </div>
+              </div>
+              
               <!-- Tags -->
               <div class="flex gap-2 flex-wrap items-center mb-2">
                 ${(s.tags || []).map(t => `
@@ -1917,14 +1956,6 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
                   <button class="btn btn-sm btn-ghost" data-add-tag="${s.id}">Add</button>
                 </span>
               </div>
-              
-              <!-- Detected words -->
-              ${words.length > 0 ? `
-                <div class="flex gap-2 flex-wrap mb-2">
-                  ${words.slice(0, 8).map(w => `<span style="font-size:11px; padding: 2px 6px; background:rgba(99,102,241,0.08); color:var(--accent); border-radius:4px;">${escapeHtml(w.kanji)}</span>`).join('')}
-                  ${words.length > 8 ? `<span style="font-size:11px; color:var(--text-muted);">+${words.length-8}</span>` : ''}
-                </div>
-              ` : ''}
               
               <!-- Actions -->
               <div class="flex gap-2">
@@ -2773,6 +2804,54 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
             </div>
           ` : ''}
         `}
+        
+        <!-- ===== SENTENCE DUPLICATES ===== -->
+        ${(() => {
+          const sentMap = {};
+          state.sentences.forEach(s => {
+            if (!s.sentence) return;
+            const norm = s.sentence.replace(/\s+/g, '').trim();
+            if (!sentMap[norm]) sentMap[norm] = [];
+            sentMap[norm].push(s);
+          });
+          const sentDupes = Object.entries(sentMap).filter(([, arr]) => arr.length > 1).sort((a, b) => b[1].length - a[1].length);
+          
+          return `
+            <div style="margin-top:24px; margin-bottom:16px;">
+              <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">💬 Duplicate Sentences</h2>
+              <p style="font-size:12px; color:var(--text-muted);">Same sentence text appearing multiple times.</p>
+            </div>
+            
+            <div class="stats-row" style="margin-bottom:16px;">
+              <div class="stat-card"><div class="stat-num" style="color:${sentDupes.length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${sentDupes.length}</div><div class="stat-label">Duplicate Sentences</div></div>
+              <div class="stat-card"><div class="stat-num">${sentDupes.reduce((a, [, arr]) => a + arr.length, 0)}</div><div class="stat-label">Total Duplicate Rows</div></div>
+            </div>
+            
+            ${sentDupes.length === 0 ? `<div style="text-align:center; padding:20px; color:var(--text-muted);">No duplicate sentences found!</div>` : `
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                ${sentDupes.slice(0, 20).map(([, sents]) => {
+                  return '<div class="card" style="padding:12px 16px;">' +
+                    '<div style="font-size:14px; color:var(--text-primary); margin-bottom:8px; line-height:1.6;">' + escapeHtml(sents[0].sentence) + '</div>' +
+                    '<div style="display:flex; flex-direction:column; gap:4px;">' +
+                    sents.map(s => {
+                      const links = (state.wordSentenceLinks || []).filter(l => l.sentence_id === s.id).length;
+                      return '<div style="display:flex; align-items:center; justify-content:space-between; padding:4px 8px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                          '<span class="mono" style="font-size:10px; color:var(--text-muted);">ID:' + s.id + '</span>' +
+                          '<span style="font-size:10px; color:var(--accent);">' + escapeHtml(s.source || '') + '</span>' +
+                          '<span style="font-size:10px; color:var(--text-muted);">' + (s.verified || 'unverified') + '</span>' +
+                          '<span style="font-size:10px; color:var(--text-muted);">' + links + ' word links</span>' +
+                        '</div>' +
+                        (links === 0 ? '<button class="btn btn-sm btn-ghost" data-delete-sentence="' + s.id + '" style="color:var(--red); font-size:10px;">\uD83D\uDDD1 Delete</button>' : '<span style="font-size:9px; color:var(--text-muted);">has links</span>') +
+                      '</div>';
+                    }).join('') +
+                    '</div></div>';
+                }).join('')}
+                ${sentDupes.length > 20 ? '<div style="font-size:11px; color:var(--text-muted); text-align:center; padding:8px;">Showing first 20 of ' + sentDupes.length + ' duplicate groups</div>' : ''}
+              </div>
+            `}
+          `;
+        })()}
       `;
     }
     
@@ -2955,6 +3034,51 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
         state.wordSentenceLinks = (state.wordSentenceLinks || []).filter(l => !ids.includes(l.sentence_id));
         toast(`Deleted ${deleted} rejected sentences!`);
         render();
+      });
+      
+      // ===== LINK / UNLINK WORDS TO SENTENCES =====
+      document.querySelectorAll('[data-toggle-link-form]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const form = document.getElementById(`linkWordForm_${btn.dataset.toggleLinkForm}`);
+          if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        });
+      });
+      
+      document.querySelectorAll('[data-do-link-word]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const sentId = parseInt(btn.dataset.doLinkWord);
+          const input = document.querySelector(`[data-link-word-input="${sentId}"]`);
+          const kanji = input?.value?.trim();
+          if (!kanji) return;
+          
+          // Find word by kanji
+          const word = state.words.find(w => w.kanji === kanji);
+          if (!word) { toast(`Word "${kanji}" not found in database`, 'error'); return; }
+          
+          // Check if already linked
+          const existing = (state.wordSentenceLinks || []).some(l => l.word_id === word.id && l.sentence_id === sentId);
+          if (existing) { toast('Already linked', 'warn'); return; }
+          
+          // Insert link
+          const { data, error } = await sb.from('japanese_unified_word_sentences')
+            .insert({ word_id: word.id, sentence_id: sentId, rating: null })
+            .select();
+          if (error) { toast('Link failed: ' + error.message, 'error'); return; }
+          if (data?.[0]) state.wordSentenceLinks.push(data[0]);
+          toast(`Linked "${kanji}" to sentence #${sentId}`);
+          render();
+        });
+      });
+      
+      document.querySelectorAll('[data-unlink-word]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const linkId = parseInt(btn.dataset.unlinkWord);
+          const { error } = await sb.from('japanese_unified_word_sentences').delete().eq('id', linkId);
+          if (error) { toast('Unlink failed: ' + error.message, 'error'); return; }
+          state.wordSentenceLinks = (state.wordSentenceLinks || []).filter(l => l.id !== linkId);
+          toast('Word unlinked');
+          render();
+        });
       });
       
       // Tags
@@ -3496,6 +3620,28 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       
       // Import AI results
       document.getElementById('verifyImportBtn')?.addEventListener('click', () => importAIReview());
+      
+      // Verify queue: link word form
+      document.getElementById('verifyToggleLinkForm')?.addEventListener('click', () => {
+        const form = document.getElementById('verifyLinkForm');
+        if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      });
+      document.getElementById('verifyDoLinkBtn')?.addEventListener('click', async () => {
+        const queue = getVerifyQueue();
+        const sent = queue[state.verifyIdx];
+        if (!sent) return;
+        const kanji = document.getElementById('verifyLinkInput')?.value?.trim();
+        if (!kanji) return;
+        const word = state.words.find(w => w.kanji === kanji);
+        if (!word) { toast(`Word "${kanji}" not found`, 'error'); return; }
+        const existing = (state.wordSentenceLinks || []).some(l => l.word_id === word.id && l.sentence_id === sent.id);
+        if (existing) { toast('Already linked', 'warn'); return; }
+        const { data, error } = await sb.from('japanese_unified_word_sentences').insert({ word_id: word.id, sentence_id: sent.id, rating: null }).select();
+        if (error) { toast('Link failed: ' + error.message, 'error'); return; }
+        if (data?.[0]) state.wordSentenceLinks.push(data[0]);
+        toast(`Linked "${kanji}" to sentence`);
+        render();
+      });
       
       document.getElementById('verifyAcceptBtn')?.addEventListener('click', async () => {
         const queue = getVerifyQueue();
