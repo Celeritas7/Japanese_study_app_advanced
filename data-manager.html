@@ -3727,149 +3727,111 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.15s, box-shadow 0.15s;
+      transition: transform 0.15s;
     }
-    .dict-fab:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
-    .dict-fab.hidden { display: none; }
+    .dict-fab:hover { transform: scale(1.1); }
     
-    .dict-panel {
+    .dict-bar {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      height: 65vh;
       background: var(--bg-card);
       border-top: 2px solid var(--accent);
-      border-radius: 16px 16px 0 0;
+      padding: 10px 14px;
       z-index: 9001;
-      display: flex;
-      flex-direction: column;
       transform: translateY(100%);
-      transition: transform 0.25s ease-out;
-      box-shadow: 0 -8px 30px rgba(0,0,0,0.5);
+      transition: transform 0.2s ease-out;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
     }
-    .dict-panel.open { transform: translateY(0); }
+    .dict-bar.open { transform: translateY(0); }
     
-    .dict-header {
+    .dict-bar-row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
+      gap: 6px;
     }
-    .dict-header input {
+    .dict-bar input {
       flex: 1;
       font-size: 16px;
-      padding: 8px 12px;
+      padding: 10px 12px;
       border-radius: 8px;
       background: var(--bg-input);
       border: 1px solid var(--border);
       color: var(--text-primary);
       font-family: inherit;
+      min-width: 0;
     }
-    .dict-header button {
+    .dict-bar-btn {
       background: var(--accent);
       color: white;
       border: none;
-      padding: 8px 14px;
+      padding: 10px 12px;
       border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       font-family: inherit;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
-    .dict-close {
-      background: transparent !important;
-      color: var(--text-muted) !important;
-      font-size: 20px !important;
-      padding: 4px 8px !important;
-      border-radius: 6px !important;
-    }
-    .dict-close:hover { color: var(--text-primary) !important; background: var(--bg-hover) !important; }
-    
-    .dict-body {
-      flex: 1;
-      overflow: hidden;
-      position: relative;
-    }
-    .dict-body iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: white;
-    }
-    .dict-fallback {
-      display: none;
-      padding: 20px;
-      text-align: center;
+    .dict-bar-ghost {
+      background: transparent;
       color: var(--text-muted);
+      border: 1px solid var(--border);
     }
-    .dict-fallback a {
-      color: var(--accent);
-      font-weight: 600;
-      text-decoration: underline;
+    .dict-bar-ghost.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .dict-bar-close {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      padding: 4px 8px;
+      flex-shrink: 0;
     }
     .dict-tabs {
       display: flex;
       gap: 4px;
-      flex-shrink: 0;
+      margin-top: 8px;
     }
-    .dict-tab {
-      background: transparent !important;
-      color: var(--text-muted) !important;
-      font-size: 10px !important;
-      padding: 4px 8px !important;
-      border-radius: 4px !important;
-      border: 1px solid var(--border) !important;
+    .dict-tabs button {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
       cursor: pointer;
+      font-family: inherit;
     }
-    .dict-tab.active { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
-
-    @media (min-width: 769px) {
-      .dict-panel {
-        left: auto;
-        width: 420px;
-        right: 20px;
-        bottom: 80px;
-        height: 70vh;
-        border-radius: 16px;
-        border: 2px solid var(--accent);
-      }
-    }
+    .dict-tabs button.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .dict-hint { font-size: 10px; color: var(--text-muted); margin-top: 6px; }
   </style>
   
   <button class="dict-fab" id="dictFab" title="Dictionary">📖</button>
   
-  <div class="dict-panel" id="dictPanel">
-    <div class="dict-header">
-      <input type="text" id="dictInput" placeholder="Search kanji or word..." autocomplete="off">
-      <div class="dict-tabs">
-        <button class="dict-tab active" data-dict-src="jisho">Jisho</button>
-        <button class="dict-tab" data-dict-src="jpdb">jpdb</button>
-        <button class="dict-tab" data-dict-src="takoboto">Takoboto</button>
-      </div>
-      <button id="dictSearchBtn">🔍</button>
-      <button class="dict-close" id="dictCloseBtn">✕</button>
+  <div class="dict-bar" id="dictBar">
+    <div class="dict-bar-row">
+      <input type="text" id="dictInput" placeholder="Type kanji or word..." autocomplete="off">
+      <button class="dict-bar-btn" id="dictSearchBtn">🔍 Search</button>
+      <button class="dict-bar-close" id="dictCloseBtn">✕</button>
     </div>
-    <div class="dict-body">
-      <iframe id="dictFrame" sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy"></iframe>
-      <div class="dict-fallback" id="dictFallback">
-        <p style="margin-bottom:12px;">This dictionary blocks inline loading.</p>
-        <a id="dictNewTabLink" href="#" target="_blank" rel="noopener">Open in new tab →</a>
-      </div>
+    <div class="dict-tabs">
+      <button class="active" data-dict-src="jisho">Jisho</button>
+      <button data-dict-src="jpdb">jpdb</button>
+      <button data-dict-src="takoboto">Takoboto</button>
     </div>
+    <div class="dict-hint">Opens dictionary in a popup window. Your form stays safe here.</div>
   </div>
   
   <script>
     (function() {
       const fab = document.getElementById('dictFab');
-      const panel = document.getElementById('dictPanel');
+      const bar = document.getElementById('dictBar');
       const input = document.getElementById('dictInput');
-      const frame = document.getElementById('dictFrame');
-      const fallback = document.getElementById('dictFallback');
-      const newTabLink = document.getElementById('dictNewTabLink');
       let currentSrc = 'jisho';
+      let dictWindow = null;
       
       const DICT_URLS = {
         jisho: q => `https://jisho.org/search/${encodeURIComponent(q)}`,
@@ -3878,14 +3840,12 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       };
       
       fab.addEventListener('click', () => {
-        panel.classList.add('open');
-        fab.classList.add('hidden');
+        bar.classList.add('open');
         input.focus();
       });
       
       document.getElementById('dictCloseBtn').addEventListener('click', () => {
-        panel.classList.remove('open');
-        fab.classList.remove('hidden');
+        bar.classList.remove('open');
       });
       
       function doSearch() {
@@ -3893,21 +3853,14 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
         if (!q) return;
         const url = DICT_URLS[currentSrc](q);
         
-        // Reset state
-        frame.style.display = 'block';
-        fallback.style.display = 'none';
-        frame.src = url;
-        newTabLink.href = url;
-        
-        // Detect iframe load failure (timeout-based since error events are unreliable)
-        let loaded = false;
-        frame.onload = () => { loaded = true; };
-        setTimeout(() => {
-          if (!loaded) {
-            frame.style.display = 'none';
-            fallback.style.display = 'block';
-          }
-        }, 5000);
+        // Open in popup window (reuse same window if still open)
+        if (dictWindow && !dictWindow.closed) {
+          dictWindow.location.href = url;
+          dictWindow.focus();
+        } else {
+          // Mobile: opens as new tab. Desktop: opens as popup window.
+          dictWindow = window.open(url, 'jlpt_dict', 'width=420,height=700,left=100,top=100');
+        }
       }
       
       document.getElementById('dictSearchBtn').addEventListener('click', doSearch);
@@ -3919,16 +3872,17 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           currentSrc = btn.dataset.dictSrc;
           document.querySelectorAll('[data-dict-src]').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          // If there's already a query, re-search with new source
           if (input.value.trim()) doSearch();
         });
       });
       
-      // Allow clicking kanji in the data-manager to auto-search
+      // Click any alert-kanji to auto-fill search
       document.addEventListener('click', (e) => {
-        if (e.target.closest('.alert-kanji') && panel.classList.contains('open')) {
-          input.value = e.target.closest('.alert-kanji').textContent.trim();
-          doSearch();
+        const ak = e.target.closest('.alert-kanji');
+        if (ak) {
+          const text = ak.textContent.trim();
+          input.value = text;
+          bar.classList.add('open');
         }
       });
     })();
