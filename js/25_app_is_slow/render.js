@@ -606,8 +606,8 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
   
   // Build tappable versions of context for tap-to-save
   const wordKanji = word.kanji || word.raw || '';
-  // PERF: Use pre-built set from app instead of rebuilding per render
-  const knownKanjiSet = app.knownKanjiSet || new Set();
+  const knownKanjiSet = new Set();
+  if (app.kanjiWords) app.kanjiWords.forEach(w => { if (w.kanji) knownKanjiSet.add(w.kanji); });
   const tappableBefore = ctxBefore ? renderTappableSentence(ctxBefore, wordKanji, knownKanjiSet) : '';
   const tappableAfter = ctxAfter ? renderTappableSentence(ctxAfter, wordKanji, knownKanjiSet) : '';
   

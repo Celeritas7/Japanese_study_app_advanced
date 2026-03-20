@@ -333,23 +333,19 @@ function renderGroupDetail(app) {
 // ===== FLASHCARD BADGE =====
 
 export function getWordGroupBadges(app, word) {
-  if (!app.wordGroups) return [];
+  if (!app.wordGroupMembers || !app.wordGroups) return [];
   const kanji = word.kanji || word.raw || '';
-  
-  // PERF: Use pre-built lookup instead of scanning all members
-  let wordId = word.id;
-  if (!wordId || !(app._wordGroupLookup && app._wordGroupLookup[wordId])) {
+  const memberEntries = app.wordGroupMembers.filter(m => {
+    if (word.id && app.kanjiWords?.some(kw => kw.id === word.id) && m.word_id === word.id) return true;
     const match = app.kanjiWords?.find(w => w.kanji === kanji);
-    wordId = match?.id;
-  }
-  const groupIds = (app._wordGroupLookup && wordId) ? (app._wordGroupLookup[wordId] || []) : [];
-  
+    return match && m.word_id === match.id;
+  });
+  const groupIds = [...new Set(memberEntries.map(m => m.group_id))];
   return groupIds.map(gid => {
     const group = app.wordGroups.find(g => g.id === gid);
     if (!group) return null;
     const info = GROUP_TYPE_INFO[group.group_type] || GROUP_TYPE_INFO.synonym;
-    // PERF: Use pre-built count map instead of scanning
-    const memberCount = (app._groupMemberCount && app._groupMemberCount[gid]) || 0;
+    const memberCount = app.wordGroupMembers.filter(m => m.group_id === gid).length;
     return { group, info, memberCount };
   }).filter(Boolean);
 }

@@ -442,8 +442,11 @@ export function renderSentencePanel(app) {
   const sentenceCount = linked.length;
   const isExpanded = app.sentencePanelExpanded;
   
-  // PERF: Use pre-built set from app instead of rebuilding per render
-  const knownKanjiSet = app.knownKanjiSet || new Set();
+  // Build set of known kanji for tap-to-save highlighting
+  const knownKanjiSet = new Set();
+  if (app.kanjiWords) {
+    app.kanjiWords.forEach(w => { if (w.kanji) knownKanjiSet.add(w.kanji); });
+  }
   
   return `
     <div class="mt-4">

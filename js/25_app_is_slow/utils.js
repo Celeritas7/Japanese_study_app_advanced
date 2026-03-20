@@ -2,11 +2,6 @@
 
 import { MARKING_CATEGORIES } from './config.js';
 
-// PERF: Reuse single Segmenter instance (created once, used by renderTappableSentence)
-const _jaSegmenter = (typeof Intl !== 'undefined' && Intl.Segmenter)
-  ? new Intl.Segmenter('ja', { granularity: 'word' })
-  : null;
-
 /**
  * Convert page number to week/day format
  */
@@ -179,7 +174,7 @@ export function renderTappableSentence(text, currentWordKanji, knownKanjiSet) {
   if (!text) return '';
 
   // Fallback: plain escaped text if Segmenter unavailable
-  if (!_jaSegmenter) {
+  if (typeof Intl === 'undefined' || !Intl.Segmenter) {
     return escapeHtml(text);
   }
 
@@ -204,6 +199,8 @@ export function renderTappableSentence(text, currentWordKanji, knownKanjiSet) {
 
     // Step 2: For each chunk, either render as study-word highlight
     // or segment into tappable words via Intl.Segmenter
+    const segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
+
     return chunks.map(chunk => {
       // Study word chunk — render as single highlighted span
       if (chunk.isStudyWord) {
@@ -211,7 +208,7 @@ export function renderTappableSentence(text, currentWordKanji, knownKanjiSet) {
       }
 
       // Non-study-word chunk — segment into tappable words
-      const segments = [..._jaSegmenter.segment(chunk.text)];
+      const segments = [...segmenter.segment(chunk.text)];
       return segments.map(seg => {
         const word = seg.segment;
         const escaped = escapeHtml(word);

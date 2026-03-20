@@ -239,23 +239,6 @@ class JLPTStudyApp {
     this.wordGroups = wordGroups;
     this.wordGroupMembers = wordGroupMembers;
     
-    // ===== PERF: Pre-build lookup caches =====
-    // Known kanji set — used by tappable sentence renderer
-    this.knownKanjiSet = new Set();
-    kanjiWords.forEach(w => { if (w.kanji) this.knownKanjiSet.add(w.kanji); });
-    
-    // Word group lookup — wordId → [groupId, ...]
-    this._wordGroupLookup = {};
-    this._groupMemberCount = {};
-    (wordGroupMembers || []).forEach(m => {
-      if (!this._wordGroupLookup[m.word_id]) this._wordGroupLookup[m.word_id] = [];
-      const gid = m.group_id;
-      if (!this._wordGroupLookup[m.word_id].includes(gid)) {
-        this._wordGroupLookup[m.word_id].push(gid);
-      }
-      this._groupMemberCount[gid] = (this._groupMemberCount[gid] || 0) + 1;
-    });
-    
     // Derive vocabulary (Goi study words) from unified tables
     // JLPT book entries → one vocabulary item per word-book pairing
     const JLPT_BOOKS = ['JLPT_N1', 'JLPT_N2', 'JLPT_N3'];
@@ -343,7 +326,6 @@ class JLPTStudyApp {
         // Add to local cache
         const newWord = { ...data[0], meaning: '', level: '', raw: kanji, supporting_word_1: '', supporting_word_2: '', sentence_before: '', sentence_after: '' };
         this.kanjiWords.push(newWord);
-        if (this.knownKanjiSet) this.knownKanjiSet.add(kanji);
       } catch (e) { console.error(e); return; }
     }
     
@@ -361,13 +343,8 @@ class JLPTStudyApp {
         .insert({ group_id: groupId, word_id: wordId, sort_order: nextSort })
         .select();
       if (error) { console.error('Insert member error:', error); alert('Failed to link word: ' + error.message); return; }
-      // Add to local cache + update lookup
+      // Add to local cache
       this.wordGroupMembers.push(data[0]);
-      if (this._wordGroupLookup) {
-        if (!this._wordGroupLookup[wordId]) this._wordGroupLookup[wordId] = [];
-        if (!this._wordGroupLookup[wordId].includes(groupId)) this._wordGroupLookup[wordId].push(groupId);
-      }
-      if (this._groupMemberCount) this._groupMemberCount[groupId] = (this._groupMemberCount[groupId] || 0) + 1;
       this.render();
     } catch (e) { console.error(e); }
   }
@@ -718,7 +695,6 @@ class JLPTStudyApp {
         sentence_after: '',
       };
       this.kanjiWords.push(newWord);
-      if (this.knownKanjiSet) this.knownKanjiSet.add(kanji);
       
       // Surgically refresh sentence panel to update tap-word styles
       const container = document.getElementById('flashcardExtraContent');
