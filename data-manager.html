@@ -1213,7 +1213,7 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
         <header class="app-header">
           <div class="app-header-top">
             <div class="app-title">
-              <a href="./" title="Back to Study App" style="text-decoration:none; font-size:20px; margin-right:2px;">←</a>
+              <a href="javascript:void(0)" onclick="history.length > 1 ? history.back() : location.href='./'" title="Back to Study App" style="text-decoration:none; font-size:20px; margin-right:2px;">\u2190</a>
               <span class="icon">🛠️</span>
               <span>JLPT Data Manager</span>
               <span class="sub">${state.loading ? 'Loading...' : `${state.words.length} words · ${state.sentences.length} sentences`}</span>

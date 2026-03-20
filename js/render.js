@@ -155,7 +155,7 @@ export function renderHeader(app) {
       </div>
       <div class="flex items-center gap-2">
         ${isAdmin ? `
-          <a href="data-manager.html" target="_blank" id="adminBtn" class="text-amber-400 hover:text-amber-300 p-2 transition-colors" title="Data Manager (Admin)">
+          <a href="data-manager.html" id="adminBtn" class="text-amber-400 hover:text-amber-300 p-2 transition-colors" title="Data Manager (Admin)">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -614,8 +614,8 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
   // Badge HTML for word group relations (rendered inside sentence box on yellow bg)
   const badges = getWordGroupBadges(app, word);
   const badgeHtml = badges.length > 0
-    ? `<div class="flex gap-1.5 flex-wrap justify-center mb-2">${badges.map(b => `
-        <button data-view-group="${b.group.id}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-80"
+    ? `<div class="badge-row">${badges.map(b => `
+        <button data-view-group="${b.group.id}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all hover:opacity-80"
           style="background:${b.info.hex}; color:white; border:none; opacity:0.85;">
           ${b.info.icon} ${b.memberCount} ${b.info.label.toLowerCase()}
         </button>
@@ -626,7 +626,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
     // Kanji Recognition: Kanji → Hint → Context → Hiragana → Meaning
     return `
       <!-- Sentence Box: Kanji always visible, context grows in -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex flex-col items-center justify-center">
+      <div class="sentence-box rounded-2xl p-6 mb-4">
         ${badgeHtml}
         <p class="text-center leading-relaxed">
           ${app.revealStep >= 2 && tappableBefore ? `<span class="context-text sentence-tappable">${tappableBefore}</span>` : ''}
@@ -654,7 +654,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
     // Reading Recognition: Hiragana+Meaning → Hint → Context → Kanji
     return `
       <!-- Sentence Box: Hiragana + Meaning always visible -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[120px] flex flex-col items-center justify-center">
+      <div class="sentence-box rounded-2xl p-6 mb-4">
         ${badgeHtml}
         <p class="reading-display text-blue-700 font-bold mb-2">${word.hiragana || ''}</p>
         <p class="meaning-display text-amber-800">${word.meaning}</p>
@@ -685,7 +685,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
     // Writing Test: Meaning → Canvas → Hint → Context → Hiragana → Kanji
     return `
       <!-- Sentence Box: Meaning always visible -->
-      <div class="sentence-box rounded-2xl p-6 mb-4 min-h-[100px] flex flex-col items-center justify-center">
+      <div class="sentence-box rounded-2xl p-6 mb-4">
         ${badgeHtml}
         <p class="meaning-display text-amber-800 font-bold text-center">${word.meaning}</p>
       </div>
