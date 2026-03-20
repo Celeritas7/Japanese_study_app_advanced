@@ -475,9 +475,6 @@
       
       // Orphans
       orphanResults: null, // { wordBookOrphans, sentenceLinkOrphans, groupMemberOrphans }
-      
-      // Group Audit
-      auditPage: 0,
     };
     
     // ========== HELPERS ==========
@@ -675,117 +672,6 @@
       const { error } = await sb.from(table).update({ resolved: true, resolved_at: new Date().toISOString() }).eq('id', id);
       if (error) { toast('Resolve failed: ' + error.message, 'error'); return false; }
       return true;
-    }
-    
-    // ===== GENERIC EXPORT/IMPORT HELPERS =====
-    function exportJSON(filename, data) {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename; a.click();
-      URL.revokeObjectURL(url);
-      toast(`Exported ${data.length} items`);
-    }
-    
-    function importJSON(callback) {
-      const input = document.createElement('input');
-      input.type = 'file'; input.accept = '.json';
-      input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try {
-          const text = await file.text();
-          const data = JSON.parse(text);
-          if (!Array.isArray(data)) { toast('Invalid JSON: expected array', 'error'); return; }
-          await callback(data);
-        } catch (err) { toast('Import error: ' + err.message, 'error'); }
-      };
-      input.click();
-    }
-    
-    // Tab-specific import handlers
-    async function importIncompleteWords(data) {
-      let updated = 0;
-      for (const r of data) {
-        if (!r.id) continue;
-        const updates = {};
-        if (r.hiragana !== undefined) updates.hiragana = r.hiragana;
-        if (r.meaning_en !== undefined) updates.meaning_en = r.meaning_en;
-        if (r.hint !== undefined) updates.hint = r.hint;
-        if (r.jlpt_level !== undefined) updates.jlpt_level = r.jlpt_level;
-        if (r.word_type !== undefined) updates.word_type = r.word_type;
-        if (Object.keys(updates).length > 0 && await updateWord(r.id, updates)) updated++;
-      }
-      toast(`Imported: ${updated}/${data.length} words updated`); render();
-    }
-    
-    async function importStories(data) {
-      let updated = 0, created = 0;
-      for (const r of data) {
-        const kanji = r.kanji;
-        if (!kanji) continue;
-        const existing = state.stories.find(s => s.kanji === kanji);
-        if (existing) {
-          const updates = {};
-          if (r.meaning !== undefined) updates.meaning = r.meaning;
-          if (r.story !== undefined) updates.story = r.story;
-          if (r.onyomi !== undefined) updates.onyomi = r.onyomi;
-          if (r.kunyomi !== undefined) updates.kunyomi = r.kunyomi;
-          if (r.group_kanji !== undefined) updates.group_kanji = r.group_kanji;
-          if (Object.keys(updates).length > 0) {
-            const ok = await updateStory(kanji, updates);
-            if (ok) updated++;
-          }
-        } else {
-          const { data: ins, error } = await sb.from('japanese_kanji_stories').insert({
-            kanji, group_kanji: r.group_kanji || '', meaning: r.meaning || '',
-            story: r.story || '', onyomi: r.onyomi || '', kunyomi: r.kunyomi || ''
-          }).select();
-          if (!error && ins?.[0]) { state.stories.push(ins[0]); created++; }
-        }
-      }
-      toast(`Stories: ${updated} updated, ${created} created`); render();
-    }
-    
-    async function importWordFlags(data) {
-      let updated = 0;
-      for (const r of data) {
-        if (!r.id) continue;
-        const updates = {};
-        if (r.hiragana !== undefined) updates.hiragana = r.hiragana;
-        if (r.meaning_en !== undefined) updates.meaning_en = r.meaning_en;
-        if (r.hint !== undefined) updates.hint = r.hint;
-        if (r.word_type !== undefined) updates.word_type = r.word_type;
-        if (Object.keys(updates).length > 0 && await updateWord(r.id, updates)) updated++;
-        // Auto-resolve the alert
-        if (r.alert_id) {
-          await resolveAlert('japanese_word_alerts', r.alert_id);
-          const a = state.wordAlerts.find(a => a.id === r.alert_id);
-          if (a) a.resolved = true;
-        }
-      }
-      toast(`Imported: ${updated} words updated`); render();
-    }
-    
-    async function importGroupAudit(data) {
-      let reassigned = 0;
-      for (const r of data) {
-        if (!r.kanji || !r.new_group_kanji) continue;
-        await reassignGroup(r.kanji, r.new_group_kanji);
-        reassigned++;
-      }
-      toast(`Reassigned ${reassigned} kanji to new groups`); render();
-    }
-    
-    // Reusable export/import bar HTML
-    function renderExportImportBar(exportBtnId, importBtnId, promptBtnId) {
-      return `
-        <div style="display:flex; gap:6px; align-items:center; padding:8px 0;">
-          <button class="btn btn-sm btn-ghost" id="${exportBtnId}">📤 Export JSON</button>
-          <button class="btn btn-sm btn-ghost" id="${importBtnId}">📥 Import JSON</button>
-          <button class="btn btn-sm btn-ghost" id="${promptBtnId}">📋 AI Prompt</button>
-        </div>
-      `;
     }
     
     async function addTag(sentenceId, tag) {
@@ -1085,7 +971,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
               🚩 Words ${openWordFlags > 0 ? `(${openWordFlags})` : ''}
             </button>
             <button class="tab-btn ${state.tab === 'groups' ? 'active' : ''}" data-tab="groups">🔗 Groups</button>
-            <button class="tab-btn ${state.tab === 'group-audit' ? 'active' : ''}" data-tab="group-audit">🌳 Audit</button>
             <button class="tab-btn ${state.tab === 'dupes' ? 'active' : ''}" data-tab="dupes">🔍 Dupes</button>
             <button class="tab-btn ${state.tab === 'orphans' ? 'active' : ''}" data-tab="orphans">🧹 Orphans</button>
           </div>
@@ -1110,7 +995,6 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
         case 'story-flags': return renderStoryFlagsTab();
         case 'word-flags': return renderWordFlagsTab();
         case 'groups': return renderGroupEditorTab();
-        case 'group-audit': return renderGroupAuditTab();
         case 'dupes': return renderDupesTab();
         case 'orphans': return renderOrphansTab();
         default: return renderStatsTab();
@@ -1311,8 +1195,7 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       return `
         <div style="margin-bottom:16px;">
           <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">🔧 Incomplete Words</h2>
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Words missing hiragana or meaning — fill in and save inline.</p>
-          ${renderExportImportBar('incExportBtn', 'incImportBtn', 'incPromptBtn')}
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">Words missing hiragana or meaning — fill in and save inline.</p>
         </div>
         
         <div class="stats-row" style="margin-bottom:16px;">
@@ -1573,8 +1456,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       return `
         <div style="margin-bottom:16px;">
           <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">📺 Anime Word Review</h2>
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Words discovered from anime subtitles. Promote to unified words DB or dismiss.</p>
-          ${renderExportImportBar('animeExportBtn', 'animeImportBtn', 'animePromptBtn')}
+          <p style="font-size:12px; color:var(--text-muted);">Words discovered from anime subtitles. Promote to unified words DB or dismiss.</p>
         </div>
         
         <div class="stats-row" style="margin-bottom:16px;">
@@ -1922,8 +1804,6 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           <div class="stat-card"><div class="stat-num" style="color:var(--emerald)">${state.storyAlerts.filter(a=>a.resolved).length}</div><div class="stat-label">Resolved</div></div>
         </div>
         
-        ${renderExportImportBar('storyExportBtn', 'storyImportBtn', 'storyPromptBtn')}
-        
         <div class="filter-bar">
           ${['open', 'resolved', 'all'].map(f => `
             <button class="btn btn-sm ${state.flagFilter === f ? 'btn-primary' : 'btn-ghost'}" data-flag-filter="${f}">${f.charAt(0).toUpperCase()+f.slice(1)}</button>
@@ -2122,8 +2002,6 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${state.wordAlerts.filter(a=>!a.resolved).length}</div><div class="stat-label">Open</div></div>
           <div class="stat-card"><div class="stat-num" style="color:var(--emerald)">${state.wordAlerts.filter(a=>a.resolved).length}</div><div class="stat-label">Resolved</div></div>
         </div>
-        
-        ${renderExportImportBar('wordFlagExportBtn', 'wordFlagImportBtn', 'wordFlagPromptBtn')}
         
         <div class="filter-bar">
           ${['open', 'resolved', 'all'].map(f => `
@@ -2354,156 +2232,6 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
             <button class="btn btn-sm btn-primary" id="addMemberBtn">+ Add</button>
           </div>
         </div>
-      `;
-    }
-    
-    // ========== GROUP AUDIT TAB ==========
-    function renderGroupAuditTab() {
-      // Build tree: for each group, find members and check if any member
-      // is itself a group parent (meaning its children might be mis-assigned)
-      const groupKanjiSet = new Set(state.storyGroups.map(g => g.group_kanji));
-      
-      // Build member map: group_kanji → [story records]
-      const memberMap = {};
-      state.stories.forEach(s => {
-        if (!s.group_kanji) return;
-        if (!memberMap[s.group_kanji]) memberMap[s.group_kanji] = [];
-        memberMap[s.group_kanji].push(s);
-      });
-      
-      // Find groups where a member is itself a group parent (sub-group exists)
-      const auditIssues = [];
-      state.storyGroups.forEach(group => {
-        const members = memberMap[group.group_kanji] || [];
-        members.forEach(m => {
-          // Is this member also a group parent?
-          if (groupKanjiSet.has(m.kanji)) {
-            // Check if there are kanji assigned to the PARENT group that should be under this member's group
-            const childGroup = state.storyGroups.find(g => g.group_kanji === m.kanji);
-            const childMembers = memberMap[m.kanji] || [];
-            // Find members of the parent group that contain this sub-group kanji as a component
-            // (heuristic: any member assigned to parent group that could be a child of the sub-group)
-            const suspicious = members.filter(other => 
-              other.kanji !== m.kanji && 
-              other.kanji !== group.group_kanji &&
-              !groupKanjiSet.has(other.kanji) // not itself a group
-            );
-            if (suspicious.length > 0 || childMembers.length > 0) {
-              auditIssues.push({
-                parentGroup: group,
-                subGroupKanji: m.kanji,
-                subGroup: childGroup,
-                subGroupMembers: childMembers,
-                parentMembers: members,
-                suspicious,
-              });
-            }
-          }
-        });
-      });
-      
-      // Also find stories with no group assigned
-      const noGroup = state.stories.filter(s => !s.group_kanji);
-      
-      // Paginate audit issues
-      const page = state.auditPage || 0;
-      const pageSize = 10;
-      const totalPages = Math.ceil(auditIssues.length / pageSize);
-      const pageItems = auditIssues.slice(page * pageSize, (page + 1) * pageSize);
-      
-      return `
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">🌳 Story Group Audit</h2>
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Find kanji that might be assigned to the wrong group level in the component tree.</p>
-          ${renderExportImportBar('auditExportBtn', 'auditImportBtn', 'auditPromptBtn')}
-        </div>
-        
-        <div class="stats-row" style="margin-bottom:16px;">
-          <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${auditIssues.length}</div><div class="stat-label">Groups with Sub-groups</div></div>
-          <div class="stat-card"><div class="stat-num">${state.storyGroups.length}</div><div class="stat-label">Total Story Groups</div></div>
-          <div class="stat-card"><div class="stat-num">${state.stories.length}</div><div class="stat-label">Total Stories</div></div>
-          <div class="stat-card"><div class="stat-num" style="color:${noGroup.length > 0 ? 'var(--red)' : 'var(--emerald)'}">${noGroup.length}</div><div class="stat-label">No Group Assigned</div></div>
-        </div>
-        
-        ${noGroup.length > 0 ? `
-          <div class="card" style="margin-bottom:16px;">
-            <div class="card-header" style="padding:10px 16px;">
-              <span style="font-size:12px; font-weight:700;">⚠ Kanji Without Group (${noGroup.length})</span>
-            </div>
-            <div style="padding:8px 16px; display:flex; flex-wrap:wrap; gap:6px;">
-              ${noGroup.slice(0, 40).map(s => `
-                <span style="font-size:16px; padding:4px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; cursor:default;" title="${escapeHtml(s.meaning || '')}">${escapeHtml(s.kanji)}</span>
-              `).join('')}
-              ${noGroup.length > 40 ? `<span style="font-size:11px; color:var(--text-muted); align-self:center;">+${noGroup.length - 40} more</span>` : ''}
-            </div>
-          </div>
-        ` : ''}
-        
-        <div style="font-size:13px; font-weight:700; color:var(--text-primary); margin-bottom:12px;">Tree Structure Issues (${auditIssues.length})</div>
-        
-        ${pageItems.length === 0 ? `
-          <div style="text-align:center; padding:30px; color:var(--text-muted);">No tree issues found — all groups look flat.</div>
-        ` : `
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            ${pageItems.map(issue => `
-              <div class="card" style="padding:14px 16px;">
-                <!-- Parent group -->
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                  <span style="font-size:24px; font-weight:700; color:var(--text-primary);">${escapeHtml(issue.parentGroup.group_kanji)}</span>
-                  <span style="font-size:13px; color:#fcd34d;">${escapeHtml(issue.parentGroup.group_meaning || '')}</span>
-                  <span style="font-size:10px; color:var(--text-muted);">← parent group</span>
-                </div>
-                
-                <!-- Tree visualization -->
-                <div style="padding-left:16px; border-left:2px solid var(--border);">
-                  <!-- Sub-group kanji -->
-                  <div style="margin-bottom:8px;">
-                    <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); border-radius:6px;">
-                      <span style="font-size:18px; font-weight:700; color:#d8b4fe;">${escapeHtml(issue.subGroupKanji)}</span>
-                      <span style="font-size:11px; color:#c084fc;">← is also a group parent</span>
-                      ${issue.subGroup ? `<span style="font-size:10px; color:var(--text-muted);">(${escapeHtml(issue.subGroup.group_meaning || '')})</span>` : ''}
-                    </div>
-                    
-                    <!-- Sub-group's own members -->
-                    ${issue.subGroupMembers.length > 0 ? `
-                      <div style="padding-left:16px; border-left:2px solid rgba(168,85,247,0.2); margin-top:4px;">
-                        <div style="font-size:9px; color:var(--text-muted); margin-bottom:4px;">ASSIGNED TO ${escapeHtml(issue.subGroupKanji)} GROUP:</div>
-                        ${issue.subGroupMembers.map(m => `
-                          <div style="display:flex; align-items:center; gap:6px; padding:2px 0;">
-                            <span style="font-size:14px; font-weight:600; color:var(--emerald);">${escapeHtml(m.kanji)}</span>
-                            <span style="font-size:10px; color:var(--text-secondary);">${escapeHtml(m.meaning || '')}</span>
-                            <span style="font-size:9px; color:var(--emerald);">✓ correct level</span>
-                          </div>
-                        `).join('')}
-                      </div>
-                    ` : ''}
-                  </div>
-                  
-                  <!-- Other members in parent (potentially mis-assigned) -->
-                  ${issue.suspicious.length > 0 ? `
-                    <div style="font-size:9px; color:var(--amber); margin-bottom:4px; margin-top:8px;">⚠ ALSO IN PARENT GROUP — CHECK IF THESE BELONG UNDER ${escapeHtml(issue.subGroupKanji)} INSTEAD:</div>
-                    ${issue.suspicious.map(m => `
-                      <div style="display:flex; align-items:center; gap:6px; padding:4px 8px; margin-bottom:3px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.15); border-radius:6px;">
-                        <span style="font-size:16px; font-weight:700; color:var(--text-primary);">${escapeHtml(m.kanji)}</span>
-                        <span style="font-size:11px; color:var(--text-secondary); flex:1;">${escapeHtml(m.meaning || '')}</span>
-                        <span style="font-size:10px; color:var(--text-muted);">group: ${escapeHtml(m.group_kanji || '?')}</span>
-                        <button class="btn btn-sm btn-ghost" data-audit-reassign="${escapeHtml(m.kanji)}" data-audit-to="${escapeHtml(issue.subGroupKanji)}" style="font-size:10px; padding:2px 8px; color:var(--accent);">→ Move to ${escapeHtml(issue.subGroupKanji)}</button>
-                      </div>
-                    `).join('')}
-                  ` : ''}
-                </div>
-              </div>
-            `).join('')}
-          </div>
-          
-          ${totalPages > 1 ? `
-            <div class="pagination" style="margin-top:12px;">
-              <button class="btn btn-sm btn-ghost" id="auditPrev" ${page === 0 ? 'disabled' : ''}>← Prev</button>
-              <span style="font-size:12px; color:var(--text-muted);">${page + 1} / ${totalPages}</span>
-              <button class="btn btn-sm btn-ghost" id="auditNext" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
-            </div>
-          ` : ''}
-        `}
       `;
     }
     
@@ -2988,129 +2716,6 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           const ok = await resolveAlert('japanese_word_alerts', id);
           if (ok) { const a = state.wordAlerts.find(a => a.id === id); if (a) a.resolved = true; toast('Resolved'); render(); }
         });
-      });
-      
-      // ===== EXPORT/IMPORT PER TAB =====
-      
-      // Incomplete words export/import
-      document.getElementById('incExportBtn')?.addEventListener('click', () => {
-        const data = state.words.filter(w => !w.hiragana || !w.meaning_en).map(w => ({
-          id: w.id, kanji: w.kanji, hiragana: w.hiragana || '', meaning_en: w.meaning_en || '',
-          hint: w.hint || '', jlpt_level: w.jlpt_level || '', word_type: w.word_type || '', source: w.source || ''
-        }));
-        exportJSON(`incomplete_words_${new Date().toISOString().slice(0,10)}.json`, data);
-      });
-      document.getElementById('incImportBtn')?.addEventListener('click', () => importJSON(importIncompleteWords));
-      document.getElementById('incPromptBtn')?.addEventListener('click', () => {
-        const prompt = `Fill in the missing hiragana and meaning_en for these Japanese words. Return a JSON array with the same objects, with hiragana and meaning_en filled in. Keep the id field unchanged. Only return the JSON array, no markdown.\n\nHere are the words:`;
-        navigator.clipboard.writeText(prompt).then(() => toast('AI prompt copied!')).catch(() => toast('Copy failed', 'warn'));
-      });
-      
-      // Story flags export/import
-      document.getElementById('storyExportBtn')?.addEventListener('click', () => {
-        const openAlerts = state.storyAlerts.filter(a => !a.resolved);
-        const data = openAlerts.map(a => {
-          const story = state.stories.find(s => s.kanji === a.kanji);
-          const group = a.group_kanji ? state.storyGroups.find(g => g.group_kanji === a.group_kanji) : null;
-          const siblings = group ? state.stories.filter(s => s.group_kanji === group.group_kanji) : [];
-          return {
-            kanji: a.kanji, alert_type: a.alert_type, comment: a.comment || '',
-            group_kanji: a.group_kanji || '', group_meaning: group?.group_meaning || '',
-            group_story_pattern: group?.group_story || '',
-            siblings: siblings.map(s => ({ kanji: s.kanji, meaning: s.meaning || '', story: s.story || '' })),
-            current_meaning: story?.meaning || '', current_story: story?.story || '',
-            current_onyomi: story?.onyomi || '', current_kunyomi: story?.kunyomi || '',
-          };
-        });
-        exportJSON(`story_flags_${new Date().toISOString().slice(0,10)}.json`, data);
-      });
-      document.getElementById('storyImportBtn')?.addEventListener('click', () => importJSON(importStories));
-      document.getElementById('storyPromptBtn')?.addEventListener('click', () => {
-        const prompt = `Write mnemonic stories for these kanji. Each kanji has a group with a pattern — follow the same mnemonic style as the siblings. Return a JSON array with objects: { "kanji": "X", "meaning": "...", "story": "...", "onyomi": "...", "kunyomi": "...", "group_kanji": "..." }. Only return the JSON array.\n\nHere are the kanji needing stories:`;
-        navigator.clipboard.writeText(prompt).then(() => toast('AI prompt copied!')).catch(() => toast('Copy failed', 'warn'));
-      });
-      
-      // Word flags export/import
-      document.getElementById('wordFlagExportBtn')?.addEventListener('click', () => {
-        const data = state.wordAlerts.filter(a => !a.resolved).map(a => {
-          const word = state.words.find(w => w.kanji === a.kanji);
-          return {
-            alert_id: a.id, kanji: a.kanji, alert_type: a.alert_type, comment: a.comment || '',
-            reported_hiragana: a.hiragana || '', reported_meaning: a.meaning || '',
-            id: word?.id, current_hiragana: word?.hiragana || '', current_meaning: word?.meaning_en || '',
-            hint: word?.hint || '', word_type: word?.word_type || ''
-          };
-        });
-        exportJSON(`word_flags_${new Date().toISOString().slice(0,10)}.json`, data);
-      });
-      document.getElementById('wordFlagImportBtn')?.addEventListener('click', () => importJSON(importWordFlags));
-      document.getElementById('wordFlagPromptBtn')?.addEventListener('click', () => {
-        const prompt = `Fix these flagged Japanese words. Each has an alert_type and comment describing the issue. Return a JSON array with objects: { "id": word_id, "alert_id": alert_id, "hiragana": "correct_reading", "meaning_en": "correct_meaning", "hint": "memory_hint" }. Only return the JSON array.\n\nHere are the flagged words:`;
-        navigator.clipboard.writeText(prompt).then(() => toast('AI prompt copied!')).catch(() => toast('Copy failed', 'warn'));
-      });
-      
-      // Anime words export/import
-      document.getElementById('animeExportBtn')?.addEventListener('click', () => {
-        const data = (state.animeWords || []).filter(a => !a.promoted && !a.dismissed).map(a => ({
-          id: a.id, word: a.word || a.kanji || '', reading: a.reading || a.hiragana || '',
-          meaning: a.meaning || a.meaning_en || '', episode: a.episode || '', context: a.context || ''
-        }));
-        exportJSON(`anime_words_${new Date().toISOString().slice(0,10)}.json`, data);
-      });
-      document.getElementById('animeImportBtn')?.addEventListener('click', () => importJSON(async (data) => {
-        let promoted = 0;
-        for (const r of data) {
-          if (!r.word && !r.kanji) continue;
-          const wordText = r.word || r.kanji;
-          const existing = state.words.find(w => w.kanji === wordText);
-          if (!existing && r.promote !== false) {
-            const ins = { kanji: wordText, hiragana: r.reading || r.hiragana || '', meaning_en: r.meaning || r.meaning_en || '', hint: '', jlpt_level: r.jlpt_level || '', source: 'anime' };
-            const { data: d, error } = await sb.from('japanese_unified_words').insert(ins).select();
-            if (!error && d?.[0]) state.words.push(d[0]);
-          }
-          if (r.id) {
-            await sb.from('japanese_anime_words').update({ promoted: true }).eq('id', r.id);
-            const aw = state.animeWords.find(a => a.id === r.id);
-            if (aw) aw.promoted = true;
-            promoted++;
-          }
-        }
-        toast(`Promoted ${promoted} anime words`); render();
-      }));
-      document.getElementById('animePromptBtn')?.addEventListener('click', () => {
-        const prompt = `Add readings and meanings for these Japanese words from anime. Return a JSON array with: { "id": anime_word_id, "word": "kanji", "reading": "hiragana_reading", "meaning": "english_meaning", "jlpt_level": "N1/N2/N3 or empty", "promote": true/false }. Set promote=false for words that are just particles/common words. Only return the JSON array.\n\nHere are the words:`;
-        navigator.clipboard.writeText(prompt).then(() => toast('AI prompt copied!')).catch(() => toast('Copy failed', 'warn'));
-      });
-      
-      // ===== GROUP AUDIT TAB =====
-      document.getElementById('auditPrev')?.addEventListener('click', () => { state.auditPage--; render(); });
-      document.getElementById('auditNext')?.addEventListener('click', () => { state.auditPage++; render(); });
-      
-      // Quick reassign from audit
-      document.querySelectorAll('[data-audit-reassign]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const kanji = btn.dataset.auditReassign;
-          const newGroup = btn.dataset.auditTo;
-          await reassignGroup(kanji, newGroup);
-        });
-      });
-      
-      // Group audit export/import
-      document.getElementById('auditExportBtn')?.addEventListener('click', () => {
-        const data = state.stories.map(s => {
-          const group = s.group_kanji ? state.storyGroups.find(g => g.group_kanji === s.group_kanji) : null;
-          return {
-            kanji: s.kanji, current_group_kanji: s.group_kanji || '', group_meaning: group?.group_meaning || '',
-            meaning: s.meaning || '', story: s.story || '',
-            new_group_kanji: '', // AI fills this if reassignment needed
-          };
-        });
-        exportJSON(`group_audit_${new Date().toISOString().slice(0,10)}.json`, data);
-      });
-      document.getElementById('auditImportBtn')?.addEventListener('click', () => importJSON(importGroupAudit));
-      document.getElementById('auditPromptBtn')?.addEventListener('click', () => {
-        const prompt = `Review these kanji group assignments. Each kanji has a current_group_kanji (its parent component). Check if the assignment is correct based on kanji composition. If a kanji should be in a different group, set new_group_kanji to the correct parent component. Only include items that need reassignment. Return a JSON array with: { "kanji": "X", "new_group_kanji": "correct_parent" }. Only return the JSON array.\n\nHere are the kanji:`;
-        navigator.clipboard.writeText(prompt).then(() => toast('AI prompt copied!')).catch(() => toast('Copy failed', 'warn'));
       });
       
       // Export / Import / AI Review
