@@ -831,7 +831,7 @@
       toast(`Exported ${toExport.length} sentences`);
     }
     
-    // Import AI review results (JSON)
+    // Import AI review results (JSON) — three-status logic + sentence splits
     async function importAIReview() {
       const input = document.createElement('input');
       input.type = 'file';
@@ -844,21 +844,126 @@
           const results = JSON.parse(text);
           if (!Array.isArray(results)) { toast('Invalid JSON: expected array', 'error'); return; }
           
-          let updated = 0;
+          let verified = 0, corrected = 0, rejected = 0, split = 0, skipped = 0;
           for (const r of results) {
-            if (!r.id) continue;
+            if (!r.id) { skipped++; continue; }
             const updates = {};
-            if (r.verified) updates.verified = r.verified;
-            if (r.tags) updates.tags = r.tags;
+            
+            // Three-status logic:
+            // 1. verified="verified" → sentence is good as-is
+            // 2. verified="rejected" + corrected_sentence → overwrite sentence, mark "corrected"
+            // 3. verified="rejected" + no correction → mark "rejected" (garbage/unfixable)
+            if (r.verified === 'rejected' && r.corrected_sentence) {
+              updates.sentence = r.corrected_sentence;
+              updates.verified = 'corrected';
+              corrected++;
+            } else if (r.verified === 'rejected') {
+              updates.verified = 'rejected';
+              rejected++;
+            } else if (r.verified === 'verified' || r.verified === 'corrected') {
+              updates.verified = r.verified;
+              verified++;
+            }
+            
+            // Always update these if provided
             if (r.meaning_en) updates.meaning_en = r.meaning_en;
-            if (r.corrected_sentence) updates.sentence = r.corrected_sentence;
+            if (r.tags && r.tags.length > 0) updates.tags = r.tags;
+            if (r.notes) updates.notes = r.notes;
             
             if (Object.keys(updates).length > 0) {
-              const ok = await updateSentence(r.id, updates);
-              if (ok) updated++;
+              await updateSentence(r.id, updates);
+            }
+            
+            // Handle extra_sentences — split entries that had ①② packed together
+            if (r.extra_sentences && Array.isArray(r.extra_sentences)) {
+              // Find word links for the original sentence so we can copy them
+              const originalLinks = (state.wordSentenceLinks || []).filter(l => l.sentence_id === r.id);
+              const origSent = state.sentences.find(s => s.id === r.id);
+              
+              for (const extra of r.extra_sentences) {
+                if (!extra.sentence) continue;
+                
+                // DEDUP: Check if this sentence already exists (normalized comparison)
+                const normalized = extra.sentence.replace(/\s+/g, '').trim();
+                const existing = state.sentences.find(s => 
+                  s.id !== r.id && (s.sentence || '').replace(/\s+/g, '').trim() === normalized
+                );
+                
+                if (existing) {
+                  // Sentence already exists — just ensure word links exist, skip insert
+                  if (originalLinks.length > 0) {
+                    for (const ol of originalLinks) {
+                      const alreadyLinked = (state.wordSentenceLinks || []).some(
+                        l => l.word_id === ol.word_id && l.sentence_id === existing.id
+                      );
+                      if (!alreadyLinked) {
+                        const { data: ld, error: le } = await sb
+                          .from('japanese_unified_word_sentences')
+                          .insert({ word_id: ol.word_id, sentence_id: existing.id, rating: null })
+                          .select();
+                        if (!le && ld?.[0]) state.wordSentenceLinks.push(ld[0]);
+                      }
+                    }
+                  }
+                  // Update meaning if the existing one is empty
+                  if (extra.meaning_en && !existing.meaning_en) {
+                    await updateSentence(existing.id, { meaning_en: extra.meaning_en });
+                  }
+                  continue; // skip insert — already exists
+                }
+                
+                // Insert new sentence
+                const newSent = {
+                  sentence: extra.sentence,
+                  meaning_en: extra.meaning_en || '',
+                  source: origSent?.source || 'split',
+                  jlpt_level: origSent?.jlpt_level || '',
+                  verified: 'corrected',
+                  tags: extra.tags || r.tags || [],
+                };
+                
+                const { data: insData, error: insErr } = await sb
+                  .from('japanese_unified_sentences')
+                  .insert(newSent)
+                  .select();
+                
+                if (insErr) {
+                  console.error('Insert extra sentence failed:', insErr);
+                  continue;
+                }
+                
+                if (insData?.[0]) {
+                  const newSentRecord = insData[0];
+                  state.sentences.push(newSentRecord);
+                  split++;
+                  
+                  // Copy word links from original sentence to the new one (with dedup)
+                  if (originalLinks.length > 0) {
+                    for (const ol of originalLinks) {
+                      const alreadyLinked = (state.wordSentenceLinks || []).some(
+                        l => l.word_id === ol.word_id && l.sentence_id === newSentRecord.id
+                      );
+                      if (!alreadyLinked) {
+                        const { data: ld, error: le } = await sb
+                          .from('japanese_unified_word_sentences')
+                          .insert({ word_id: ol.word_id, sentence_id: newSentRecord.id, rating: null })
+                          .select();
+                        if (!le && ld?.[0]) state.wordSentenceLinks.push(ld[0]);
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
-          toast(`Imported: ${updated}/${results.length} sentences updated`);
+          
+          const parts = [];
+          if (verified) parts.push(`\u2713${verified} verified`);
+          if (corrected) parts.push(`\uD83D\uDD27${corrected} corrected`);
+          if (rejected) parts.push(`\u2715${rejected} rejected`);
+          if (split) parts.push(`\u2702${split} split`);
+          if (skipped) parts.push(`${skipped} skipped`);
+          toast(`Done! ${parts.join(', ')}`);
           render();
         } catch (err) {
           toast('Import error: ' + err.message, 'error');
@@ -1455,6 +1560,7 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
         <div class="stats-row" style="margin-bottom:16px;">
           <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${total}</div><div class="stat-label">In Queue</div></div>
           <div class="stat-card"><div class="stat-num" style="color:var(--emerald)">${state.sentences.filter(s => s.verified === 'verified').length}</div><div class="stat-label">Verified</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:#60a5fa">${state.sentences.filter(s => s.verified === 'corrected').length}</div><div class="stat-label">Corrected</div></div>
           <div class="stat-card"><div class="stat-num" style="color:var(--red)">${state.sentences.filter(s => s.verified === 'rejected').length}</div><div class="stat-label">Rejected</div></div>
         </div>
         
@@ -1488,13 +1594,18 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             <!-- Step 2: AI Prompt template -->
             <div id="aiPromptBox" style="display:none; margin-bottom:12px;">
               <div style="font-size:10px; font-weight:700; color:var(--accent); margin-bottom:4px;">COPY THIS PROMPT INTO CLAUDE:</div>
-              <textarea id="aiPromptText" rows="6" readonly style="font-size:11px; background:var(--bg-primary); color:var(--text-secondary); cursor:text;">Review these Japanese sentences for correctness. For each sentence, return a JSON array with objects containing:
-- "id": the sentence ID (number)
-- "verified": "verified" if the sentence is natural/correct Japanese, "rejected" if it has errors
-- "meaning_en": English translation (improve if the existing one is wrong or missing)
-- "corrected_sentence": only if rejected, provide the corrected version
-- "tags": array of tags like "grammar:てform", "vocab:N2", "topic:business" etc.
-- "notes": brief note about any issues
+              <textarea id="aiPromptText" rows="12" readonly style="font-size:11px; background:var(--bg-primary); color:var(--text-secondary); cursor:text;">Review these Japanese sentences for a JLPT study app. For each sentence, return a JSON array with objects containing:
+- "id": the sentence ID (number, keep unchanged)
+- "verified": "verified" if natural/correct, "rejected" if has errors or is not a real sentence
+- "meaning_en": English translation
+- "corrected_sentence": only if rejected AND fixable, provide the corrected Japanese
+- "tags": array of tags like "grammar:たとたん", "vocab:N2", "topic:business"
+- "notes": brief note about issues (optional)
+- "extra_sentences": ONLY for entries that contain ①② markers or multiple sentences packed together. These are two sentences that were stored in one field. Split them into separate clean sentences. Format: [{"sentence": "cleaned sentence 2", "meaning_en": "translation"}]
+
+IMPORTANT about ①② pattern: Some entries look like "②市の行政サービス①精神旺盛 ②サービスは効率的です" — these are TWO sentences crammed together. ① is usually a short phrase/example, ② is a full sentence. Split and clean both. Put the best one as corrected_sentence, extras in extra_sentences.
+
+For entries that are just word/phrase fragments (like "高速道路" or "高級ホテル"), mark as verified if the phrase is correct, add meaning_en.
 
 Return ONLY a JSON array, no markdown fences or explanation. Here are the sentences:</textarea>
               <button class="btn btn-sm btn-ghost" id="copyPromptTextBtn" style="margin-top:4px;">📋 Copy Prompt Text</button>
@@ -1681,8 +1792,8 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
     
     // ========== SENTENCES TAB ==========
     function renderSentencesTab() {
-      const stats = { unverified: 0, verified: 0, rejected: 0 };
-      state.sentences.forEach(s => { const v = s.verified || 'unverified'; if (stats[v] !== undefined) stats[v]++; });
+      const stats = { unverified: 0, verified: 0, corrected: 0, rejected: 0 };
+      state.sentences.forEach(s => { const v = s.verified || 'unverified'; if (stats[v] !== undefined) stats[v]++; else stats.unverified++; });
       
       let filtered = state.sentences.filter(s => {
         const v = s.verified || 'unverified';
@@ -1708,6 +1819,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
         <div class="stats-row">
           <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${stats.unverified}</div><div class="stat-label">Unverified</div></div>
           <div class="stat-card"><div class="stat-num" style="color:var(--emerald)">${stats.verified}</div><div class="stat-label">Verified</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:#60a5fa">${stats.corrected}</div><div class="stat-label">Corrected</div></div>
           <div class="stat-card"><div class="stat-num" style="color:var(--red)">${stats.rejected}</div><div class="stat-label">Rejected</div></div>
           <div class="stat-card"><div class="stat-num">${state.sentences.length}</div><div class="stat-label">Total</div></div>
         </div>
@@ -1764,7 +1876,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
         ` : ''}
         
         <div class="filter-bar">
-          ${['unverified', 'verified', 'rejected', 'all'].map(f => `
+          ${['unverified', 'verified', 'corrected', 'rejected', 'all'].map(f => `
             <button class="btn btn-sm ${state.sentFilter === f ? 'btn-primary' : 'btn-ghost'}" data-sent-filter="${f}">
               ${f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
@@ -1775,6 +1887,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           </select>
           <input type="text" id="sentSearch" placeholder="Search sentences, tags..." value="${escapeHtml(state.sentSearch)}" style="width: 200px;">
           <span style="color:var(--text-muted); font-size: 12px;">${filtered.length} results</span>
+          ${state.sentFilter === 'rejected' && stats.rejected > 0 ? `<button class="btn btn-sm btn-ghost" id="deleteAllRejectedBtn" style="color:var(--red); margin-left:auto;">🗑 Delete All Rejected (${stats.rejected})</button>` : ''}
         </div>
         
         ${items.map(s => {
@@ -1816,11 +1929,12 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
                 ${v === 'unverified' ? `
                   <button class="btn btn-sm btn-emerald" data-verify="${s.id}">✓ Verify</button>
                   <button class="btn btn-sm btn-red" data-reject="${s.id}">✗ Reject</button>
-                ` : v === 'verified' ? `
+                ` : v === 'verified' || v === 'corrected' ? `
                   <button class="btn btn-sm btn-ghost" data-unverify="${s.id}">↩ Unverify</button>
                   <button class="btn btn-sm btn-red" data-reject="${s.id}">✗ Reject</button>
                 ` : `
                   <button class="btn btn-sm btn-emerald" data-verify="${s.id}">✓ Restore</button>
+                  <button class="btn btn-sm btn-ghost" data-delete-sentence="${s.id}" style="color:var(--red);">🗑 Delete</button>
                 `}
               </div>
             </div>
@@ -2795,6 +2909,51 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       document.querySelectorAll('[data-verify]').forEach(btn => btn.addEventListener('click', async () => { if (await verifySentence(parseInt(btn.dataset.verify), 'verified')) { toast('✓ Verified'); render(); } }));
       document.querySelectorAll('[data-reject]').forEach(btn => btn.addEventListener('click', async () => { if (await verifySentence(parseInt(btn.dataset.reject), 'rejected')) { toast('✗ Rejected'); render(); } }));
       document.querySelectorAll('[data-unverify]').forEach(btn => btn.addEventListener('click', async () => { if (await verifySentence(parseInt(btn.dataset.unverify), 'unverified')) { toast('↩ Unverified'); render(); } }));
+      
+      // Delete sentence + its word links
+      document.querySelectorAll('[data-delete-sentence]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = parseInt(btn.dataset.deleteSentence);
+          const sent = state.sentences.find(s => s.id === id);
+          if (!confirm(`Delete sentence?\n\n"${sent?.sentence || id}"`)) return;
+          
+          // Delete word-sentence links first
+          const { error: linkErr } = await sb.from('japanese_unified_word_sentences').delete().eq('sentence_id', id);
+          if (linkErr) console.warn('Link delete:', linkErr.message);
+          
+          // Delete the sentence
+          const { error } = await sb.from('japanese_unified_sentences').delete().eq('id', id);
+          if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
+          
+          // Update local state
+          state.sentences = state.sentences.filter(s => s.id !== id);
+          state.wordSentenceLinks = (state.wordSentenceLinks || []).filter(l => l.sentence_id !== id);
+          toast('Sentence deleted!');
+          render();
+        });
+      });
+      
+      // Bulk delete all rejected
+      document.getElementById('deleteAllRejectedBtn')?.addEventListener('click', async () => {
+        const rejected = state.sentences.filter(s => s.verified === 'rejected');
+        if (rejected.length === 0) { toast('No rejected sentences'); return; }
+        if (!confirm(`Delete ${rejected.length} rejected sentences? This cannot be undone.`)) return;
+        
+        const ids = rejected.map(s => s.id);
+        let deleted = 0;
+        for (let i = 0; i < ids.length; i += 500) {
+          const batch = ids.slice(i, i + 500);
+          // Delete links
+          await sb.from('japanese_unified_word_sentences').delete().in('sentence_id', batch);
+          // Delete sentences
+          const { error } = await sb.from('japanese_unified_sentences').delete().in('id', batch);
+          if (!error) deleted += batch.length;
+        }
+        state.sentences = state.sentences.filter(s => s.verified !== 'rejected');
+        state.wordSentenceLinks = (state.wordSentenceLinks || []).filter(l => !ids.includes(l.sentence_id));
+        toast(`Deleted ${deleted} rejected sentences!`);
+        render();
+      });
       
       // Tags
       document.querySelectorAll('[data-add-tag]').forEach(btn => {

@@ -393,14 +393,6 @@ export function renderSentencePanel(app) {
   
   // Look up sentences
   const linked = getSentencesForWord(app, word);
-  // Sort by rating descending (highest-rated first), then verified > unverified
-  linked.sort((a, b) => {
-    const ratingDiff = (b.rating || 0) - (a.rating || 0);
-    if (ratingDiff !== 0) return ratingDiff;
-    // Prefer verified/corrected over unverified/rejected
-    const statusOrder = { verified: 0, corrected: 1, unverified: 2, rejected: 3 };
-    return (statusOrder[a.verified] ?? 2) - (statusOrder[b.verified] ?? 2);
-  });
   
   // Extract kanji stem for smarter sentence discovery
   const wordKanji = word.kanji || word.raw || '';
@@ -512,8 +504,8 @@ export function renderSentencePanel(app) {
                               }">★</button>
                           `).join('')}
                         </div>
-                        ${item.verified !== 'verified' && item.verified !== 'corrected' ? `
-                          <button data-verify-sentence="${item.sentence_id || item.id}" class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all border border-emerald-500/20">\u2713 Verify</button>
+                        ${item.verified !== 'verified' ? `
+                          <button data-verify-sentence="${item.sentence_id || item.id}" class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all border border-emerald-500/20">✓ Verify</button>
                         ` : ''}
                       </div>
                     </div>
@@ -821,10 +813,9 @@ function highlightMultipleWords(sentence, detectedWords) {
 // ===== TAG & VERIFICATION HELPERS =====
 
 const VERIFIED_BADGES = {
-  verified:       { label: '\u2713 Verified', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  corrected:      { label: '\uD83D\uDD27 Corrected', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  native_checked: { label: '\u2713 Native', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  rejected:       { label: '\u2717 Rejected', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  verified:       { label: '✓ Verified', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  native_checked: { label: '✓ Native', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  rejected:       { label: '✗ Rejected', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
 };
 
 function renderVerifiedBadge(status) {
