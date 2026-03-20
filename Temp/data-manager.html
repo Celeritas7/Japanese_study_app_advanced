@@ -75,42 +75,6 @@
     }
     .tab-bar::-webkit-scrollbar { display: none; }
     
-    .tab-group-bar {
-      display: flex;
-      gap: 3px;
-      margin-bottom: 4px;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .tab-group-bar::-webkit-scrollbar { display: none; }
-    
-    .tab-group-btn {
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--text-muted);
-      padding: 5px 10px;
-      border-radius: 8px;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.15s;
-      font-family: inherit;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .tab-group-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-    .tab-group-btn.active { background: var(--accent); color: white; }
-    
-    .tab-sub-bar {
-      display: flex;
-      gap: 3px;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .tab-sub-bar::-webkit-scrollbar { display: none; }
-    
     .tab-btn {
       background: transparent;
       border: 1px solid transparent;
@@ -396,8 +360,6 @@
       
       .tab-bar { gap: 3px; }
       .tab-btn { padding: 5px 8px; font-size: 10px; border-radius: 6px; }
-      .tab-group-btn { padding: 4px 8px; font-size: 10px; }
-      .tab-sub-bar { gap: 2px; }
       
       .main-content { padding: 12px; }
       
@@ -447,24 +409,10 @@
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
     // ========== STATE ==========
-    // Tab groups
-    const TAB_GROUPS = {
-      overview:  { label: '\uD83D\uDCCA Overview', tabs: ['stats'] },
-      sentences: { label: '\uD83D\uDCAC Sentences', tabs: ['sentences', 'verify', 'bulk'] },
-      words:     { label: '\uD83D\uDCDA Words', tabs: ['incomplete', 'anime', 'word-flags'] },
-      stories:   { label: '\uD83D\uDCD6 Stories', tabs: ['story-flags', 'groups', 'group-audit'] },
-      health:    { label: '\uD83D\uDD27 Health', tabs: ['dupes', 'orphans'] },
-    };
-    
-    // Reverse lookup: tab → group
-    const TAB_TO_GROUP = {};
-    Object.entries(TAB_GROUPS).forEach(([gk, g]) => g.tabs.forEach(t => { TAB_TO_GROUP[t] = gk; }));
-    
     const state = {
       user: null,
       authChecked: false,
-      tab: 'stats',
-      tabGroup: 'overview',
+      tab: 'stats',    // stats, sentences, bulk, story-flags, word-flags, incomplete
       loading: true,
       
       // Data pools
@@ -1220,42 +1168,31 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
             </div>
             <button class="tab-btn" id="adminSignOutBtn" style="color:var(--text-muted); flex-shrink:0;">↩ Sign Out</button>
           </div>
-          <div class="tab-group-bar">
-            ${Object.entries(TAB_GROUPS).map(([gk, g]) => {
-              // Count badges per group
-              let badge = '';
-              if (gk === 'sentences') {
-                const cnt = unverified;
-                if (cnt > 0) badge = `<span style="font-size:9px; background:rgba(245,158,11,0.3); color:var(--amber); padding:1px 5px; border-radius:8px; margin-left:3px;">${cnt}</span>`;
-              } else if (gk === 'words') {
-                const cnt = state.words.filter(w => !w.hiragana && !w.meaning_en).length + state.wordAlerts.filter(a => !a.resolved).length + (state.animeWords || []).filter(a => !a.promoted && !a.dismissed).length;
-                if (cnt > 0) badge = `<span style="font-size:9px; background:rgba(245,158,11,0.3); color:var(--amber); padding:1px 5px; border-radius:8px; margin-left:3px;">${cnt}</span>`;
-              } else if (gk === 'stories') {
-                const cnt = openStoryFlags;
-                if (cnt > 0) badge = `<span style="font-size:9px; background:rgba(245,158,11,0.3); color:var(--amber); padding:1px 5px; border-radius:8px; margin-left:3px;">${cnt}</span>`;
-              }
-              return `<button class="tab-group-btn ${state.tabGroup === gk ? 'active' : ''}" data-tab-group="${gk}">${g.label}${badge}</button>`;
-            }).join('')}
-            <button class="tab-btn" id="adminSignOutBtn" style="color:var(--text-muted); flex-shrink:0; margin-left:auto;">↩</button>
-          </div>
-          <div class="tab-sub-bar">
-            ${TAB_GROUPS[state.tabGroup].tabs.map(t => {
-              const labels = {
-                stats: '\uD83D\uDCCA Stats',
-                sentences: '\uD83D\uDCAC Browse' + (unverified > 0 ? ` (${unverified})` : ''),
-                verify: '\u2705 Verify' + (unverified > 0 ? ` (${unverified})` : ''),
-                bulk: '\uD83D\uDCDD Bulk Import',
-                incomplete: '\uD83D\uDD27 Incomplete' + (state.words.filter(w => !w.hiragana && !w.meaning_en).length > 0 ? ` (${state.words.filter(w => !w.hiragana && !w.meaning_en).length})` : ''),
-                anime: '\uD83D\uDCFA Anime' + ((state.animeWords || []).filter(a => !a.promoted && !a.dismissed).length > 0 ? ` (${(state.animeWords || []).filter(a => !a.promoted && !a.dismissed).length})` : ''),
-                'word-flags': '\uD83D\uDEA9 Flags' + (openWordFlags > 0 ? ` (${openWordFlags})` : ''),
-                'story-flags': '\uD83D\uDCD6 Flags' + (openStoryFlags > 0 ? ` (${openStoryFlags})` : ''),
-                groups: '\uD83D\uDD17 Groups',
-                'group-audit': '\uD83C\uDF33 Audit',
-                dupes: '\uD83D\uDD0D Dupes',
-                orphans: '\uD83E\uDDF9 Orphans',
-              };
-              return `<button class="tab-btn ${state.tab === t ? 'active' : ''}" data-tab="${t}">${labels[t] || t}</button>`;
-            }).join('')}
+          <div class="tab-bar">
+            <button class="tab-btn ${state.tab === 'stats' ? 'active' : ''}" data-tab="stats">📊 Stats</button>
+            <button class="tab-btn ${state.tab === 'sentences' ? 'active' : ''}" data-tab="sentences">
+              💬 Sentences ${unverified > 0 ? `(${unverified})` : ''}
+            </button>
+            <button class="tab-btn ${state.tab === 'verify' ? 'active' : ''}" data-tab="verify">
+              ✅ Verify ${unverified > 0 ? `(${unverified})` : ''}
+            </button>
+            <button class="tab-btn ${state.tab === 'bulk' ? 'active' : ''}" data-tab="bulk">📝 Bulk</button>
+            <button class="tab-btn ${state.tab === 'incomplete' ? 'active' : ''}" data-tab="incomplete">
+              🔧 Incomplete ${state.words.filter(w => !w.hiragana && !w.meaning_en).length > 0 ? `(${state.words.filter(w => !w.hiragana && !w.meaning_en).length})` : ''}
+            </button>
+            <button class="tab-btn ${state.tab === 'anime' ? 'active' : ''}" data-tab="anime">
+              📺 Anime ${state.animeWords.filter(a => !a.promoted && !a.dismissed).length > 0 ? `(${state.animeWords.filter(a => !a.promoted && !a.dismissed).length})` : ''}
+            </button>
+            <button class="tab-btn ${state.tab === 'story-flags' ? 'active' : ''}" data-tab="story-flags">
+              📖 Stories ${openStoryFlags > 0 ? `(${openStoryFlags})` : ''}
+            </button>
+            <button class="tab-btn ${state.tab === 'word-flags' ? 'active' : ''}" data-tab="word-flags">
+              🚩 Words ${openWordFlags > 0 ? `(${openWordFlags})` : ''}
+            </button>
+            <button class="tab-btn ${state.tab === 'groups' ? 'active' : ''}" data-tab="groups">🔗 Groups</button>
+            <button class="tab-btn ${state.tab === 'group-audit' ? 'active' : ''}" data-tab="group-audit">🌳 Audit</button>
+            <button class="tab-btn ${state.tab === 'dupes' ? 'active' : ''}" data-tab="dupes">🔍 Dupes</button>
+            <button class="tab-btn ${state.tab === 'orphans' ? 'active' : ''}" data-tab="orphans">🧹 Orphans</button>
           </div>
         </header>
         
@@ -1385,24 +1322,24 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
           <!-- Action items -->
           <h3 style="font-size:14px; font-weight:700; color:var(--amber); margin-bottom:10px;">⚠️ Needs Attention</h3>
           <div class="stats-row" style="margin-bottom:20px;">
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='incomplete'; state.tabGroup='words'; render();">
+            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='incomplete'; render();">
               <div class="stat-num" style="color:${incompleteWords > 0 ? 'var(--red)' : 'var(--emerald)'}">${incompleteWords}</div>
               <div class="stat-label">Incomplete Words</div>
               <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Missing reading or meaning</div>
             </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='verify'; state.tabGroup='sentences'; state.verifyIdx=0; render();">
+            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='verify'; state.verifyIdx=0; render();">
               <div class="stat-num" style="color:${sentUnverified > 0 ? 'var(--amber)' : 'var(--emerald)'}">${sentUnverified}</div>
               <div class="stat-label">Unverified Sentences</div>
             </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='anime'; state.tabGroup='words'; state.animeFilter='pending'; render();">
+            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='anime'; state.animeFilter='pending'; render();">
               <div class="stat-num" style="color:${(state.animeWords || []).filter(a => !a.promoted && !a.dismissed).length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${(state.animeWords || []).filter(a => !a.promoted && !a.dismissed).length}</div>
               <div class="stat-label">Anime Words Pending</div>
             </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='story-flags'; state.tabGroup='stories'; state.flagFilter='open'; render();">
+            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='story-flags'; state.flagFilter='open'; render();">
               <div class="stat-num" style="color:${openStoryFlags > 0 ? 'var(--amber)' : 'var(--emerald)'}">${openStoryFlags}</div>
               <div class="stat-label">Open Story Flags</div>
             </div>
-            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='word-flags'; state.tabGroup='words'; state.flagFilter='open'; render();">
+            <div class="stat-card" style="cursor:pointer;" onclick="state.tab='word-flags'; state.flagFilter='open'; render();">
               <div class="stat-num" style="color:${openWordFlags > 0 ? 'var(--amber)' : 'var(--emerald)'}">${openWordFlags}</div>
               <div class="stat-label">Open Word Flags</div>
             </div>
@@ -3022,29 +2959,8 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
     // ========== EVENT LISTENERS ==========
     function attachListeners() {
       // Tabs
-      // Group-level tab switching
-      document.querySelectorAll('[data-tab-group]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const gk = btn.dataset.tabGroup;
-          state.tabGroup = gk;
-          // Switch to first tab in group (unless already in this group)
-          if (!TAB_GROUPS[gk].tabs.includes(state.tab)) {
-            state.tab = TAB_GROUPS[gk].tabs[0];
-          }
-          state.flagPage = 0;
-          render();
-        });
-      });
-      
-      // Sub-tab switching (also syncs group)
       document.querySelectorAll('[data-tab]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          state.tab = btn.dataset.tab;
-          state.tabGroup = TAB_TO_GROUP[state.tab] || state.tabGroup;
-          state.flagPage = 0;
-          state.flagFilter = 'open';
-          render();
-        });
+        btn.addEventListener('click', () => { state.tab = btn.dataset.tab; state.flagPage = 0; state.flagFilter = 'open'; render(); });
       });
       
       // Admin sign out
@@ -4012,7 +3928,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
         }
         // Also save full state to localStorage as backup
         localStorage.setItem(PERSIST_KEY, JSON.stringify({
-          tab: state.tab, tabGroup: state.tabGroup, flagFilter: state.flagFilter, flagPage: state.flagPage,
+          tab: state.tab, flagFilter: state.flagFilter, flagPage: state.flagPage,
           sentFilter: state.sentFilter, sentSource: state.sentSource, sentPage: state.sentPage,
           incompleteFilter: state.incompleteFilter, incompletePage: state.incompletePage,
           verifySource: state.verifySource, verifyIdx: state.verifyIdx,
@@ -4042,8 +3958,6 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           }
         }
       } catch(e) { console.warn('restoreState:', e); }
-      // Always sync tabGroup with current tab
-      state.tabGroup = TAB_TO_GROUP[state.tab] || state.tabGroup || 'overview';
     }
     
     function saveDraft(key, value) {
