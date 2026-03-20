@@ -1099,27 +1099,40 @@ Respond ONLY with a JSON array, no markdown. Each element: {"id": number, "verdi
       attachListeners();
       
       // Persist tab/filter state for browser reload recovery
-      saveStateToSession();
+      saveState();
       
       // ===== FORM DRAFT PERSISTENCE =====
-      // Auto-save any story/word edit input to sessionStorage
-      document.querySelectorAll('[data-story-edit-meaning], [data-story-edit-story], [data-story-edit-onyomi], [data-story-edit-kunyomi], [data-story-new-meaning], [data-story-new-story], [data-story-new-onyomi], [data-story-new-kunyomi]').forEach(input => {
-        const key = Array.from(input.attributes).find(a => a.name.startsWith('data-story-'))?.name + '_' + input.getAttribute(Array.from(input.attributes).find(a => a.name.startsWith('data-story-'))?.name);
-        // Restore draft
-        const draft = getDraft(key);
-        if (draft && !input.value) input.value = draft;
-        // Save on input
-        input.addEventListener('input', () => saveDraft(key, input.value));
+      // Auto-save story edit fields to localStorage
+      document.querySelectorAll('input[data-story-edit-meaning], textarea[data-story-edit-story], input[data-story-edit-onyomi], input[data-story-edit-kunyomi], input[data-story-new-meaning], textarea[data-story-new-story], input[data-story-new-onyomi], input[data-story-new-kunyomi]').forEach(input => {
+        // Build a stable key from the data attribute
+        const attrs = ['data-story-edit-meaning','data-story-edit-story','data-story-edit-onyomi','data-story-edit-kunyomi','data-story-new-meaning','data-story-new-story','data-story-new-onyomi','data-story-new-kunyomi'];
+        for (const attr of attrs) {
+          const val = input.getAttribute(attr);
+          if (val !== null) {
+            const draftKey = attr + ':' + val;
+            // Restore draft if input is empty
+            const draft = getDraft(draftKey);
+            if (draft && !input.value) input.value = draft;
+            // Save on every keystroke
+            input.addEventListener('input', () => saveDraft(draftKey, input.value));
+            break;
+          }
+        }
       });
       
-      // Also save incomplete word edit drafts
-      document.querySelectorAll('[data-inc-hiragana], [data-inc-meaning], [data-inc-hint]').forEach(input => {
-        const attr = Array.from(input.attributes).find(a => a.name.startsWith('data-inc-'));
-        if (!attr) return;
-        const key = attr.name + '_' + input.getAttribute(attr.name);
-        const draft = getDraft(key);
-        if (draft && !input.value) input.value = draft;
-        input.addEventListener('input', () => saveDraft(key, input.value));
+      // Auto-save incomplete word edit fields
+      document.querySelectorAll('input[data-inc-hiragana], input[data-inc-meaning], input[data-inc-hint]').forEach(input => {
+        const attrs = ['data-inc-hiragana','data-inc-meaning','data-inc-hint'];
+        for (const attr of attrs) {
+          const val = input.getAttribute(attr);
+          if (val !== null) {
+            const draftKey = attr + ':' + val;
+            const draft = getDraft(draftKey);
+            if (draft && !input.value) input.value = draft;
+            input.addEventListener('input', () => saveDraft(draftKey, input.value));
+            break;
+          }
+        }
       });
     }
     
@@ -3594,75 +3607,75 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
     }
     
     // ========== STATE PERSISTENCE (survives tab reload) ==========
-    const SESSION_KEY = 'dm_state';
+    // ========== STATE PERSISTENCE (survives mobile tab kills) ==========
+    const PERSIST_KEY = 'dm_state';
     const DRAFT_KEY = 'dm_drafts';
     
-    function saveStateToSession() {
+    function saveState() {
       try {
-        const persist = {
-          tab: state.tab,
-          flagFilter: state.flagFilter,
-          flagPage: state.flagPage,
-          sentFilter: state.sentFilter,
-          sentSource: state.sentSource,
-          sentPage: state.sentPage,
-          incompleteFilter: state.incompleteFilter,
-          incompletePage: state.incompletePage,
-          verifySource: state.verifySource,
-          verifyIdx: state.verifyIdx,
-          animeFilter: state.animeFilter,
-          animePage: state.animePage,
-          groupEditorType: state.groupEditorType,
-          groupEditorPage: state.groupEditorPage,
-          dupePage: state.dupePage,
-          auditPage: state.auditPage,
-          showBulkAI: state.showBulkAI,
-        };
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(persist));
-      } catch { /* storage unavailable */ }
+        // Save tab to URL hash (most reliable — survives everything)
+        const hashState = [state.tab, state.flagFilter, state.verifySource].join('|');
+        if (location.hash !== '#' + hashState) {
+          history.replaceState(null, '', '#' + hashState);
+        }
+        // Also save full state to localStorage as backup
+        localStorage.setItem(PERSIST_KEY, JSON.stringify({
+          tab: state.tab, flagFilter: state.flagFilter, flagPage: state.flagPage,
+          sentFilter: state.sentFilter, sentSource: state.sentSource, sentPage: state.sentPage,
+          incompleteFilter: state.incompleteFilter, incompletePage: state.incompletePage,
+          verifySource: state.verifySource, verifyIdx: state.verifyIdx,
+          animeFilter: state.animeFilter, animePage: state.animePage,
+          groupEditorType: state.groupEditorType, groupEditorPage: state.groupEditorPage,
+          dupePage: state.dupePage, auditPage: state.auditPage, showBulkAI: state.showBulkAI,
+        }));
+      } catch(e) { console.warn('saveState:', e); }
     }
     
-    function restoreStateFromSession() {
+    function restoreState() {
       try {
-        const saved = sessionStorage.getItem(SESSION_KEY);
-        if (!saved) return;
-        const persist = JSON.parse(saved);
-        Object.keys(persist).forEach(k => {
-          if (persist[k] !== undefined && state[k] !== undefined) {
-            state[k] = persist[k];
+        // Try URL hash first (most reliable)
+        if (location.hash && location.hash.length > 1) {
+          const parts = location.hash.slice(1).split('|');
+          if (parts[0]) state.tab = parts[0];
+          if (parts[1]) state.flagFilter = parts[1];
+          if (parts[2]) state.verifySource = parts[2];
+        }
+        // Then overlay full state from localStorage
+        const saved = localStorage.getItem(PERSIST_KEY);
+        if (saved) {
+          const p = JSON.parse(saved);
+          // Only restore if tab matches hash (prevents stale localStorage overriding fresh hash)
+          if (!location.hash || p.tab === state.tab) {
+            Object.keys(p).forEach(k => { if (p[k] !== undefined && k in state) state[k] = p[k]; });
           }
-        });
-      } catch { /* ignore */ }
+        }
+      } catch(e) { console.warn('restoreState:', e); }
     }
     
-    // Save form drafts (story edits, word edits) on every input
     function saveDraft(key, value) {
       try {
-        const drafts = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-        drafts[key] = value;
-        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
-      } catch { /* storage unavailable */ }
+        const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
+        d[key] = value;
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+      } catch { }
     }
     
     function getDraft(key) {
-      try {
-        const drafts = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-        return drafts[key] || '';
-      } catch { return ''; }
+      try { return (JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'))[key] || ''; } catch { return ''; }
     }
     
     function clearDrafts(prefix) {
       try {
-        const drafts = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-        Object.keys(drafts).forEach(k => { if (k.startsWith(prefix)) delete drafts[k]; });
-        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
-      } catch { /* ignore */ }
+        const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
+        Object.keys(d).forEach(k => { if (k.startsWith(prefix)) delete d[k]; });
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+      } catch { }
     }
     
     // ========== INIT ==========
     async function init() {
-      // Restore tab/filter state from sessionStorage (survives browser tab reload)
-      restoreStateFromSession();
+      // Restore tab/filter state (URL hash + localStorage)
+      restoreState();
       
       render(); // show "checking auth..."
       
