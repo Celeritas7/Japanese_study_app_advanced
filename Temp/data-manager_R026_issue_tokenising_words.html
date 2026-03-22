@@ -589,54 +589,22 @@
       return map;
     }
     
-    // Segmenter singleton
-    const _dmSegmenter = (typeof Intl !== 'undefined' && Intl.Segmenter)
-      ? new Intl.Segmenter('ja', { granularity: 'word' })
-      : null;
-    
     function detectWords(sentence, stemMap, sortedStems) {
       const found = [];
       const seen = new Set();
-      
-      if (!sentence) return found;
-      
-      // Tokenize sentence using Intl.Segmenter for proper word boundaries
-      if (_dmSegmenter) {
-        const segments = [..._dmSegmenter.segment(sentence)];
-        const tokenTexts = segments.map(s => s.segment);
-        
-        // Build all contiguous token combinations (1-token, 2-token, 3-token spans)
-        // to match compound words like 受け付ける that span multiple tokens
-        const spans = new Set();
-        for (let i = 0; i < tokenTexts.length; i++) {
-          let combined = '';
-          for (let j = i; j < Math.min(i + 5, tokenTexts.length); j++) {
-            combined += tokenTexts[j];
-            spans.add(combined);
+      for (const stem of sortedStems) {
+        if (sentence.includes(stem)) {
+          // For single-char stems that got in via full word match,
+          // verify it's not part of a larger compound in the sentence
+          if ([...stem].length === 1) {
+            const idx = sentence.indexOf(stem);
+            const charBefore = idx > 0 ? sentence[idx - 1] : '';
+            const charAfter = idx + stem.length < sentence.length ? sentence[idx + stem.length] : '';
+            // Skip if surrounded by other kanji (it's part of a compound)
+            if (isKanji(charBefore) || isKanji(charAfter)) continue;
           }
-        }
-        
-        // Match stems against token spans (not raw substrings)
-        for (const stem of sortedStems) {
-          if (spans.has(stem)) {
-            for (const w of stemMap[stem]) {
-              if (!seen.has(w.id)) { seen.add(w.id); found.push(w); }
-            }
-          }
-        }
-      } else {
-        // Fallback: old substring matching with boundary checks
-        for (const stem of sortedStems) {
-          if (sentence.includes(stem)) {
-            if ([...stem].length === 1) {
-              const idx = sentence.indexOf(stem);
-              const charBefore = idx > 0 ? sentence[idx - 1] : '';
-              const charAfter = idx + stem.length < sentence.length ? sentence[idx + stem.length] : '';
-              if (isKanji(charBefore) || isKanji(charAfter)) continue;
-            }
-            for (const w of stemMap[stem]) {
-              if (!seen.has(w.id)) { seen.add(w.id); found.push(w); }
-            }
+          for (const w of stemMap[stem]) {
+            if (!seen.has(w.id)) { seen.add(w.id); found.push(w); }
           }
         }
       }
@@ -645,49 +613,12 @@
     
     function highlightWords(sentence, detectedWords) {
       if (!detectedWords?.length) return escapeHtml(sentence);
-      
-      // Collect all match terms (full kanji + stems)
-      const matchTerms = new Set();
-      detectedWords.forEach(w => {
-        const kanji = w.kanji || '';
-        if (kanji) matchTerms.add(kanji);
-        const stem = extractKanjiStem(kanji);
-        if (stem && stem.length >= 2) matchTerms.add(stem);
-      });
-      
-      if (!matchTerms.size) return escapeHtml(sentence);
-      
-      if (_dmSegmenter) {
-        // Use segmenter to highlight only at token boundaries
-        const segments = [..._dmSegmenter.segment(sentence)];
-        let result = '';
-        let i = 0;
-        while (i < segments.length) {
-          // Try multi-token spans (longest first)
-          let matched = false;
-          for (let span = Math.min(5, segments.length - i); span >= 1; span--) {
-            const combined = segments.slice(i, i + span).map(s => s.segment).join('');
-            if (matchTerms.has(combined)) {
-              result += `<span class="hl">${escapeHtml(combined)}</span>`;
-              i += span;
-              matched = true;
-              break;
-            }
-          }
-          if (!matched) {
-            result += escapeHtml(segments[i].segment);
-            i++;
-          }
-        }
-        return result;
-      } else {
-        // Fallback: regex-based
-        const sorted = [...matchTerms].sort((a, b) => b.length - a.length);
-        const pattern = new RegExp(`(${sorted.map(escapeRegex).join('|')})`, 'g');
-        return sentence.split(pattern).map(part =>
-          matchTerms.has(part) ? `<span class="hl">${escapeHtml(part)}</span>` : escapeHtml(part)
-        ).join('');
-      }
+      const stems = [...new Set(detectedWords.map(w => extractKanjiStem(w.kanji)).filter(Boolean))].sort((a,b) => b.length - a.length);
+      if (!stems.length) return escapeHtml(sentence);
+      const pattern = new RegExp(`(${stems.map(escapeRegex).join('|')})`, 'g');
+      return sentence.split(pattern).map(part =>
+        stems.includes(part) ? `<span class="hl">${escapeHtml(part)}</span>` : escapeHtml(part)
+      ).join('');
     }
     
     // ========== DATA LOADING ==========
