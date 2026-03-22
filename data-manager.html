@@ -975,6 +975,13 @@
             // 2. verified="rejected" + corrected_sentence → overwrite sentence, mark "corrected"
             // 3. verified="rejected" + no correction → mark "rejected" (garbage/unfixable)
             if (r.verified === 'rejected' && r.corrected_sentence) {
+              // Save original sentence before overwriting
+              const origSent = state.sentences.find(s => s.id === r.id);
+              const originalText = origSent?.sentence || '';
+              if (originalText && originalText !== r.corrected_sentence) {
+                const existingNotes = r.notes || origSent?.notes || '';
+                updates.notes = `[Original] ${originalText}${existingNotes ? '\n' + existingNotes : ''}`;
+              }
               updates.sentence = r.corrected_sentence;
               updates.verified = 'corrected';
               corrected++;
@@ -1783,6 +1790,9 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
               <!-- Meaning -->
               ${current.meaning_en ? `<div style="font-size:13px; color:var(--text-secondary); margin-bottom:12px; padding:8px 12px; background:var(--bg-input); border-radius:8px;">${escapeHtml(current.meaning_en)}</div>` : ''}
               
+              <!-- Original sentence (if corrected) -->
+              ${current.notes && current.notes.includes('[Original]') ? `<div style="font-size:11px; color:var(--text-muted); padding:6px 12px; margin-bottom:12px; background:rgba(239,68,68,0.06); border-left:2px solid var(--red); border-radius:4px; display:flex; align-items:center; justify-content:space-between;"><div><span style="color:var(--red); font-weight:600;">Before:</span> <s>${escapeHtml(current.notes.replace('[Original] ', '').split('\n')[0])}</s></div><button data-clear-original="${current.id}" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:2px 6px; flex-shrink:0;" title="Remove original">\u2715</button></div>` : ''}
+              
               <!-- Metadata -->
               <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; font-size:11px;">
                 ${current.source ? `<span style="padding:3px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; color:var(--accent);">${escapeHtml(current.source)}</span>` : ''}
@@ -2053,6 +2063,7 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
             <div class="sent-item">
               <div class="sent-text">${highlightWords(s.sentence || '', words)}</div>
               ${s.meaning_en ? `<div class="sent-meaning">${escapeHtml(s.meaning_en)}</div>` : ''}
+              ${s.notes && s.notes.includes('[Original]') ? `<div style="font-size:11px; color:var(--text-muted); padding:4px 10px; margin-bottom:6px; background:rgba(239,68,68,0.06); border-left:2px solid var(--red); border-radius:4px; display:flex; align-items:center; justify-content:space-between;"><div><span style="color:var(--red); font-weight:600;">Before:</span> <s>${escapeHtml(s.notes.replace('[Original] ', '').split('\n')[0])}</s></div><button data-clear-original="${s.id}" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:2px 6px; flex-shrink:0;" title="Remove original">\u2715</button></div>` : ''}
               
               <div class="sent-meta mb-2">
                 <span>${escapeHtml(s.source || 'unknown')}</span>
@@ -3231,6 +3242,15 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           state.wordSentenceLinks = (state.wordSentenceLinks || []).filter(l => l.id !== linkId);
           toast('Word unlinked');
           render();
+        });
+      });
+      
+      // Clear [Original] note from sentence
+      document.querySelectorAll('[data-clear-original]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const sentId = parseInt(btn.dataset.clearOriginal);
+          const ok = await updateSentence(sentId, { notes: null });
+          if (ok) { toast('Original removed'); render(); }
         });
       });
       
