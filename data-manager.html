@@ -474,6 +474,7 @@
       wordGroups: [],  // from japanese_word_groups
       wordGroupMembers: [], // from japanese_word_group_members
       wordSentenceLinks: [], // from japanese_unified_word_sentences
+      sentenceAttempts: [], // from japanese_sentence_attempts
       storyAlerts: [],
       wordAlerts: [],
       stories: [],
@@ -706,7 +707,7 @@
     
     async function loadAll() {
       state.loading = true; render();
-      const [sentences, words, wordBooks, wordGroups, wordGroupMembers, storyAlerts, wordAlerts, stories, storyGroups, wordSentenceLinks, animeWords] = await Promise.all([
+      const [sentences, words, wordBooks, wordGroups, wordGroupMembers, storyAlerts, wordAlerts, stories, storyGroups, wordSentenceLinks, animeWords, sentenceAttempts] = await Promise.all([
         loadPaginated('japanese_unified_sentences'),
         loadPaginated('japanese_unified_words'),
         loadPaginated('japanese_unified_word_books'),
@@ -718,6 +719,7 @@
         loadPaginated('japanese_kanji_story_groups'),
         loadPaginated('japanese_unified_word_sentences', 'id,word_id,sentence_id,rating'),
         loadPaginated('japanese_anime_words').catch(() => []),
+        loadPaginated('japanese_sentence_attempts').catch(() => []),
       ]);
       state.sentences = sentences;
       state.words = words;
@@ -730,6 +732,7 @@
       state.storyGroups = storyGroups;
       state.wordSentenceLinks = wordSentenceLinks;
       state.animeWords = animeWords;
+      state.sentenceAttempts = sentenceAttempts;
       state.loading = false;
       render();
     }
@@ -2069,11 +2072,32 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
             const w = state.words.find(w => w.id === l.word_id);
             return w ? { ...w, linkId: l.id } : null;
           }).filter(Boolean);
+          // Find attempt history for this sentence
+          const attempts = (state.sentenceAttempts || []).filter(a => a.sentence_id === s.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
           return `
             <div class="sent-item">
               <div class="sent-text">${highlightWords(s.sentence || '', words)}</div>
               ${s.meaning_en ? `<div class="sent-meaning">${escapeHtml(s.meaning_en)}</div>` : ''}
               ${s.notes && s.notes.includes('[Original]') ? `<div style="font-size:11px; color:var(--text-muted); padding:4px 10px; margin-bottom:6px; background:rgba(239,68,68,0.06); border-left:2px solid var(--red); border-radius:4px; display:flex; align-items:center; justify-content:space-between;"><div><span style="color:var(--red); font-weight:600;">Before:</span> <s>${escapeHtml(s.notes.replace('[Original] ', '').split('\n')[0])}</s></div><button data-clear-original="${s.id}" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:2px 6px; flex-shrink:0;" title="Remove original">\u2715</button></div>` : ''}
+              ${attempts.length > 0 ? `
+                <div style="margin-bottom:6px;">
+                  <button data-toggle-history="${s.id}" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:11px; padding:0; font-family:inherit;">
+                    \uD83D\uDCDC History (${attempts.length} version${attempts.length > 1 ? 's' : ''})
+                  </button>
+                  <div id="history_${s.id}" style="display:none; margin-top:4px;">
+                    ${attempts.map((a, idx) => `
+                      <div style="font-size:11px; padding:6px 10px; margin-bottom:3px; background:${a.is_correct ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)'}; border-left:2px solid ${a.is_correct ? 'var(--emerald)' : 'var(--red)'}; border-radius:4px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                          <span style="color:var(--text-muted); font-size:10px;">#${attempts.length - idx} \u00B7 ${new Date(a.created_at).toLocaleDateString()}</span>
+                          <span style="font-size:9px; padding:1px 6px; border-radius:3px; ${a.is_correct ? 'background:rgba(16,185,129,0.15); color:var(--emerald);' : 'background:rgba(239,68,68,0.15); color:var(--red);'}">${a.is_correct ? '\u2713 correct' : '\u2717 had issues'}</span>
+                        </div>
+                        <div style="color:var(--text-secondary);">${escapeHtml(a.attempt_text)}</div>
+                        ${a.notes ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${escapeHtml(a.notes)}</div>` : ''}
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
               
               <div class="sent-meta mb-2">
                 <span>${escapeHtml(s.source || 'unknown')}</span>
@@ -3261,6 +3285,14 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           const sentId = parseInt(btn.dataset.clearOriginal);
           const ok = await updateSentence(sentId, { notes: null });
           if (ok) { toast('Original removed'); render(); }
+        });
+      });
+      
+      // Toggle attempt history
+      document.querySelectorAll('[data-toggle-history]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const panel = document.getElementById(`history_${btn.dataset.toggleHistory}`);
+          if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
         });
       });
       

@@ -975,20 +975,10 @@
             // 2. verified="rejected" + corrected_sentence → overwrite sentence, mark "corrected"
             // 3. verified="rejected" + no correction → mark "rejected" (garbage/unfixable)
             if (r.verified === 'rejected' && r.corrected_sentence) {
-              // Save original sentence to attempts table (permanent history)
+              // Save original sentence before overwriting
               const origSent = state.sentences.find(s => s.id === r.id);
               const originalText = origSent?.sentence || '';
               if (originalText && originalText !== r.corrected_sentence) {
-                // Insert into japanese_sentence_attempts
-                await sb.from('japanese_sentence_attempts').insert({
-                  user_id: state.user?.id || null,
-                  sentence_id: r.id,
-                  attempt_text: originalText,
-                  is_correct: false,
-                  notes: r.notes || null,
-                }).catch(e => console.warn('Attempt save failed:', e));
-                
-                // Also keep in notes for quick reference
                 const existingNotes = r.notes || origSent?.notes || '';
                 updates.notes = `[Original] ${originalText}${existingNotes ? '\n' + existingNotes : ''}`;
               }
