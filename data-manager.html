@@ -983,13 +983,16 @@
               const originalText = origSent?.sentence || '';
               if (originalText && originalText !== r.corrected_sentence) {
                 // Insert into japanese_sentence_attempts
-                await sb.from('japanese_sentence_attempts').insert({
-                  user_id: state.user?.id || null,
-                  sentence_id: r.id,
-                  attempt_text: originalText,
-                  is_correct: false,
-                  notes: r.notes || null,
-                }).catch(e => console.warn('Attempt save failed:', e));
+                try {
+                  const { error: attemptErr } = await sb.from('japanese_sentence_attempts').insert({
+                    user_id: state.user?.id || null,
+                    sentence_id: r.id,
+                    attempt_text: originalText,
+                    is_correct: false,
+                    notes: r.notes || null,
+                  });
+                  if (attemptErr) console.warn('Attempt save failed:', attemptErr.message);
+                } catch(e) { console.warn('Attempt save error:', e); }
                 
                 // Also keep in notes for quick reference
                 const existingNotes = r.notes || origSent?.notes || '';
