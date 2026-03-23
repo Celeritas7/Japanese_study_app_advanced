@@ -178,7 +178,8 @@ export function renderTabs(currentTab) {
     { id: 'srs', label: 'SRS', icon: TAB_ICONS.srs },
     { id: 'stories', label: 'Stories', icon: TAB_ICONS.stories },
     { id: 'similar', label: 'Relations', icon: '\uD83D\uDD17' },
-    { id: 'anime', label: 'Anime', icon: TAB_ICONS.anime, href: 'anime-reader.html' }
+    { id: 'anime', label: 'Anime', icon: TAB_ICONS.anime, href: 'anime-reader.html' },
+    { id: 'script', label: 'Scripts', icon: '\uD83D\uDCDD', href: 'script-reader.html' }
   ];
   
   return `
