@@ -132,19 +132,32 @@ function parseBulkSections(text){
 }
 
 // DATA
+// Fast load: just scripts + script_words (small tables)
 async function loadAll(){
   state.loading=true;render();
   try{
-    const[scripts,words,scriptWords,markingsData]=await Promise.all([
+    const[scripts,scriptWords]=await Promise.all([
       sb.from('japanese_scripts').select('*').eq('user_id',state.user.id).order('updated_at',{ascending:false}),
-      loadPag('japanese_unified_words','id,kanji,hiragana,meaning_en,jlpt_level'),
       sb.from('japanese_script_words').select('*'),
-      loadPag('japanese_user_markings','kanji,marking'),
     ]);
-    state.scripts=scripts.data||[];state.words=words;state.scriptWords=scriptWords.data||[];
-    const m={};markingsData.forEach(r=>{m[r.kanji]=r.marking});state.markings=m;
+    state.scripts=scripts.data||[];state.scriptWords=scriptWords.data||[];
   }catch(e){console.error('Load:',e)}
   state.loading=false;render();
+}
+
+// Heavy load: words + markings (only when entering read view)
+let _wordsLoaded=false;
+async function ensureWordsLoaded(){
+  if(_wordsLoaded)return;
+  try{
+    const[words,markingsData]=await Promise.all([
+      loadPag('japanese_unified_words','id,kanji,hiragana,meaning_en,jlpt_level'),
+      loadPag('japanese_user_markings','kanji,marking'),
+    ]);
+    state.words=words;
+    const m={};markingsData.forEach(r=>{m[r.kanji]=r.marking});state.markings=m;
+    _wordsLoaded=true;
+  }catch(e){console.error('Words load:',e)}
 }
 async function loadPag(table,select='*'){
   let all=[],page=0;
@@ -246,7 +259,7 @@ function renderRead(){
   paras.forEach(p=>{tokenize(p).forEach(t=>{if(t.isWordLike&&!isPunct(t.segment)&&isJapanese(t.segment[0]||'')){total++;if(ss.has(t.segment))saved++;else if(ks.has(t.segment))known++}})});
   const wl=state.scriptWords.filter(sw=>sw.script_id===s.id).map(sw=>{const w=state.words.find(w2=>w2.id===sw.word_id);return w?{...w,surface:sw.surface_form}:null}).filter(Boolean);
   
-  return hdr('<button class="btn-icon" id="editScriptBtn">\u270F</button>')+'<div class="reading-header"><div class="reading-meta"><div class="reading-title">'+escapeHtml(s.title)+'</div><div class="reading-sub">'+escapeHtml(s.category||'general')+' \u00B7 '+paras.length+' paragraphs</div></div><div class="reading-stats"><span style="color:var(--word-known)">'+known+'\u2714</span><span style="color:var(--word-saved)">'+saved+'\u2B50</span><span style="color:var(--word-unknown)">'+(total-known-saved)+'\u2753</span></div></div><div class="passage-container">'+(s.question?'<div class="question-box"><div class="question-label">Question</div><div class="question-text">'+tapText(s.question,ks,ss)+'</div></div>':'')+paras.map((p,i)=>'<div class="passage-paragraph" style="animation:fadeUp .3s ease-out '+i*50+'ms both"><span class="para-num">P'+(i+1)+'</span><div class="passage-text">'+tapText(p,ks,ss)+'</div></div>').join('')+(wl.length>0?'<div class="card" style="margin-top:16px"><h4 style="font-size:13px;font-weight:700;color:var(--accent-purple);margin-bottom:10px">\u2B50 Saved Words ('+wl.length+')</h4>'+wl.map(w=>'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-dim)"><span style="font-size:16px;font-weight:700;min-width:60px">'+escapeHtml(w.kanji||'')+'</span><span style="font-size:12px;color:var(--accent-cyan)">'+escapeHtml(w.hiragana||'')+'</span><span style="font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(w.meaning_en||'')+'</span><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber)">'+escapeHtml(w.jlpt_level||'')+'</span></div>').join('')+'</div>':'')+'</div>'+(state.popup?renderPopup():'');
+  return hdr('<button class="btn-icon" id="editScriptBtn">\u270F</button>')+'<div class="reading-header"><div class="reading-meta"><div class="reading-title">'+escapeHtml(s.title)+'</div><div class="reading-sub">'+escapeHtml(s.category||'general')+' \u00B7 '+paras.length+' paragraphs</div></div><div class="reading-stats">'+(!_wordsLoaded?'<span style="color:var(--text-muted)">loading...</span>':'<span style="color:var(--word-known)">'+known+'\u2714</span><span style="color:var(--word-saved)">'+saved+'\u2B50</span><span style="color:var(--word-unknown)">'+(total-known-saved)+'\u2753</span>')+'</div></div><div class="passage-container">'+(s.question?'<div class="question-box"><div class="question-label">Question</div><div class="question-text">'+tapText(s.question,ks,ss)+'</div></div>':'')+paras.map((p,i)=>'<div class="passage-paragraph" style="animation:fadeUp .3s ease-out '+i*50+'ms both"><span class="para-num">P'+(i+1)+'</span><div class="passage-text">'+tapText(p,ks,ss)+'</div></div>').join('')+(wl.length>0?'<div class="card" style="margin-top:16px"><h4 style="font-size:13px;font-weight:700;color:var(--accent-purple);margin-bottom:10px">\u2B50 Saved Words ('+wl.length+')</h4>'+wl.map(w=>'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-dim)"><span style="font-size:16px;font-weight:700;min-width:60px">'+escapeHtml(w.kanji||'')+'</span><span style="font-size:12px;color:var(--accent-cyan)">'+escapeHtml(w.hiragana||'')+'</span><span style="font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(w.meaning_en||'')+'</span><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber)">'+escapeHtml(w.jlpt_level||'')+'</span></div>').join('')+'</div>':'')+'</div>'+(state.popup?renderPopup():'');
 }
 
 function tapText(text,ks,ss){
@@ -271,7 +284,7 @@ function attachListeners(){
   });
   document.querySelectorAll('[data-go-folders]').forEach(el=>el.addEventListener('click',()=>{state.view='folders';state.selectedFolder=null;render()}));
   document.querySelectorAll('[data-open-folder]').forEach(el=>el.addEventListener('click',()=>{state.selectedFolder=el.dataset.openFolder;state.view='folder';render()}));
-  document.querySelectorAll('[data-open-script]').forEach(el=>el.addEventListener('click',()=>{state.selectedScript=state.scripts.find(s=>s.id===parseInt(el.dataset.openScript));state.view='read';render()}));
+  document.querySelectorAll('[data-open-script]').forEach(el=>el.addEventListener('click',async()=>{state.selectedScript=state.scripts.find(s=>s.id===parseInt(el.dataset.openScript));state.view='read';if(!_wordsLoaded){render();await ensureWordsLoaded()}render()}));
   
   document.getElementById('addScriptBtn')?.addEventListener('click',()=>{state.addMode='single';state.view='add';render()});
   document.getElementById('addScriptBtn2')?.addEventListener('click',()=>{state.addMode='single';state.view='add';render()});
