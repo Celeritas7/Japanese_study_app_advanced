@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Script Reader — JLPT Vocabulary Master</title>
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=M+PLUS+Rounded+1c:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg-deep:#07070d;--bg-surface:#0f1019;--bg-card:#161822;--bg-elevated:#1e2030;--border-dim:#252839;--border-glow:#3d4166;--text-primary:#e8e9f0;--text-secondary:#8b8fa8;--text-muted:#555873;--accent-cyan:#00d4ff;--accent-pink:#ff3b8b;--accent-amber:#ffb03a;--accent-green:#00e88f;--accent-purple:#b07dff;--word-known:#00e88f;--word-unknown:#ff3b8b;--word-saved:#b07dff}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-deep);color:var(--text-primary);min-height:100vh;overscroll-behavior:none;-webkit-font-smoothing:antialiased}
+    .hide-sb::-webkit-scrollbar{display:none}.hide-sb{-ms-overflow-style:none;scrollbar-width:none}
+    
+    /* Header */
+    .app-header{background:var(--bg-surface);border-bottom:1px solid var(--border-dim);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+    .app-title{font-family:'M PLUS Rounded 1c',sans-serif;font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--accent-amber),var(--accent-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .header-actions{display:flex;gap:8px;align-items:center}
+    .btn-icon{width:36px;height:36px;border:1px solid var(--border-dim);background:var(--bg-card);border-radius:8px;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:16px;text-decoration:none}
+    .btn-icon:hover{border-color:var(--accent-cyan);color:var(--accent-cyan)}
+    
+    /* Views */
+    .view{padding:16px;max-width:640px;margin:0 auto}
+    .card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:14px;padding:20px;margin-bottom:16px}
+    
+    /* Forms */
+    .form-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:block}
+    .form-input{width:100%;background:var(--bg-elevated);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;font-size:15px;color:var(--text-primary);font-family:'Noto Sans JP',sans-serif;outline:none;transition:border-color .15s;margin-bottom:14px}
+    .form-input:focus{border-color:var(--accent-cyan)}.form-input::placeholder{color:var(--text-muted)}
+    textarea.form-input{min-height:200px;resize:vertical;line-height:1.8}
+    
+    /* Buttons */
+    .btn-primary{width:100%;padding:14px 24px;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;transition:all .2s;background:linear-gradient(135deg,var(--accent-amber),#cc8a00);color:var(--bg-deep)}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(255,176,58,.3)}.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .btn-secondary{padding:10px 20px;border:1px solid var(--border-dim);border-radius:10px;font-size:13px;font-weight:500;background:var(--bg-card);color:var(--text-secondary);cursor:pointer;transition:all .15s}
+    .btn-secondary:hover{border-color:var(--accent-cyan);color:var(--text-primary)}
+    .btn-danger{padding:8px 14px;border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px;background:rgba(239,68,68,.1);color:#ef4444;cursor:pointer;transition:all .15s}
+    .btn-danger:hover{background:rgba(239,68,68,.2)}
+    
+    /* Script List */
+    .script-card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:14px;padding:16px;margin-bottom:12px;cursor:pointer;transition:all .15s}
+    .script-card:hover{border-color:var(--accent-amber);transform:translateY(-1px)}
+    .script-title{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px}
+    .script-cat{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(255,176,58,.12);color:var(--accent-amber);border:1px solid rgba(255,176,58,.2);margin-right:6px}
+    .script-preview{font-size:13px;color:var(--text-muted);margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .script-stats{font-size:11px;color:var(--text-muted);margin-top:8px;font-family:'IBM Plex Mono',monospace}
+    
+    /* Reading View */
+    .reading-header{background:var(--bg-surface);border-bottom:1px solid var(--border-dim);padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:49px;z-index:90}
+    .reading-meta{flex:1;min-width:0}
+    .reading-title{font-size:14px;font-weight:700;color:var(--accent-amber);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .reading-sub{font-size:11px;color:var(--text-muted)}
+    .reading-stats{display:flex;gap:12px;font-size:11px;font-family:'IBM Plex Mono',monospace}
+    
+    .passage-container{padding:20px 16px;max-width:640px;margin:0 auto}
+    .passage-paragraph{margin-bottom:20px;padding:16px;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:12px;animation:fadeUp .3s ease-out both;line-height:2}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .passage-paragraph .para-num{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text-muted);margin-bottom:6px;display:block}
+    .passage-text{font-size:19px;letter-spacing:.02em}
+    
+    /* Word tokens */
+    .word-token{display:inline;cursor:pointer;border-radius:3px;padding:1px 2px;transition:all .12s;position:relative}
+    .word-token:hover{background:rgba(255,255,255,.08)}
+    .word-token.known{color:var(--word-known)}.word-token.unknown{color:var(--word-unknown);border-bottom:2px dotted var(--word-unknown)}.word-token.saved{color:var(--word-saved);border-bottom:2px solid var(--word-saved)}.word-token.punct{color:var(--text-muted);cursor:default}
+    
+    /* Word popup */
+    .word-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);animation:fadeIn .15s ease-out}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .word-popup{width:100%;max-width:480px;background:var(--bg-elevated);border-top:1px solid var(--border-glow);border-radius:20px 20px 0 0;padding:24px 20px 32px;animation:slideUp .2s ease-out;max-height:70vh;overflow-y:auto}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .popup-handle{width:36px;height:4px;background:var(--border-glow);border-radius:2px;margin:0 auto 18px}
+    .popup-surface{font-size:36px;font-weight:700;text-align:center;margin-bottom:4px}
+    .popup-reading{font-size:16px;color:var(--accent-cyan);font-family:'M PLUS Rounded 1c',sans-serif;text-align:center;margin-bottom:4px}
+    .popup-meaning{font-size:14px;color:var(--text-secondary);text-align:center;margin-bottom:12px}
+    .popup-tag{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:500;margin-bottom:12px}
+    .popup-tag.known{background:rgba(0,232,143,.12);color:var(--word-known);border:1px solid rgba(0,232,143,.25)}
+    .popup-tag.unknown{background:rgba(255,59,139,.12);color:var(--word-unknown);border:1px solid rgba(255,59,139,.25)}
+    .popup-tag.saved{background:rgba(176,125,255,.12);color:var(--word-saved);border:1px solid rgba(176,125,255,.25)}
+    .btn-save-word{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;transition:all .2s;background:linear-gradient(135deg,var(--accent-pink),#cc2e6f);color:white}
+    .btn-save-word:disabled{opacity:.4;cursor:not-allowed}
+    .btn-save-word.already{background:var(--bg-card);color:var(--text-muted);border:1px solid var(--border-dim)}
+    .btn-remove-word{width:100%;padding:10px;border:1px solid var(--border-dim);border-radius:10px;font-size:12px;background:transparent;color:var(--text-muted);cursor:pointer;margin-top:8px}
+    
+    /* Summary stats */
+    .summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+    .summary-stat{text-align:center;padding:12px 8px;background:var(--bg-elevated);border-radius:10px}
+    .summary-stat b{font-size:22px;font-family:'M PLUS Rounded 1c',sans-serif;display:block}
+    .summary-stat small{font-size:10px;color:var(--text-muted);text-transform:uppercase}
+    
+    /* Category chips */
+    .cat-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+    .cat-chip{padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;border:1px solid var(--border-dim);background:var(--bg-card);color:var(--text-secondary);cursor:pointer;transition:all .15s}
+    .cat-chip:hover{border-color:var(--accent-amber)}
+    .cat-chip.active{background:rgba(255,176,58,.15);color:var(--accent-amber);border-color:var(--accent-amber)}
+    
+    /* Empty state */
+    .empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+    .empty-state .icon{font-size:48px;margin-bottom:12px;display:block}
+    .empty-state p{font-size:14px;margin-bottom:16px}
+    
+    /* Toast */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;animation:toastIn .3s ease-out}
+    .toast-success{background:var(--accent-green);color:var(--bg-deep)}.toast-error{background:#ef4444;color:white}
+    @keyframes toastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+    
+    /* Login */
+    .login-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+    .login-card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:20px;padding:32px;text-align:center;max-width:360px;width:100%}
+    .login-title{font-family:'M PLUS Rounded 1c',sans-serif;font-size:24px;font-weight:700;margin-bottom:8px;background:linear-gradient(135deg,var(--accent-amber),var(--accent-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .login-sub{font-size:13px;color:var(--text-muted);margin-bottom:24px}
+    .google-btn{width:100%;padding:14px;border:1px solid var(--border-dim);border-radius:12px;background:var(--bg-elevated);color:var(--text-primary);font-size:15px;font-weight:600;cursor:pointer;transition:all .15s}
+    .google-btn:hover{border-color:var(--accent-cyan);background:var(--bg-card)}
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  
+  <script>
+    const SUPABASE_URL = 'https://ulgrfumbwjovbjzjiems.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // Segmenter singleton
+    const segmenter = (typeof Intl !== 'undefined' && Intl.Segmenter)
+      ? new Intl.Segmenter('ja', { granularity: 'word' }) : null;
+    
+    // State
+    const state = {
+      user: null,
+      view: 'list', // list, add, read, edit
+      scripts: [],
+      words: [],        // japanese_unified_words (for known word lookup)
+      scriptWords: [],   // japanese_script_words
+      markings: {},
+      selectedScript: null,
+      catFilter: 'all',
+      popup: null,       // { surface, reading, meaning, wordId, isKnown, isSaved }
+      loading: true,
+    };
+    
+    const CATEGORIES = [
+      { key: 'all', label: 'All' },
+      { key: 'interview', label: '\uD83C\uDFA4 Interview' },
+      { key: 'business', label: '\uD83D\uDCBC Business' },
+      { key: 'email', label: '\u2709\uFE0F Email' },
+      { key: 'presentation', label: '\uD83D\uDCCA Presentation' },
+      { key: 'daily', label: '\uD83C\uDFE0 Daily' },
+      { key: 'general', label: '\uD83D\uDCDD General' },
+    ];
+    
+    function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    
+    function toast(msg, type='success') {
+      const el = document.createElement('div');
+      el.className = `toast toast-${type}`;
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2500);
+    }
+    
+    function isJapanese(c) {
+      const code = c.codePointAt(0);
+      return (code >= 0x3040 && code <= 0x309F) || (code >= 0x30A0 && code <= 0x30FF) ||
+             (code >= 0x4E00 && code <= 0x9FFF) || (code >= 0x3400 && code <= 0x4DBF);
+    }
+    
+    function isPunct(s) { return /^[\u3000-\u303F\uFF00-\uFFEF。、！？「」（）・…\s.,!?()]+$/.test(s); }
+    
+    // Build known word set from unified_words
+    function buildKnownSet() {
+      const set = new Set();
+      state.words.forEach(w => {
+        if (w.kanji) set.add(w.kanji);
+        if (w.hiragana) set.add(w.hiragana);
+      });
+      return set;
+    }
+    
+    // Build saved script words set for a script
+    function buildSavedSet(scriptId) {
+      const set = new Set();
+      state.scriptWords.filter(sw => sw.script_id === scriptId).forEach(sw => {
+        set.add(sw.surface_form);
+        const w = state.words.find(w2 => w2.id === sw.word_id);
+        if (w) { set.add(w.kanji); set.add(w.hiragana); }
+      });
+      return set;
+    }
+    
+    // Find word in DB by surface form
+    function findWord(surface) {
+      return state.words.find(w => w.kanji === surface || w.hiragana === surface) || null;
+    }
+    
+    // Parse pasted text into sections
+    function parseSections(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const sections = [];
+      let current = null;
+      
+      for (const line of lines) {
+        // Detect section headers: ①②③, 1., ②, numbered patterns, or short lines that look like titles
+        const sectionMatch = line.match(/^[\u2460-\u2473\u2776-\u277F\u24EB-\u24FE]?\s*(\d+[\.\)]\s*)?(.+)$/);
+        const isHeader = /^[\u2460-\u2473\u2776-\u277F]/.test(line) || /^\d+[\.\)]\s/.test(line);
+        
+        if (isHeader) {
+          if (current) sections.push(current);
+          const title = line.replace(/^[\u2460-\u2473\u2776-\u277F\d\.\)\s]+/, '').trim();
+          current = { title, content: '' };
+        } else if (!current) {
+          // First content without a header - use first line as title
+          const firstSentence = line.split(/[。！？]/)[0];
+          current = { title: firstSentence.slice(0, 30) + (firstSentence.length > 30 ? '...' : ''), content: line };
+        } else {
+          // Check if this looks like a sub-header (理想の回答, etc.)
+          if (/^[\u7406\u60F3\u56DE\u7B54]|^[A-Z]|[\uFF1A\uff1a:]/.test(line) && line.length < 30) {
+            current.content += '\n' + line;
+          } else {
+            current.content += (current.content ? '\n' : '') + line;
+          }
+        }
+      }
+      if (current) sections.push(current);
+      return sections;
+    }
+    
+    // Tokenize text for tappable rendering
+    function tokenize(text) {
+      if (!segmenter) return [{ segment: text, isWordLike: true }];
+      return [...segmenter.segment(text)];
+    }
+    
+    // ========== DATA LOADING ==========
+    async function loadAll() {
+      state.loading = true; render();
+      try {
+        const [scripts, words, scriptWords, markingsData] = await Promise.all([
+          sb.from('japanese_scripts').select('*').eq('user_id', state.user.id).order('updated_at', { ascending: false }),
+          loadPaginated('japanese_unified_words', 'id,kanji,hiragana,meaning_en,jlpt_level'),
+          sb.from('japanese_script_words').select('*'),
+          loadPaginated('japanese_user_markings', 'kanji,marking'),
+        ]);
+        state.scripts = scripts.data || [];
+        state.words = words;
+        state.scriptWords = scriptWords.data || [];
+        const m = {};
+        markingsData.forEach(r => { m[r.kanji] = r.marking; });
+        state.markings = m;
+      } catch(e) { console.error('Load error:', e); }
+      state.loading = false; render();
+    }
+    
+    async function loadPaginated(table, select = '*') {
+      let all = [], page = 0;
+      while (true) {
+        const { data, error } = await sb.from(table).select(select).order('id').range(page * 1000, (page + 1) * 1000 - 1);
+        if (error || !data?.length) break;
+        all = all.concat(data);
+        if (data.length < 1000) break;
+        page++;
+      }
+      return all;
+    }
+    
+    // ========== CRUD ==========
+    async function saveScript(title, category, content) {
+      const { data, error } = await sb.from('japanese_scripts').insert({
+        user_id: state.user.id, title, category, content
+      }).select().single();
+      if (error) { toast('Save failed: ' + error.message, 'error'); return null; }
+      state.scripts.unshift(data);
+      return data;
+    }
+    
+    async function updateScript(id, updates) {
+      updates.updated_at = new Date().toISOString();
+      const { error } = await sb.from('japanese_scripts').update(updates).eq('id', id);
+      if (error) { toast('Update failed: ' + error.message, 'error'); return false; }
+      const idx = state.scripts.findIndex(s => s.id === id);
+      if (idx >= 0) Object.assign(state.scripts[idx], updates);
+      return true;
+    }
+    
+    async function deleteScript(id) {
+      if (!confirm('Delete this script?')) return;
+      const { error } = await sb.from('japanese_scripts').delete().eq('id', id);
+      if (error) { toast('Delete failed', 'error'); return; }
+      state.scripts = state.scripts.filter(s => s.id !== id);
+      state.scriptWords = state.scriptWords.filter(sw => sw.script_id !== id);
+      state.selectedScript = null;
+      state.view = 'list';
+      toast('Script deleted');
+      render();
+    }
+    
+    async function saveWordFromScript(scriptId, surface, wordId) {
+      // Link word to script
+      const { error } = await sb.from('japanese_script_words').upsert({
+        script_id: scriptId, word_id: wordId, surface_form: surface,
+      }, { onConflict: 'script_id,word_id' });
+      if (error) { toast('Link failed: ' + error.message, 'error'); return; }
+      // Update local state
+      if (!state.scriptWords.some(sw => sw.script_id === scriptId && sw.word_id === wordId)) {
+        state.scriptWords.push({ script_id: scriptId, word_id: wordId, surface_form: surface });
+      }
+      toast('\u2B50 Word saved to script');
+      state.popup = null;
+      render();
+    }
+    
+    async function removeWordFromScript(scriptId, wordId) {
+      const { error } = await sb.from('japanese_script_words').delete()
+        .eq('script_id', scriptId).eq('word_id', wordId);
+      if (error) { toast('Remove failed', 'error'); return; }
+      state.scriptWords = state.scriptWords.filter(sw => !(sw.script_id === scriptId && sw.word_id === wordId));
+      toast('Word removed');
+      state.popup = null;
+      render();
+    }
+    
+    // ========== RENDER ==========
+    function render() {
+      const app = document.getElementById('app');
+      
+      if (!state.user) {
+        app.innerHTML = renderLogin();
+        attachLoginListeners();
+        return;
+      }
+      
+      if (state.loading) {
+        app.innerHTML = `<div class="app-header"><span class="app-title">\uD83D\uDCDD Script Reader</span></div><div class="view"><div class="empty-state"><p>Loading...</p></div></div>`;
+        return;
+      }
+      
+      switch (state.view) {
+        case 'list': app.innerHTML = renderList(); break;
+        case 'add': app.innerHTML = renderAdd(); break;
+        case 'read': app.innerHTML = renderRead(); break;
+        case 'edit': app.innerHTML = renderEdit(); break;
+        default: app.innerHTML = renderList();
+      }
+      attachListeners();
+    }
+    
+    function renderLogin() {
+      return `<div class="login-screen">
+        <div class="login-card">
+          <div class="login-title">\uD83D\uDCDD Script Reader</div>
+          <div class="login-sub">Study Japanese passages & scripts</div>
+          <button class="google-btn" id="loginBtn">\uD83D\uDD12 Sign in with Google</button>
+          <div style="margin-top:16px;"><a href="./" style="color:var(--text-muted);font-size:12px;text-decoration:none;">\u2190 Back to Study App</a></div>
+        </div>
+      </div>`;
+    }
+    
+    function renderHeader(extra = '') {
+      return `<div class="app-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${state.view !== 'list' ? `<button class="btn-icon" id="backBtn">\u2190</button>` : `<a href="javascript:void(0)" onclick="history.length>1?history.back():location.href='./'" class="btn-icon">\u2190</a>`}
+          <span class="app-title">\uD83D\uDCDD Script Reader</span>
+        </div>
+        <div class="header-actions">
+          ${extra}
+          <button class="btn-icon" id="signOutBtn" title="Sign Out">\u21A9</button>
+        </div>
+      </div>`;
+    }
+    
+    function renderList() {
+      const cats = CATEGORIES;
+      const filtered = state.catFilter === 'all' ? state.scripts : state.scripts.filter(s => s.category === state.catFilter);
+      
+      return `${renderHeader(`<button class="btn-icon" id="addScriptBtn" title="Add Script">+</button>`)}
+        <div class="view">
+          <!-- Category filter -->
+          <div class="cat-chips">
+            ${cats.map(c => `<button class="cat-chip ${state.catFilter === c.key ? 'active' : ''}" data-cat="${c.key}">${c.label}</button>`).join('')}
+          </div>
+          
+          <!-- Stats -->
+          <div class="summary-grid">
+            <div class="summary-stat"><b style="color:var(--accent-amber)">${state.scripts.length}</b><small>Scripts</small></div>
+            <div class="summary-stat"><b style="color:var(--accent-purple)">${state.scriptWords.length}</b><small>Saved Words</small></div>
+            <div class="summary-stat"><b style="color:var(--accent-green)">${new Set(state.scriptWords.map(sw => sw.word_id)).size}</b><small>Unique Words</small></div>
+          </div>
+          
+          ${filtered.length === 0 ? `
+            <div class="empty-state">
+              <span class="icon">\uD83D\uDCDD</span>
+              <p>No scripts yet. Paste your interview script, business email, or any passage to start studying!</p>
+              <button class="btn-secondary" id="addScriptBtn2">+ Add Script</button>
+            </div>
+          ` : filtered.map(s => {
+            const wordCount = state.scriptWords.filter(sw => sw.script_id === s.id).length;
+            const preview = (s.content || '').slice(0, 80);
+            return `<div class="script-card" data-open-script="${s.id}">
+              <div style="display:flex;align-items:start;justify-content:space-between;">
+                <div>
+                  <div class="script-title">${escapeHtml(s.title)}</div>
+                  <span class="script-cat">${escapeHtml(s.category || 'general')}</span>
+                </div>
+              </div>
+              <div class="script-preview">${escapeHtml(preview)}</div>
+              <div class="script-stats">${wordCount} saved words \u00B7 ${(s.content||'').length} chars</div>
+            </div>`;
+          }).join('')}
+        </div>`;
+    }
+    
+    function renderAdd() {
+      return `${renderHeader()}
+        <div class="view">
+          <div class="card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Add New Script</h3>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+              Paste your full script below. If it has numbered sections (\u2460\u2461 or 1. 2.) they'll be split into separate entries automatically.
+            </p>
+            
+            <label class="form-label">Category</label>
+            <select id="scriptCategory" class="form-input" style="min-height:auto;">
+              ${CATEGORIES.filter(c => c.key !== 'all').map(c => `<option value="${c.key}" ${c.key === 'interview' ? 'selected' : ''}>${c.label}</option>`).join('')}
+            </select>
+            
+            <label class="form-label">Content (paste full script)</label>
+            <textarea id="scriptContent" class="form-input" placeholder="Paste your Japanese script here...\n\n\u2460 \u81EA\u5DF1\u7D39\u4ECB\n\u30A2\u30CB\u30B1\u30C3\u30C8\u3068\u7533\u3057\u307E\u3059\u3002...\n\n\u2461 \u65E5\u672C\u3078\u7559\u5B66\u3057\u3088\u3046\u3068\u601D\u3063\u305F\u7406\u7531\n..."></textarea>
+            
+            <div id="previewArea" style="margin-bottom:16px;"></div>
+            
+            <div style="display:flex;gap:8px;">
+              <button class="btn-primary" id="previewBtn" style="flex:1;background:linear-gradient(135deg,var(--accent-cyan),#0098cc);">\uD83D\uDC41 Preview Sections</button>
+              <button class="btn-primary" id="saveScriptBtn" style="flex:1;" disabled>Save Script(s)</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    
+    function renderEdit() {
+      const s = state.selectedScript;
+      if (!s) return renderList();
+      return `${renderHeader()}
+        <div class="view">
+          <div class="card">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Edit Script</h3>
+            
+            <label class="form-label">Title</label>
+            <input id="editTitle" class="form-input" value="${escapeHtml(s.title)}">
+            
+            <label class="form-label">Category</label>
+            <select id="editCategory" class="form-input" style="min-height:auto;">
+              ${CATEGORIES.filter(c => c.key !== 'all').map(c => `<option value="${c.key}" ${c.key === s.category ? 'selected' : ''}>${c.label}</option>`).join('')}
+            </select>
+            
+            <label class="form-label">Content</label>
+            <textarea id="editContent" class="form-input" style="min-height:300px;">${escapeHtml(s.content)}</textarea>
+            
+            <div style="display:flex;gap:8px;">
+              <button class="btn-primary" id="saveEditBtn" style="flex:1;">Save Changes</button>
+              <button class="btn-danger" id="deleteScriptBtn">\uD83D\uDDD1</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    
+    function renderRead() {
+      const s = state.selectedScript;
+      if (!s) return renderList();
+      
+      const knownSet = buildKnownSet();
+      const savedSet = buildSavedSet(s.id);
+      const paragraphs = (s.content || '').split('\n').filter(l => l.trim());
+      
+      // Count stats
+      let totalWords = 0, knownCount = 0, savedCount = 0;
+      paragraphs.forEach(p => {
+        const tokens = tokenize(p);
+        tokens.forEach(t => {
+          if (t.isWordLike && !isPunct(t.segment) && isJapanese(t.segment[0])) {
+            totalWords++;
+            if (savedSet.has(t.segment)) savedCount++;
+            else if (knownSet.has(t.segment)) knownCount++;
+          }
+        });
+      });
+      const unknownCount = totalWords - knownCount - savedCount;
+      
+      const wordListForScript = state.scriptWords.filter(sw => sw.script_id === s.id).map(sw => {
+        const w = state.words.find(w2 => w2.id === sw.word_id);
+        return w ? { ...w, surface: sw.surface_form } : null;
+      }).filter(Boolean);
+      
+      return `${renderHeader(`<button class="btn-icon" id="editScriptBtn" title="Edit">\u270F</button>`)}
+        <div class="reading-header">
+          <div class="reading-meta">
+            <div class="reading-title">${escapeHtml(s.title)}</div>
+            <div class="reading-sub">${escapeHtml(s.category || 'general')} \u00B7 ${paragraphs.length} paragraphs</div>
+          </div>
+          <div class="reading-stats">
+            <span style="color:var(--word-known)">${knownCount}\u2714</span>
+            <span style="color:var(--word-saved)">${savedCount}\u2B50</span>
+            <span style="color:var(--word-unknown)">${unknownCount}\u2753</span>
+          </div>
+        </div>
+        
+        <div class="passage-container">
+          ${paragraphs.map((p, i) => {
+            const tokens = tokenize(p);
+            const html = tokens.map(t => {
+              const seg = t.segment;
+              if (!t.isWordLike || isPunct(seg) || !isJapanese(seg[0] || '')) {
+                return `<span class="word-token punct">${escapeHtml(seg)}</span>`;
+              }
+              const cls = savedSet.has(seg) ? 'saved' : knownSet.has(seg) ? 'known' : 'unknown';
+              return `<span class="word-token ${cls}" data-word="${escapeHtml(seg)}">${escapeHtml(seg)}</span>`;
+            }).join('');
+            return `<div class="passage-paragraph" style="animation-delay:${i*50}ms">
+              <span class="para-num">P${i+1}</span>
+              <div class="passage-text">${html}</div>
+            </div>`;
+          }).join('')}
+          
+          <!-- Saved words for this script -->
+          ${wordListForScript.length > 0 ? `
+            <div class="card" style="margin-top:16px;">
+              <h4 style="font-size:13px;font-weight:700;color:var(--accent-purple);margin-bottom:10px;">\u2B50 Saved Words (${wordListForScript.length})</h4>
+              ${wordListForScript.map(w => `
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-dim);">
+                  <span style="font-size:16px;font-weight:700;min-width:60px;">${escapeHtml(w.kanji || '')}</span>
+                  <span style="font-size:12px;color:var(--accent-cyan);">${escapeHtml(w.hiragana || '')}</span>
+                  <span style="font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(w.meaning_en || '')}</span>
+                  <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber);">${escapeHtml(w.jlpt_level || '')}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+        
+        ${state.popup ? renderPopup() : ''}`;
+    }
+    
+    function renderPopup() {
+      const p = state.popup;
+      if (!p) return '';
+      const s = state.selectedScript;
+      const isLinked = s && state.scriptWords.some(sw => sw.script_id === s.id && sw.word_id === p.wordId);
+      
+      return `<div class="word-popup-overlay" id="popupOverlay">
+        <div class="word-popup">
+          <div class="popup-handle"></div>
+          <div class="popup-surface">${escapeHtml(p.surface)}</div>
+          ${p.reading ? `<div class="popup-reading">${escapeHtml(p.reading)}</div>` : ''}
+          ${p.meaning ? `<div class="popup-meaning">${escapeHtml(p.meaning)}</div>` : ''}
+          ${p.level ? `<div style="text-align:center;margin-bottom:8px;"><span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber);">${escapeHtml(p.level)}</span></div>` : ''}
+          
+          <div style="text-align:center;margin-bottom:12px;">
+            <span class="popup-tag ${p.isKnown ? 'known' : isLinked ? 'saved' : 'unknown'}">
+              ${p.isKnown ? '\u2714 In your vocabulary' : isLinked ? '\u2B50 Saved to this script' : '\u2753 New word'}
+            </span>
+          </div>
+          
+          ${p.wordId ? (isLinked
+            ? `<button class="btn-save-word already" id="popupRemoveBtn">\u2715 Remove from script</button>`
+            : `<button class="btn-save-word" id="popupSaveBtn">\u2B50 Save to this script</button>`
+          ) : `<div style="text-align:center;font-size:12px;color:var(--text-muted);">Word not found in database</div>`}
+        </div>
+      </div>`;
+    }
+    
+    // ========== EVENT LISTENERS ==========
+    function attachLoginListeners() {
+      document.getElementById('loginBtn')?.addEventListener('click', async () => {
+        await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } });
+      });
+    }
+    
+    function attachListeners() {
+      document.getElementById('signOutBtn')?.addEventListener('click', async () => {
+        await sb.auth.signOut(); state.user = null; render();
+      });
+      
+      document.getElementById('backBtn')?.addEventListener('click', () => {
+        if (state.view === 'edit') { state.view = 'read'; }
+        else { state.view = 'list'; state.selectedScript = null; }
+        render();
+      });
+      
+      // Category filter
+      document.querySelectorAll('[data-cat]').forEach(btn => {
+        btn.addEventListener('click', () => { state.catFilter = btn.dataset.cat; render(); });
+      });
+      
+      // Add script
+      document.getElementById('addScriptBtn')?.addEventListener('click', () => { state.view = 'add'; render(); });
+      document.getElementById('addScriptBtn2')?.addEventListener('click', () => { state.view = 'add'; render(); });
+      
+      // Preview sections
+      document.getElementById('previewBtn')?.addEventListener('click', () => {
+        const content = document.getElementById('scriptContent')?.value || '';
+        if (!content.trim()) return;
+        const sections = parseSections(content);
+        const area = document.getElementById('previewArea');
+        if (!area) return;
+        area.innerHTML = `<div style="font-size:12px;color:var(--accent-cyan);margin-bottom:8px;">\u2714 Found ${sections.length} section(s):</div>` +
+          sections.map((s, i) => `<div style="padding:8px 12px;margin-bottom:6px;background:var(--bg-elevated);border-radius:8px;border-left:3px solid var(--accent-amber);">
+            <div style="font-size:13px;font-weight:700;color:var(--accent-amber);">${i+1}. ${escapeHtml(s.title)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${escapeHtml(s.content.slice(0, 60))}...</div>
+          </div>`).join('');
+        document.getElementById('saveScriptBtn').disabled = false;
+      });
+      
+      // Save script(s)
+      document.getElementById('saveScriptBtn')?.addEventListener('click', async () => {
+        const content = document.getElementById('scriptContent')?.value || '';
+        const category = document.getElementById('scriptCategory')?.value || 'general';
+        if (!content.trim()) return;
+        
+        const sections = parseSections(content);
+        let saved = 0;
+        for (const sec of sections) {
+          const result = await saveScript(sec.title, category, sec.content);
+          if (result) saved++;
+        }
+        toast(`\u2714 Saved ${saved} script(s)`);
+        state.view = 'list';
+        render();
+      });
+      
+      // Open script
+      document.querySelectorAll('[data-open-script]').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = parseInt(el.dataset.openScript);
+          state.selectedScript = state.scripts.find(s => s.id === id) || null;
+          state.view = 'read';
+          render();
+        });
+      });
+      
+      // Edit script
+      document.getElementById('editScriptBtn')?.addEventListener('click', () => { state.view = 'edit'; render(); });
+      
+      // Save edit
+      document.getElementById('saveEditBtn')?.addEventListener('click', async () => {
+        const title = document.getElementById('editTitle')?.value?.trim();
+        const category = document.getElementById('editCategory')?.value;
+        const content = document.getElementById('editContent')?.value;
+        if (!title || !content) return;
+        const ok = await updateScript(state.selectedScript.id, { title, category, content });
+        if (ok) { state.selectedScript = state.scripts.find(s => s.id === state.selectedScript.id); toast('Updated!'); state.view = 'read'; render(); }
+      });
+      
+      // Delete
+      document.getElementById('deleteScriptBtn')?.addEventListener('click', () => deleteScript(state.selectedScript?.id));
+      
+      // Word tap
+      document.querySelectorAll('.word-token:not(.punct)').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const surface = el.dataset.word;
+          if (!surface) return;
+          const found = findWord(surface);
+          state.popup = {
+            surface,
+            reading: found?.hiragana || '',
+            meaning: found?.meaning_en || '',
+            level: found?.jlpt_level || '',
+            wordId: found?.id || null,
+            isKnown: !!found,
+          };
+          render();
+          // Re-scroll to approximate position
+        });
+      });
+      
+      // Popup overlay close
+      document.getElementById('popupOverlay')?.addEventListener('click', (e) => {
+        if (e.target.id === 'popupOverlay') { state.popup = null; render(); }
+      });
+      
+      // Save word to script
+      document.getElementById('popupSaveBtn')?.addEventListener('click', () => {
+        if (state.popup?.wordId && state.selectedScript) {
+          saveWordFromScript(state.selectedScript.id, state.popup.surface, state.popup.wordId);
+        }
+      });
+      
+      // Remove word from script
+      document.getElementById('popupRemoveBtn')?.addEventListener('click', () => {
+        if (state.popup?.wordId && state.selectedScript) {
+          removeWordFromScript(state.selectedScript.id, state.popup.wordId);
+        }
+      });
+    }
+    
+    // ========== AUTH & INIT ==========
+    async function init() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        state.user = session.user;
+        await loadAll();
+      } else {
+        state.loading = false;
+      }
+      render();
+      
+      sb.auth.onAuthStateChange(async (event, session) => {
+        state.user = session?.user || null;
+        if (event === 'SIGNED_IN' && state.user) await loadAll();
+        render();
+      });
+    }
+    
+    init();
+  </script>
+</body>
+</html>
