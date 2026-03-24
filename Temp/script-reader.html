@@ -136,16 +136,12 @@ function parseBulkSections(text){
 async function loadAll(){
   state.loading=true;render();
   try{
-    const timeout=ms=>new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms));
-    const[scripts,scriptWords]=await Promise.race([
-      Promise.all([
-        sb.from('japanese_scripts').select('*').eq('user_id',state.user.id).order('updated_at',{ascending:false}),
-        sb.from('japanese_script_words').select('*'),
-      ]),
-      timeout(10000)
+    const[scripts,scriptWords]=await Promise.all([
+      sb.from('japanese_scripts').select('*').eq('user_id',state.user.id).order('updated_at',{ascending:false}),
+      sb.from('japanese_script_words').select('*'),
     ]);
     state.scripts=scripts.data||[];state.scriptWords=scriptWords.data||[];
-  }catch(e){console.error('Load:',e);toast('Load failed - try refreshing','error')}
+  }catch(e){console.error('Load:',e)}
   state.loading=false;render();
 }
 
@@ -273,31 +269,7 @@ function tapText(text,ks,ss){
 function renderPopup(){
   const p=state.popup;if(!p)return'';const s=state.selectedScript;
   const linked=s&&state.scriptWords.some(sw=>sw.script_id===s.id&&sw.word_id===p.wordId);
-  let body='<div class="popup-handle"></div>';
-  
-  if(p.wordId){
-    body+='<div class="popup-surface">'+escapeHtml(p.surface)+'</div>';
-    if(p.reading)body+='<div class="popup-reading">'+escapeHtml(p.reading)+'</div>';
-    if(p.meaning)body+='<div class="popup-meaning">'+escapeHtml(p.meaning)+'</div>';
-    if(p.level)body+='<div style="text-align:center;margin-bottom:8px"><span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber)">'+escapeHtml(p.level)+'</span></div>';
-    body+='<div style="text-align:center;margin-bottom:12px"><span class="popup-tag '+(linked?'saved':'known')+'">'+(linked?'\u2B50 Saved to script':'\u2714 In vocabulary')+'</span></div>';
-    body+=linked?'<button class="btn-save-word already" id="popupRemoveBtn">\u2715 Remove from script</button>':'<button class="btn-save-word" id="popupSaveBtn">\u2B50 Save to this script</button>';
-  } else {
-    body+='<div class="popup-surface">'+escapeHtml(p.surface)+'</div>';
-    body+='<div style="text-align:center;margin-bottom:12px"><span class="popup-tag unknown">\u2753 Not in database</span></div>';
-    body+='<div style="margin-bottom:12px">';
-    body+='<label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Reading</label>';
-    body+='<input type="text" id="addWordReading" placeholder="hiragana" style="width:100%;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--text-primary);font-family:inherit;outline:none;margin-bottom:8px">';
-    body+='<label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Meaning</label>';
-    body+='<input type="text" id="addWordMeaning" placeholder="English meaning" style="width:100%;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--text-primary);font-family:inherit;outline:none;margin-bottom:8px">';
-    body+='<div style="display:flex;gap:8px">';
-    body+='<select id="addWordLevel" style="flex:1;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:8px;padding:8px;font-size:13px;color:var(--text-primary);outline:none"><option value="">Level</option><option value="N1">N1</option><option value="N2">N2</option><option value="N3">N3</option></select>';
-    body+='<button id="addWordBtn" style="flex:2;padding:10px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent-green),#00b86e);color:var(--bg-deep)">Add to DB</button>';
-    body+='</div></div>';
-    body+='<a href="https://jisho.org/search/'+encodeURIComponent(p.surface)+'" target="_blank" style="display:block;text-align:center;font-size:12px;color:var(--accent-cyan);text-decoration:none;padding:8px">Look up on Jisho.org \u2197</a>';
-  }
-  
-  return'<div class="word-popup-overlay" id="popupOverlay"><div class="word-popup">'+body+'</div></div>';
+  return'<div class="word-popup-overlay" id="popupOverlay"><div class="word-popup"><div class="popup-handle"></div><div class="popup-surface">'+escapeHtml(p.surface)+'</div>'+(p.reading?'<div class="popup-reading">'+escapeHtml(p.reading)+'</div>':'')+(p.meaning?'<div class="popup-meaning">'+escapeHtml(p.meaning)+'</div>':'')+(p.level?'<div style="text-align:center;margin-bottom:8px"><span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber)">'+escapeHtml(p.level)+'</span></div>':'')+'<div style="text-align:center;margin-bottom:12px"><span class="popup-tag '+(p.isKnown?'known':linked?'saved':'unknown')+'">'+(p.isKnown?'\u2714 In vocabulary':linked?'\u2B50 Saved to script':'\u2753 New word')+'</span></div>'+(p.wordId?(linked?'<button class="btn-save-word already" id="popupRemoveBtn">\u2715 Remove from script</button>':'<button class="btn-save-word" id="popupSaveBtn">\u2B50 Save to this script</button>'):'<div style="text-align:center;font-size:12px;color:var(--text-muted);padding:8px">Not in database. Add via main app.</div>')+'</div></div>';
 }
 
 // EVENTS
@@ -371,57 +343,14 @@ function attachListeners(){
   document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay'){state.popup=null;render()}});
   document.getElementById('popupSaveBtn')?.addEventListener('click',()=>{if(state.popup?.wordId&&state.selectedScript)saveWordLink(state.selectedScript.id,state.popup.surface,state.popup.wordId)});
   document.getElementById('popupRemoveBtn')?.addEventListener('click',()=>{if(state.popup?.wordId&&state.selectedScript)removeWordLink(state.selectedScript.id,state.popup.wordId)});
-  
-  // Add unknown word to DB
-  document.getElementById('addWordBtn')?.addEventListener('click',async()=>{
-    const surface=state.popup?.surface;if(!surface)return;
-    const reading=document.getElementById('addWordReading')?.value?.trim()||'';
-    const meaning=document.getElementById('addWordMeaning')?.value?.trim()||'';
-    const level=document.getElementById('addWordLevel')?.value||'';
-    if(!reading&&!meaning){toast('Enter reading or meaning','error');return}
-    
-    const{data,error}=await sb.from('japanese_unified_words').insert({
-      kanji:surface, hiragana:reading, meaning_en:meaning, jlpt_level:level||'', source:'script_tap'
-    }).select().single();
-    
-    if(error){toast('Add failed: '+error.message,'error');return}
-    
-    // Update local state
-    state.words.push(data);
-    _wordsLoaded=true;
-    
-    // Auto-link to current script
-    if(state.selectedScript){
-      await saveWordLink(state.selectedScript.id,surface,data.id);
-    }
-    
-    toast('\u2714 Added: '+surface);
-    state.popup=null;render();
-  });
 }
 
 // INIT
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
-  if(session){state.user=session.user;await loadAll()}
-  else{state.loading=false}
+  if(session){state.user=session.user;await loadAll()}else{state.loading=false}
   render();
-  
-  sb.auth.onAuthStateChange(async(ev,session)=>{
-    state.user=session?.user||null;
-    if(ev==='SIGNED_IN'&&state.user){await loadAll()}
-    if(ev==='TOKEN_REFRESHED'&&state.user&&state.scripts.length===0){await loadAll()}
-    if(!state.user){state.loading=false}
-    render();
-  });
-  
-  // Recover auth on page visibility change (returning from other tab/page)
-  document.addEventListener('visibilitychange',async()=>{
-    if(document.visibilityState==='visible'&&!state.user){
-      const{data:{session}}=await sb.auth.getSession();
-      if(session){state.user=session.user;await loadAll();render()}
-    }
-  });
+  sb.auth.onAuthStateChange(async(ev,session)=>{state.user=session?.user||null;if(ev==='SIGNED_IN'&&state.user)await loadAll();render()});
 }
 init();
 </script>

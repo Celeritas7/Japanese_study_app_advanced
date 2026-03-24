@@ -667,23 +667,38 @@ class JLPTStudyApp {
     // Remove any existing popup
     this._dismissWordSavePopup();
     
-    // Check if already saved
-    const alreadySaved = this.kanjiWords.some(w => w.kanji === kanji);
+    // Look up word details
+    const found = this.kanjiWords.find(w => w.kanji === kanji);
+    const alreadySaved = !!found;
     
     // Create popup element
     const popup = document.createElement('div');
     popup.className = 'word-save-popup';
     const kanjiEsc = escapeHtml(kanji);
-    popup.innerHTML = `
-      <span class="word-save-popup__word">${kanjiEsc}</span>
-      <div class="word-save-popup__actions">
-        ${alreadySaved
-          ? `<span style="color:#6ee7b7; font-size:0.8rem; font-weight:600;">Already saved \u2713</span>`
-          : `<button class="word-save-popup__btn word-save-popup__btn--save" data-save-tap-word="${kanjiEsc}">Save \u274C</button>`
-        }
-        <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>\u2715</button>
-      </div>
-    `;
+    
+    if (alreadySaved) {
+      popup.innerHTML = `
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+              <span class="word-save-popup__word">${kanjiEsc}</span>
+              ${found.hiragana ? `<span style="color:#67e8f9; font-size:0.75rem;">${escapeHtml(found.hiragana)}</span>` : ''}
+              ${found.jlpt_level ? `<span style="font-size:0.6rem; padding:1px 5px; border-radius:3px; background:rgba(251,191,36,0.15); color:#fbbf24;">${escapeHtml(found.jlpt_level)}</span>` : ''}
+            </div>
+            ${found.meaning_en || found.meaning ? `<div style="font-size:0.7rem; color:#94a3b8; line-height:1.3; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(found.meaning_en || found.meaning || '')}</div>` : ''}
+          </div>
+          <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>\u2715</button>
+        </div>
+      `;
+    } else {
+      popup.innerHTML = `
+        <span class="word-save-popup__word">${kanjiEsc}</span>
+        <div class="word-save-popup__actions">
+          <button class="word-save-popup__btn word-save-popup__btn--save" data-save-tap-word="${kanjiEsc}">Save \u274C</button>
+          <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>\u2715</button>
+        </div>
+      `;
+    }
     
     // Position below the tapped word
     const rect = anchorEl.getBoundingClientRect();
