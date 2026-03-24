@@ -282,30 +282,12 @@ class JLPTStudyApp {
     
     console.log(`Loaded: ${this.vocabulary.length} vocab, ${kanjiWords.length} words, ${kanjiWordBooks.length} book-links, ${allSentences.length} sentences, ${wordGroups.length} word groups`);
     this.syncing = false;
-    
-    // Restore active session if one was in progress (SRS takes priority)
-    if (this._restoreSRSSession()) {
-      this.currentTab = 'srs';
-      console.log('Resumed SRS session');
-    } else if (this._restoreStudySession()) {
-      this.currentTab = 'study';
-      this.studySubTab = 'goi';
-      console.log('Resumed study session');
-    }
-    
     this.render();
   }
   
   selectTab(tab) {
     this.currentTab = tab;
-    if (tab === 'study') {
-      // Don't reset if there's an active study session
-      const hasSession = localStorage.getItem('study_session');
-      if (!hasSession || this.studyView !== 'flashcard') {
-        this.studyView = 'level';
-        this.selectedLevel = null;
-      }
-    }
+    if (tab === 'study') { this.studyView = 'level'; this.selectedLevel = null; }
     this.selectedStoryGroup = null;
     this.selectedSimilarGroup = null;
     this.selectedWordGroup = null;
@@ -447,7 +429,6 @@ class JLPTStudyApp {
       this.selectedLevel = null;
       this.selectedTopic = null;
       this.studyView = 'level';
-      this._clearStudySession();
     }
     this.render();
   }
@@ -460,7 +441,6 @@ class JLPTStudyApp {
     } else {
       this.studyView = 'weekday';
       this.selectedCategory = null;
-      this._clearStudySession();
     }
     this.render();
   }
@@ -1072,24 +1052,6 @@ class JLPTStudyApp {
     this.render();
   }
   
-  async updateHint(kanji, newHint) {
-    // Update in unified words DB
-    const word = this.kanjiWords.find(w => w.kanji === kanji || w.raw === kanji);
-    if (!word) { showToast('Word not found in DB', 'error'); return; }
-    
-    const { error } = await this.supabase.from('japanese_unified_words').update({ hint: newHint }).eq('id', word.id);
-    if (error) { showToast('Hint save failed: ' + error.message, 'error'); return; }
-    
-    // Update local caches
-    word.hint = newHint;
-    // Also update in active study/SRS words
-    [...(this.studyWords || []), ...(this.srsWords || [])].forEach(w => {
-      if ((w.kanji === kanji || w.raw === kanji) && w.id === word.id) w.hint = newHint;
-    });
-    showToast(newHint ? '\uD83D\uDCA1 Hint saved' : 'Hint cleared');
-    this.render();
-  }
-  
   async updateMarking(kanji, newMarking) {
     const oldMarking = this.markings[kanji] || 0;
     this.markings[kanji] = newMarking;
@@ -1204,8 +1166,6 @@ class JLPTStudyApp {
     this.studyView = 'flashcard';
     this.render();
     
-    this._saveStudySession();
-    
     // Load sentences in background (non-blocking)
     this.loadSentencesForStudyWords(shuffled);
   }
@@ -1234,8 +1194,6 @@ class JLPTStudyApp {
     this.studyView = 'flashcard';
     this.render();
     
-    this._saveStudySession();
-    
     // Load sentences in background (non-blocking)
     this.loadSentencesForStudyWords(this.studyWords);
   }
@@ -1245,7 +1203,6 @@ class JLPTStudyApp {
       this.currentIndex++;
       this.revealStep = 0;
       this.canvasImageData = null;
-      this._saveStudySession();
       this.render();
     }
   }
@@ -1255,7 +1212,6 @@ class JLPTStudyApp {
       this.currentIndex--;
       this.revealStep = 0;
       this.canvasImageData = null;
-      this._saveStudySession();
       this.render();
     }
   }
@@ -1266,7 +1222,6 @@ class JLPTStudyApp {
       this.currentIndex = n;
       this.revealStep = 0;
       this.canvasImageData = null;
-      this._saveStudySession();
       this.render();
     }
   }
@@ -1333,9 +1288,6 @@ class JLPTStudyApp {
     this.generateMCQOptions();
     this.srsView = 'test';
     this.render();
-    
-    // Persist session for resuming after page navigation
-    this._saveSRSSession();
     
     // Save today's practice words
     this._saveTodayPractice(this.srsWords);
@@ -1473,7 +1425,6 @@ class JLPTStudyApp {
     const user = this.srsOptions[this.srsSelectedAnswer];
     this.srsAnswers.push({ word, correct: user === correct, userAnswer: user, correctAnswer: correct });
     this.srsShowResult = true;
-    this._saveSRSSession();
     this.render();
   }
   
@@ -1484,12 +1435,10 @@ class JLPTStudyApp {
       this.srsShowResult = false;
       this.canvasImageData = null;
       this.generateMCQOptions();
-      this._saveSRSSession();
       this.render();
     } else {
       this.srsView = 'results';
       this._saveTodayResults(this.srsAnswers);
-      this._saveSRSSession(); // Keep session with results for the day
       this.render();
     }
   }
@@ -1499,7 +1448,6 @@ class JLPTStudyApp {
   markSRSWritingResult(isCorrect) {
     const word = this.srsWords[this.srsCurrentIndex];
     this.srsAnswers.push({ word, correct: isCorrect, userAnswer: isCorrect ? 'Correct' : 'Wrong', correctAnswer: word.kanji || word.raw });
-    this._saveSRSSession();
     this.srsNextQuestion();
   }
   
@@ -1514,7 +1462,6 @@ class JLPTStudyApp {
     this.canvasImageData = null;
     this.generateMCQOptions();
     this.srsView = 'test';
-    this._saveSRSSession();
     this.render();
   }
   
@@ -1526,99 +1473,7 @@ class JLPTStudyApp {
     this.srsSelectedAnswer = null;
     this.srsShowResult = false;
     this.canvasImageData = null;
-    this._clearSRSSession();
     this.render();
-  }
-  
-  // ===== SRS SESSION PERSISTENCE =====
-  _saveSRSSession() {
-    try {
-      const session = {
-        words: this.srsWords.map(w => ({ id: w.id, kanji: w.kanji, raw: w.raw, hiragana: w.hiragana, meaning: w.meaning, meaning_en: w.meaning_en, hint: w.hint, level: w.level })),
-        currentIndex: this.srsCurrentIndex,
-        answers: this.srsAnswers,
-        view: this.srsView,
-        testType: this.srsConfig.testType,
-        selectionMode: this.srsConfig.selectionMode,
-        savedAt: new Date().toISOString(),
-      };
-      localStorage.setItem('srs_session', JSON.stringify(session));
-    } catch(e) { console.warn('_saveSRSSession:', e); }
-  }
-  
-  _restoreSRSSession() {
-    try {
-      const raw = localStorage.getItem('srs_session');
-      if (!raw) return false;
-      const session = JSON.parse(raw);
-      // Only restore if saved today and has words
-      const savedDate = session.savedAt?.slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
-      if (savedDate !== today || !session.words?.length) { this._clearSRSSession(); return false; }
-      // Restore active test or completed results
-      if (session.view !== 'test' && session.view !== 'results') { this._clearSRSSession(); return false; }
-      
-      this.srsWords = session.words;
-      this.srsCurrentIndex = session.currentIndex || 0;
-      this.srsAnswers = session.answers || [];
-      this.srsConfig.testType = session.testType || this.srsConfig.testType;
-      this.srsConfig.selectionMode = session.selectionMode || this.srsConfig.selectionMode;
-      this.srsSelectedAnswer = null;
-      this.srsShowResult = false;
-      this.srsView = session.view;
-      if (session.view === 'test') this.generateMCQOptions();
-      // Re-load sentences for study words
-      this.loadSentencesForStudyWords(this.srsWords);
-      console.log(`Restored SRS session: ${this.srsCurrentIndex + 1}/${this.srsWords.length}`);
-      return true;
-    } catch(e) { console.warn('_restoreSRSSession:', e); this._clearSRSSession(); return false; }
-  }
-  
-  _clearSRSSession() {
-    try { localStorage.removeItem('srs_session'); } catch(e) {}
-  }
-  
-  // ===== STUDY SESSION PERSISTENCE =====
-  _saveStudySession() {
-    try {
-      if (!this.studyWords?.length || this.studyView !== 'flashcard') return;
-      const session = {
-        words: this.studyWords.map(w => ({ id: w.id, kanji: w.kanji, raw: w.raw, hiragana: w.hiragana, meaning: w.meaning, meaning_en: w.meaning_en, hint: w.hint, level: w.level, weekDayLabel: w.weekDayLabel, sentence_before: w.sentence_before, sentence_after: w.sentence_after })),
-        currentIndex: this.currentIndex,
-        revealStep: this.revealStep,
-        testType: this.selectedTestType,
-        selectedLevel: this.selectedLevel,
-        savedAt: new Date().toISOString(),
-      };
-      localStorage.setItem('study_session', JSON.stringify(session));
-    } catch(e) { console.warn('_saveStudySession:', e); }
-  }
-  
-  _restoreStudySession() {
-    try {
-      const raw = localStorage.getItem('study_session');
-      if (!raw) return false;
-      const session = JSON.parse(raw);
-      const savedDate = session.savedAt?.slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
-      if (savedDate !== today || !session.words?.length) { this._clearStudySession(); return false; }
-      
-      this.studyWords = session.words;
-      this.currentIndex = session.currentIndex || 0;
-      this.revealStep = session.revealStep || 0;
-      this.selectedTestType = session.testType || 'kanji';
-      this.selectedLevel = session.selectedLevel || null;
-      this.canvasImageData = null;
-      this.sentencePanelExpanded = false;
-      this.studyView = 'flashcard';
-      this.loadSentencesForStudyWords(this.studyWords);
-      console.log(`Restored study session: ${this.currentIndex + 1}/${this.studyWords.length}`);
-      return true;
-    } catch(e) { console.warn('_restoreStudySession:', e); this._clearStudySession(); return false; }
-  }
-  
-  _clearStudySession() {
-    try { localStorage.removeItem('study_session'); } catch(e) {}
   }
   
   // ===== DAILY PRACTICE HISTORY =====
@@ -2005,11 +1860,6 @@ class JLPTStudyApp {
       if (e.target.id === 'addSentenceSheetBg') this.closeAddSentenceSheet();
     });
     document.getElementById('submitNewSentenceBtn')?.addEventListener('click', () => this.submitNewSentence());
-    document.getElementById('saveHintBtn')?.addEventListener('click', () => {
-      const hint = document.getElementById('editHintInput')?.value?.trim() || '';
-      const word = this.currentTab === 'srs' ? this.srsWords?.[this.srsCurrentIndex] : this.studyWords?.[this.currentIndex];
-      if (word) this.updateHint(word.kanji || word.raw, hint);
-    });
     
     // (Bulk linker and review queue moved to data-manager.html)
     

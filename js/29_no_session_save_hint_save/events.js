@@ -387,12 +387,6 @@ export function attachEventListeners(app) {
   });
   
   document.getElementById('startSRSTestBtn')?.addEventListener('click', () => app.startSRSTest());
-  document.getElementById('resumeSessionBtn')?.addEventListener('click', () => {
-    if (app._restoreSRSSession()) { app.currentTab = 'srs'; app.render(); }
-  });
-  document.getElementById('discardSessionBtn')?.addEventListener('click', () => {
-    app._clearSRSSession(); app.render();
-  });
   document.getElementById('backToSRSSetupBtn')?.addEventListener('click', () => app.resetSRS());
   
   // SRS MCQ Options

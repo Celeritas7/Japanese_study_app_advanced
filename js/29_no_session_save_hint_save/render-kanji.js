@@ -641,18 +641,7 @@ export function renderAddSentenceSheet(app) {
         
         <!-- Form -->
         <div class="px-5 pb-5 space-y-3">
-          <!-- Quick Hint -->
           <div>
-            <label class="text-slate-400 text-xs block mb-1">\uD83D\uDCA1 Hint</label>
-            <div class="flex gap-2">
-              <input type="text" id="editHintInput" placeholder="e.g. German scientist who discovered X-rays"
-                value="${escapeHtml(word.hint || '')}"
-                class="flex-1 bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-amber-500 focus:outline-none text-sm">
-              <button id="saveHintBtn" class="px-4 py-2 rounded-xl text-sm font-bold transition-all bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 flex-shrink-0">\uD83D\uDCA1 Save</button>
-            </div>
-          </div>
-          
-          <div class="border-t border-slate-700 pt-3">
             <label class="text-slate-400 text-xs block mb-1">Japanese Sentence *</label>
             <textarea id="newSentenceTextInput" rows="2" placeholder="e.g. 私は毎朝6時に起きます。"
               class="w-full bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-emerald-500 focus:outline-none text-sm resize-none">${escapeHtml(app.newSentenceText || '')}</textarea>

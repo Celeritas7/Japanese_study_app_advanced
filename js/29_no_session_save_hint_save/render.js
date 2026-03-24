@@ -14,15 +14,6 @@ function kanjiFontSize(text) {
   return 'font-size:2rem;'; // 6+ chars
 }
 
-// Hint display (edit via ✏ sheet)
-function renderHintLine(word, revealStep) {
-  if (revealStep < 1) return '';
-  if (word.hint) {
-    return `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${escapeHtml(word.hint)}</p>`;
-  }
-  return `<p class="text-slate-400 text-xs mb-3 animate-fadeIn">No hint \u2014 tap \u270F to add one</p>`;
-}
-
 // ===== WORD ALERT FORM =====
 
 export function renderWordAlertForm(app) {
@@ -648,7 +639,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Reveal Box (tappable) -->
       <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
         <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${renderHintLine(word, app.revealStep)}
+          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
           ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
           ${app.revealStep >= 3 ? `<p class="text-2xl text-blue-600 mb-3 animate-fadeIn">${word.hiragana || ''}</p>` : ''}
           ${app.revealStep >= 4 ? `<p class="text-xl text-emerald-700 font-medium animate-fadeIn">${word.meaning}</p>` : ''}
@@ -680,7 +671,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Reveal Box (tappable) -->
       <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
         <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${renderHintLine(word, app.revealStep)}
+          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
           ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
           ${app.revealStep >= 3 ? `<p class="kanji-highlight animate-fadeIn" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</p>` : ''}
           ${app.revealStep < 3 ? `
@@ -712,7 +703,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Reveal Box (tappable) -->
       <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
         <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${renderHintLine(word, app.revealStep)}
+          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
           ${app.revealStep >= 2 && hasContext ? `
             <div class="mb-3 animate-fadeIn">
               <span class="context-text sentence-tappable">${tappableBefore}</span>
