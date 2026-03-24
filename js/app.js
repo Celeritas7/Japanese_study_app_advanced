@@ -1275,7 +1275,22 @@ class JLPTStudyApp {
     const maxSteps = this.selectedTestType === 'reading' ? 3 : 4;
     if (this.revealStep >= maxSteps) return;
     if (this.selectedTestType === 'writing') this.canvasImageData = saveCanvasData('writingCanvas');
+    
+    // Get current word to check what content exists
+    const word = this.currentTab === 'srs' ? this.srsWords?.[this.srsCurrentIndex] : this.studyWords?.[this.currentIndex];
+    const hasHint = word?.hint;
+    const hasContext = word?.sentence_before || word?.sentence_after || word?.supporting_word_1 || word?.supporting_word_2 ||
+      (word && this.kanjiSentenceMap && this.kanjiSentenceMap[word.id]?.length > 0);
+    
+    // Advance, skipping empty steps
     this.revealStep++;
+    // Step 1 = hint: skip if no hint
+    if (this.revealStep === 1 && !hasHint) this.revealStep++;
+    // Step 2 = context: skip if no context
+    if (this.revealStep === 2 && !hasContext) this.revealStep++;
+    // Cap at max
+    if (this.revealStep > maxSteps) this.revealStep = maxSteps;
+    
     this.render();
   }
   

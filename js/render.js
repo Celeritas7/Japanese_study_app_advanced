@@ -16,11 +16,32 @@ function kanjiFontSize(text) {
 
 // Hint display (edit via ✏ sheet)
 function renderHintLine(word, revealStep) {
-  if (revealStep < 1) return '';
-  if (word.hint) {
-    return `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${escapeHtml(word.hint)}</p>`;
+  if (revealStep < 1 || !word.hint) return '';
+  return `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${escapeHtml(word.hint)}</p>`;
+}
+
+// What will the next reveal step show?
+function nextRevealLabel(word, currentStep, testType, hasContext) {
+  const hasHint = !!word?.hint;
+  let next = currentStep + 1;
+  if (next === 1 && !hasHint) next++;
+  if (next === 2 && !hasContext) next++;
+  
+  if (testType === 'kanji') {
+    if (next <= 1) return 'hint';
+    if (next <= 2) return 'context';
+    if (next <= 3) return 'reading';
+    return 'meaning';
+  } else if (testType === 'reading') {
+    if (next <= 1) return 'hint';
+    if (next <= 2) return 'context';
+    return 'kanji';
+  } else {
+    if (next <= 1) return 'hint';
+    if (next <= 2) return 'context';
+    if (next <= 3) return 'reading';
+    return 'kanji';
   }
-  return `<p class="text-slate-400 text-xs mb-3 animate-fadeIn">No hint \u2014 tap \u270F to add one</p>`;
 }
 
 // ===== WORD ALERT FORM =====
@@ -654,7 +675,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
           ${app.revealStep >= 4 ? `<p class="text-xl text-emerald-700 font-medium animate-fadeIn">${word.meaning}</p>` : ''}
           ${app.revealStep < 4 ? `
             <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : app.revealStep === 2 ? 'reading' : 'meaning'}
+              \uD83D\uDC46 Tap to reveal ${nextRevealLabel(word, app.revealStep, 'kanji', hasContext)}
             </p>
           ` : ''}
         </div>
@@ -685,7 +706,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
           ${app.revealStep >= 3 ? `<p class="kanji-highlight animate-fadeIn" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</p>` : ''}
           ${app.revealStep < 3 ? `
             <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : 'kanji'}
+              \uD83D\uDC46 Tap to reveal ${nextRevealLabel(word, app.revealStep, 'reading', hasContext)}
             </p>
           ` : ''}
         </div>
@@ -724,7 +745,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
           ${app.revealStep >= 4 ? `<p class="kanji-highlight animate-fadeIn" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</p>` : ''}
           ${app.revealStep < 4 ? `
             <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : app.revealStep === 2 ? 'reading' : 'kanji'}
+              \uD83D\uDC46 Tap to reveal ${nextRevealLabel(word, app.revealStep, 'writing', hasContext)}
             </p>
           ` : ''}
         </div>
