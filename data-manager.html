@@ -531,6 +531,9 @@
       
       // Group Audit
       auditPage: 0,
+      storyGroupSearch: '',
+      expandedStoryGroup: null,
+      renamingGroup: null,
     };
     
     // ========== HELPERS ==========
@@ -763,6 +766,131 @@
       
       toast(`「${kanji}」reassigned to group「${newGroupKanji}」`);
       render();
+    }
+    
+    // Rename a story group's parent kanji (updates group + all member stories)
+    async function renameGroupParent(oldKanji, newKanji) {
+      if (!oldKanji || !newKanji || oldKanji === newKanji) return;
+      
+      // 1. Update the story_groups table
+      const { error: groupErr } = await sb.from('japanese_kanji_story_groups')
+        .update({ group_kanji: newKanji })
+        .eq('group_kanji', oldKanji);
+      if (groupErr) { toast('Group rename failed: ' + groupErr.message, 'error'); return; }
+      
+      // 2. Update all stories pointing to old group
+      const { error: storyErr } = await sb.from('japanese_kanji_stories')
+        .update({ group_kanji: newKanji })
+        .eq('group_kanji', oldKanji);
+      if (storyErr) { toast('Story update failed: ' + storyErr.message, 'error'); return; }
+      
+      // 3. Update local state
+      const group = state.storyGroups.find(g => g.group_kanji === oldKanji);
+      if (group) group.group_kanji = newKanji;
+      state.stories.forEach(s => { if (s.group_kanji === oldKanji) s.group_kanji = newKanji; });
+      
+      // Update expanded group reference
+      if (state.expandedStoryGroup === oldKanji) state.expandedStoryGroup = newKanji;
+      state.renamingGroup = null;
+      
+      toast(`Group renamed: ${oldKanji} \u2192 ${newKanji}`);
+      render();
+    }
+    
+    // Export a story group for AI rewrite
+    function exportStoryGroup(groupKanji) {
+      const group = state.storyGroups.find(g => g.group_kanji === groupKanji);
+      const members = state.stories.filter(s => s.group_kanji === groupKanji);
+      
+      const exportData = {
+        group_kanji: groupKanji,
+        group_meaning: group?.meaning || '',
+        members: members.map(m => ({
+          kanji: m.kanji,
+          meaning: m.meaning || '',
+          onyomi: m.onyomi || '',
+          kunyomi: m.kunyomi || '',
+          story: m.story || '',
+        })),
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `story_group_${groupKanji}.json`;
+      a.click(); URL.revokeObjectURL(url);
+      toast('Exported group ' + groupKanji);
+    }
+    
+    // Copy AI prompt for story group rewrite
+    function copyStoryGroupPrompt(groupKanji) {
+      const group = state.storyGroups.find(g => g.group_kanji === groupKanji);
+      const members = state.stories.filter(s => s.group_kanji === groupKanji);
+      
+      const prompt = `You are rewriting kanji mnemonic stories for a Japanese study app.
+
+ROOT CHARACTER: ${groupKanji} (${group?.meaning || 'meaning unknown'})
+
+MEMBERS (kanji that contain ${groupKanji} as a component):
+${members.map(m => `- ${m.kanji}: ${m.meaning || 'no meaning'} (音: ${m.onyomi || '-'}, 訓: ${m.kunyomi || '-'})`).join('\n')}
+
+CURRENT STORIES:
+${members.map(m => `${m.kanji}: ${m.story || '(no story)'}`).join('\n')}
+
+INSTRUCTIONS:
+1. Write a new mnemonic story for EACH member kanji
+2. Each story MUST reference the root character ${groupKanji} and explain how it connects to the combined character
+3. Include the other components (radicals) of each kanji in the story
+4. Keep stories concise (1-3 sentences) but memorable
+5. Use vivid imagery, humor, or emotional connections
+
+RETURN FORMAT (JSON only, no markdown):
+{
+  "group_kanji": "${groupKanji}",
+  "members": [
+    {
+      "kanji": "X",
+      "meaning": "updated meaning if needed",
+      "story": "new mnemonic story referencing ${groupKanji}",
+      "onyomi": "keep existing or fix",
+      "kunyomi": "keep existing or fix"
+    }
+  ]
+}`;
+      
+      navigator.clipboard.writeText(prompt).then(() => toast('AI prompt copied!')).catch(() => toast('Copy failed', 'error'));
+    }
+    
+    // Import AI-rewritten stories for a group
+    async function importStoryGroupRewrite(jsonStr) {
+      try {
+        const data = JSON.parse(jsonStr);
+        if (!data.members || !Array.isArray(data.members)) { toast('Invalid format', 'error'); return; }
+        
+        let updated = 0, created = 0;
+        for (const m of data.members) {
+          if (!m.kanji) continue;
+          const updates = {};
+          if (m.story !== undefined) updates.story = m.story;
+          if (m.meaning) updates.meaning = m.meaning;
+          if (m.onyomi !== undefined) updates.onyomi = m.onyomi;
+          if (m.kunyomi !== undefined) updates.kunyomi = m.kunyomi;
+          if (data.group_kanji) updates.group_kanji = data.group_kanji;
+          
+          const existing = state.stories.find(s => s.kanji === m.kanji);
+          if (existing) {
+            const { error } = await sb.from('japanese_kanji_stories').update(updates).eq('kanji', m.kanji);
+            if (!error) { Object.assign(existing, updates); updated++; }
+          } else {
+            const row = { kanji: m.kanji, group_kanji: data.group_kanji || '', ...updates };
+            const { data: ins, error } = await sb.from('japanese_kanji_stories').insert(row).select();
+            if (!error && ins?.[0]) { state.stories.push(ins[0]); created++; }
+          }
+        }
+        
+        toast(`Stories imported: ${updated} updated, ${created} created`);
+        render();
+      } catch(e) { toast('Import error: ' + e.message, 'error'); }
     }
     
     function getVerifyQueue() {
@@ -2825,6 +2953,79 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           <div class="stat-card"><div class="stat-num" style="color:${noGroup.length > 0 ? 'var(--red)' : 'var(--emerald)'}">${noGroup.length}</div><div class="stat-label">No Group Assigned</div></div>
         </div>
         
+        <!-- Group Browser -->
+        <div class="card" style="margin-bottom:16px; padding:16px;">
+          <div style="font-size:13px; font-weight:700; color:var(--accent); margin-bottom:10px;">\uD83D\uDD0D Browse & Edit Story Groups</div>
+          <input type="text" id="storyGroupSearch" placeholder="Search by kanji (e.g. \u536F, \u62B5, \u5370)..." value="${escapeHtml(state.storyGroupSearch || '')}" style="width:100%; margin-bottom:10px;">
+          ${(() => {
+            const q = (state.storyGroupSearch || '').trim();
+            if (!q) return '<div style="font-size:12px; color:var(--text-muted); text-align:center; padding:8px;">Type a kanji to find its story group</div>';
+            
+            // Find groups matching the search
+            const matchedGroups = state.storyGroups.filter(g => 
+              (g.group_kanji || '').includes(q) || (g.meaning || '').toLowerCase().includes(q.toLowerCase())
+            );
+            // Also find stories with this kanji (could be a member, not a group parent)
+            const matchedStories = state.stories.filter(s => (s.kanji || '').includes(q));
+            const memberGroups = new Set(matchedStories.map(s => s.group_kanji).filter(Boolean));
+            // Combine: groups where kanji is parent + groups where kanji is member
+            const allGroupKanjis = new Set([...matchedGroups.map(g => g.group_kanji), ...memberGroups]);
+            
+            if (allGroupKanjis.size === 0) return '<div style="font-size:12px; color:var(--text-muted); text-align:center; padding:8px;">No groups found for "' + escapeHtml(q) + '"</div>';
+            
+            return [...allGroupKanjis].map(gk => {
+              const group = state.storyGroups.find(g => g.group_kanji === gk);
+              const members = state.stories.filter(s => s.group_kanji === gk);
+              const isExpanded = state.expandedStoryGroup === gk;
+              
+              return '<div style="border:1px solid var(--border); border-radius:10px; margin-bottom:8px; overflow:hidden;">' +
+                '<div style="padding:10px 14px; background:var(--bg-input); display:flex; align-items:center; justify-content:space-between; cursor:pointer;" data-toggle-story-group="' + escapeHtml(gk) + '">' +
+                  '<div style="display:flex; align-items:center; gap:10px;">' +
+                    '<span style="font-size:24px; font-weight:700;">' + escapeHtml(gk) + '</span>' +
+                    '<div>' +
+                      '<div style="font-size:12px; font-weight:600; color:var(--text-primary);">Parent: ' + escapeHtml(gk) + (group?.meaning ? ' (' + escapeHtml(group.meaning) + ')' : '') + '</div>' +
+                      '<div style="font-size:11px; color:var(--text-muted);">' + members.length + ' members: ' + members.slice(0, 6).map(m => m.kanji).join(', ') + (members.length > 6 ? '...' : '') + '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<span style="color:var(--text-muted);">' + (isExpanded ? '\u25B2' : '\u25BC') + '</span>' +
+                '</div>' +
+                (isExpanded ? '<div style="padding:12px 14px; border-top:1px solid var(--border);">' +
+                  '<div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">' +
+                    '<button class="btn btn-sm btn-ghost" data-rename-group="' + escapeHtml(gk) + '">\u270F Rename Parent</button>' +
+                    '<button class="btn btn-sm btn-ghost" data-export-story-group="' + escapeHtml(gk) + '">\uD83D\uDCE4 Export for AI</button>' +
+                    '<button class="btn btn-sm btn-ghost" data-import-story-group>\uD83D\uDCE5 Import AI Stories</button>' +
+                    '<button class="btn btn-sm btn-ghost" data-copy-story-prompt="' + escapeHtml(gk) + '">\uD83D\uDCCB AI Prompt</button>' +
+                  '</div>' +
+                  
+                  // Rename form (hidden by default)
+                  (state.renamingGroup === gk ? 
+                    '<div style="margin-bottom:12px; padding:10px; background:var(--bg-hover); border-radius:8px;">' +
+                      '<label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">New parent kanji</label>' +
+                      '<div style="display:flex; gap:6px;">' +
+                        '<input type="text" id="renameGroupInput" value="' + escapeHtml(gk) + '" style="flex:1; font-size:18px; text-align:center;">' +
+                        '<button class="btn btn-sm btn-primary" data-confirm-rename="' + escapeHtml(gk) + '">\u2714 Save</button>' +
+                        '<button class="btn btn-sm btn-ghost" data-cancel-rename>\u2715</button>' +
+                      '</div>' +
+                    '</div>' : '') +
+                  
+                  // Members list
+                  members.map(m => 
+                    '<div style="padding:8px 10px; margin-bottom:4px; background:var(--bg-input); border-radius:6px;">' +
+                      '<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">' +
+                        '<span style="font-size:20px; font-weight:700;">' + escapeHtml(m.kanji) + '</span>' +
+                        '<span style="font-size:12px; color:var(--accent-hover);">' + escapeHtml(m.meaning || '') + '</span>' +
+                        (m.onyomi ? '<span style="font-size:10px; color:var(--text-muted);">\u97F3 ' + escapeHtml(m.onyomi) + '</span>' : '') +
+                        (m.kunyomi ? '<span style="font-size:10px; color:var(--text-muted);">\u8A13 ' + escapeHtml(m.kunyomi) + '</span>' : '') +
+                      '</div>' +
+                      (m.story ? '<div style="font-size:11px; color:var(--text-secondary); line-height:1.5;">' + escapeHtml(m.story) + '</div>' : '<div style="font-size:11px; color:var(--text-muted); font-style:italic;">No story</div>') +
+                    '</div>'
+                  ).join('') +
+                '</div>' : '') +
+              '</div>';
+            }).join('');
+          })()}
+        </div>
+        
         ${noGroup.length > 0 ? `
           <div class="card" style="margin-bottom:16px;">
             <div class="card-header" style="padding:10px 16px;">
@@ -3732,6 +3933,53 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       document.getElementById('auditPromptBtn')?.addEventListener('click', () => {
         const prompt = `Review these kanji group assignments. Each kanji has a current_group_kanji (its parent component). Check if the assignment is correct based on kanji composition. If a kanji should be in a different group, set new_group_kanji to the correct parent component. Only include items that need reassignment. Return a JSON array with: { "kanji": "X", "new_group_kanji": "correct_parent" }. Only return the JSON array.\n\nHere are the kanji:`;
         navigator.clipboard.writeText(prompt).then(() => toast('AI prompt copied!')).catch(() => toast('Copy failed', 'warn'));
+      });
+      
+      // Story group browser
+      document.getElementById('storyGroupSearch')?.addEventListener('input', (e) => {
+        state.storyGroupSearch = e.target.value;
+        render();
+        // Re-focus after render
+        setTimeout(() => { const el = document.getElementById('storyGroupSearch'); if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }, 10);
+      });
+      
+      document.querySelectorAll('[data-toggle-story-group]').forEach(el => {
+        el.addEventListener('click', () => {
+          const gk = el.dataset.toggleStoryGroup;
+          state.expandedStoryGroup = state.expandedStoryGroup === gk ? null : gk;
+          render();
+        });
+      });
+      
+      document.querySelectorAll('[data-rename-group]').forEach(el => {
+        el.addEventListener('click', () => {
+          state.renamingGroup = el.dataset.renameGroup;
+          render();
+        });
+      });
+      
+      document.querySelectorAll('[data-confirm-rename]').forEach(el => {
+        el.addEventListener('click', async () => {
+          const oldKanji = el.dataset.confirmRename;
+          const newKanji = document.getElementById('renameGroupInput')?.value?.trim();
+          if (newKanji) await renameGroupParent(oldKanji, newKanji);
+        });
+      });
+      
+      document.querySelectorAll('[data-cancel-rename]').forEach(el => {
+        el.addEventListener('click', () => { state.renamingGroup = null; render(); });
+      });
+      
+      document.querySelectorAll('[data-export-story-group]').forEach(el => {
+        el.addEventListener('click', () => exportStoryGroup(el.dataset.exportStoryGroup));
+      });
+      
+      document.querySelectorAll('[data-copy-story-prompt]').forEach(el => {
+        el.addEventListener('click', () => copyStoryGroupPrompt(el.dataset.copyStoryPrompt));
+      });
+      
+      document.querySelectorAll('[data-import-story-group]').forEach(el => {
+        el.addEventListener('click', () => importJSON(importStoryGroupRewrite));
       });
       
       // Export / Import / AI Review
