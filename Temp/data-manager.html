@@ -534,9 +534,6 @@
       storyGroupSearch: '',
       expandedStoryGroup: null,
       renamingGroup: null,
-      dupeSearch: '',
-      _cachedWordDupes: null,
-      _cachedSentDupes: null,
     };
     
     // ========== HELPERS ==========
@@ -3113,142 +3110,130 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
     
     // ========== DUPLICATE DETECTION TAB ==========
     function renderDupesTab() {
-      // Use cached scan results if available
-      const wordDupes = state._cachedWordDupes || null;
-      const sentDupes = state._cachedSentDupes || null;
-      const searchQ = (state.dupeSearch || '').trim();
+      // Find words with duplicate kanji
+      const kanjiCount = {};
+      state.words.forEach(w => {
+        if (!w.kanji) return;
+        if (!kanjiCount[w.kanji]) kanjiCount[w.kanji] = [];
+        kanjiCount[w.kanji].push(w);
+      });
       
-      // Search results (instant, no full scan needed)
-      let searchResults = null;
-      if (searchQ) {
-        // Search words
-        const matchingWords = state.words.filter(w => (w.kanji || '').includes(searchQ) || (w.hiragana || '').includes(searchQ));
-        const kanjiMap = {};
-        matchingWords.forEach(w => { const k = w.kanji || ''; if (k) { if (!kanjiMap[k]) kanjiMap[k] = []; kanjiMap[k].push(w); } });
-        const wordMatches = Object.entries(kanjiMap).filter(([, arr]) => arr.length > 1);
-        
-        // Search sentences
-        const matchingSents = state.sentences.filter(s => (s.sentence || '').includes(searchQ));
-        const sentMap = {};
-        matchingSents.forEach(s => { const n = (s.sentence || '').replace(/\s+/g, '').trim(); if (n) { if (!sentMap[n]) sentMap[n] = []; sentMap[n].push(s); } });
-        const sentMatches = Object.entries(sentMap).filter(([, arr]) => arr.length > 1);
-        
-        searchResults = { words: wordMatches, sents: sentMatches };
-      }
+      const dupes = Object.entries(kanjiCount)
+        .filter(([k, arr]) => arr.length > 1)
+        .sort((a, b) => b[1].length - a[1].length);
       
-      return `
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">\uD83D\uDD0D Duplicate Manager</h2>
-          <p style="font-size:12px; color:var(--text-muted);">Search for specific duplicates or run a full scan.</p>
-        </div>
-        
-        <!-- Search -->
-        <div style="margin-bottom:16px;">
-          <input type="text" id="dupeSearchInput" placeholder="Search word or sentence (e.g. \u672B, \u4E38\u3054\u3068)..." value="${escapeHtml(state.dupeSearch || '')}" style="width:100%; font-size:15px;">
-        </div>
-        
-        ${searchResults ? renderDupeSearchResults(searchResults) : ''}
-        
-        <!-- Full Scan -->
-        <div class="card" style="padding:16px; margin-bottom:16px;">
-          <div style="font-size:13px; font-weight:700; color:var(--text-primary); margin-bottom:10px;">Full Scan</div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-sm ${wordDupes ? 'btn-ghost' : 'btn-primary'}" id="scanWordDupesBtn">${wordDupes ? '\u2714 Words scanned (' + wordDupes.length + ' dupes)' : '\uD83D\uDD0D Scan Words'}</button>
-            <button class="btn btn-sm ${sentDupes ? 'btn-ghost' : 'btn-primary'}" id="scanSentDupesBtn">${sentDupes ? '\u2714 Sentences scanned (' + sentDupes.length + ' dupes)' : '\uD83D\uDD0D Scan Sentences'}</button>
-            ${wordDupes ? '<button class="btn btn-sm btn-ghost" id="exportWordDupesBtn">\uD83D\uDCE4 Export Word Dupes (AI)</button>' : ''}
-            ${sentDupes ? '<button class="btn btn-sm btn-ghost" id="exportSentDupesBtn">\uD83D\uDCE4 Export Sentence Dupes (AI)</button>' : ''}
-          </div>
-        </div>
-        
-        ${wordDupes ? renderWordDupeResults(wordDupes) : ''}
-        ${sentDupes ? renderSentDupeResults(sentDupes) : ''}
-      `;
-    }
-    
-    function renderDupeSearchResults(results) {
-      if (!results) return '';
-      const { words, sents } = results;
-      if (words.length === 0 && sents.length === 0) return '<div style="text-align:center; padding:20px; color:var(--text-muted);">No duplicates found for this search.</div>';
-      
-      let html = '';
-      if (words.length > 0) {
-        html += '<div style="margin-bottom:16px;"><div style="font-size:13px; font-weight:700; color:var(--amber); margin-bottom:8px;">\uD83D\uDCDA Word Matches (' + words.length + ' dupes)</div>';
-        html += words.map(([kanji, ws]) => renderWordDupeCard(kanji, ws)).join('');
-        html += '</div>';
-      }
-      if (sents.length > 0) {
-        html += '<div style="margin-bottom:16px;"><div style="font-size:13px; font-weight:700; color:var(--amber); margin-bottom:8px;">\uD83D\uDCAC Sentence Matches (' + sents.length + ' dupes)</div>';
-        html += sents.map(([, ss]) => renderSentDupeCard(ss)).join('');
-        html += '</div>';
-      }
-      return html;
-    }
-    
-    function renderWordDupeResults(dupes) {
       const page = state.dupePage || 0;
-      const pageSize = 20;
+      const pageSize = 15;
       const totalPages = Math.ceil(dupes.length / pageSize);
       const pageItems = dupes.slice(page * pageSize, (page + 1) * pageSize);
       
-      if (dupes.length === 0) return '<div style="text-align:center; padding:20px; color:var(--emerald);">\u2714 No duplicate words!</div>';
-      
-      return '<div style="margin-bottom:16px;">' +
-        '<div style="font-size:13px; font-weight:700; color:var(--amber); margin-bottom:8px;">\uD83D\uDCDA Word Duplicates (' + dupes.length + ')</div>' +
-        pageItems.map(([kanji, ws]) => renderWordDupeCard(kanji, ws)).join('') +
-        (totalPages > 1 ? '<div class="pagination" style="margin-top:12px;"><button class="btn btn-sm btn-ghost" id="dupePrev" ' + (page === 0 ? 'disabled' : '') + '>\u2190 Prev</button><span style="font-size:12px; color:var(--text-muted);">' + (page + 1) + ' / ' + totalPages + '</span><button class="btn btn-sm btn-ghost" id="dupeNext" ' + (page >= totalPages - 1 ? 'disabled' : '') + '>Next \u2192</button></div>' : '') +
-        '</div>';
-    }
-    
-    function renderSentDupeResults(dupes) {
-      if (dupes.length === 0) return '<div style="text-align:center; padding:20px; color:var(--emerald);">\u2714 No duplicate sentences!</div>';
-      
-      return '<div style="margin-bottom:16px;">' +
-        '<div style="font-size:13px; font-weight:700; color:var(--amber); margin-bottom:8px;">\uD83D\uDCAC Sentence Duplicates (' + dupes.length + ')</div>' +
-        dupes.slice(0, 30).map(([, ss]) => renderSentDupeCard(ss)).join('') +
-        (dupes.length > 30 ? '<div style="font-size:11px; color:var(--text-muted); text-align:center; padding:8px;">Showing 30 of ' + dupes.length + '</div>' : '') +
-        '</div>';
-    }
-    
-    function renderWordDupeCard(kanji, words) {
-      return '<div class="card" style="padding:12px 16px; margin-bottom:6px;">' +
-        '<div style="font-size:18px; font-weight:700; margin-bottom:6px;">' + escapeHtml(kanji) + ' <span style="font-size:11px; color:var(--amber);">(' + words.length + ' copies)</span></div>' +
-        words.map(w => {
-          const bookLinks = (state.wordBooks || []).filter(wb => wb.word_id === w.id).length;
-          const sentLinks = (state.wordSentenceLinks || []).filter(l => l.word_id === w.id).length;
-          const groupLinks = (state.wordGroupMembers || []).filter(m => m.word_id === w.id).length;
-          const totalLinks = bookLinks + sentLinks + groupLinks;
-          return '<div style="display:flex; align-items:center; justify-content:space-between; padding:5px 8px; margin-bottom:3px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">' +
-            '<div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">' +
-              '<span class="mono" style="font-size:10px; color:var(--text-muted);">ID:' + w.id + '</span>' +
-              '<span style="font-size:12px; color:#60a5fa;">' + escapeHtml(w.hiragana || '\u2014') + '</span>' +
-              '<span style="font-size:11px; color:var(--emerald); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(w.meaning_en || '\u2014') + '</span>' +
-              '<span style="font-size:10px; color:var(--text-muted);">' + (w.source || 'textbook') + '</span>' +
-            '</div>' +
-            '<div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">' +
-              '<span style="font-size:9px; color:var(--text-muted);">' + bookLinks + 'B ' + sentLinks + 'S ' + groupLinks + 'G</span>' +
-              (totalLinks === 0 ? '<button class="btn btn-sm btn-ghost" data-delete-word="' + w.id + '" style="color:var(--red); font-size:10px;">\uD83D\uDDD1</button>' : '<span style="font-size:9px; color:var(--text-muted);">linked</span>') +
-            '</div>' +
-          '</div>';
-        }).join('') +
-      '</div>';
-    }
-    
-    function renderSentDupeCard(sents) {
-      return '<div class="card" style="padding:12px 16px; margin-bottom:6px;">' +
-        '<div style="font-size:13px; color:var(--text-primary); margin-bottom:6px; line-height:1.6;">' + escapeHtml(sents[0].sentence) + '</div>' +
-        sents.map(s => {
-          const links = (state.wordSentenceLinks || []).filter(l => l.sentence_id === s.id).length;
-          return '<div style="display:flex; align-items:center; justify-content:space-between; padding:4px 8px; margin-bottom:2px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">' +
-            '<div style="display:flex; align-items:center; gap:6px;">' +
-              '<span class="mono" style="font-size:10px; color:var(--text-muted);">ID:' + s.id + '</span>' +
-              '<span style="font-size:10px; color:var(--accent);">' + escapeHtml(s.source || '') + '</span>' +
-              '<span style="font-size:10px; color:var(--text-muted);">' + (s.verified || 'unverified') + '</span>' +
-              '<span style="font-size:10px; color:var(--text-muted);">' + links + ' links</span>' +
-            '</div>' +
-            (links === 0 ? '<button class="btn btn-sm btn-ghost" data-delete-sentence="' + s.id + '" style="color:var(--red); font-size:10px;">\uD83D\uDDD1</button>' : '<span style="font-size:9px; color:var(--text-muted);">linked</span>') +
-          '</div>';
-        }).join('') +
-      '</div>';
+      return `
+        <div style="margin-bottom:16px;">
+          <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">🔍 Duplicate Detection</h2>
+          <p style="font-size:12px; color:var(--text-muted);">Words with the same kanji appearing multiple times in the database.</p>
+        </div>
+        
+        <div class="stats-row" style="margin-bottom:16px;">
+          <div class="stat-card"><div class="stat-num" style="color:${dupes.length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${dupes.length}</div><div class="stat-label">Duplicate Kanji</div></div>
+          <div class="stat-card"><div class="stat-num">${dupes.reduce((a, [, arr]) => a + arr.length, 0)}</div><div class="stat-label">Total Duplicate Rows</div></div>
+        </div>
+        
+        ${dupes.length === 0 ? `
+          <div style="text-align:center; padding:40px; color:var(--text-muted);">
+            <div style="font-size:32px; margin-bottom:8px;">✅</div>
+            <div>No duplicate words found!</div>
+          </div>
+        ` : `
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            ${pageItems.map(([kanji, words]) => {
+              // Find which word has most links (sentences, books)
+              return `
+                <div class="card" style="padding:14px 16px;">
+                  <div style="font-size:20px; font-weight:700; color:var(--text-primary); margin-bottom:8px;">${escapeHtml(kanji)} <span style="font-size:12px; font-weight:400; color:var(--amber);">(${words.length} copies)</span></div>
+                  <div style="display:flex; flex-direction:column; gap:6px;">
+                    ${words.map(w => {
+                      const bookLinks = (state.wordBooks || []).filter(wb => wb.word_id === w.id).length;
+                      const sentLinks = (state.wordSentenceLinks || []).filter(l => l.word_id === w.id).length;
+                      const groupLinks = (state.wordGroupMembers || []).filter(m => m.word_id === w.id).length;
+                      const totalLinks = bookLinks + sentLinks + groupLinks;
+                      return `
+                        <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">
+                          <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                            <span class="mono" style="font-size:10px; color:var(--text-muted);">ID:${w.id}</span>
+                            <span style="font-size:12px; color:#60a5fa;">${escapeHtml(w.hiragana || '—')}</span>
+                            <span style="font-size:11px; color:var(--emerald);">${escapeHtml(w.meaning_en || '—')}</span>
+                            <span style="font-size:10px; color:var(--text-muted);">${w.source || 'textbook'}</span>
+                          </div>
+                          <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-size:10px; color:var(--text-muted);" title="Books / Sentences / Groups">${bookLinks}B ${sentLinks}S ${groupLinks}G</span>
+                            ${totalLinks === 0 ? `<button class="btn btn-sm btn-ghost" data-delete-word="${w.id}" style="color:var(--red); font-size:10px;">🗑 Delete</button>` : `<span style="font-size:9px; color:var(--text-muted);">has links</span>`}
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          
+          ${totalPages > 1 ? `
+            <div class="pagination" style="margin-top:12px;">
+              <button class="btn btn-sm btn-ghost" id="dupePrev" ${page === 0 ? 'disabled' : ''}>← Prev</button>
+              <span style="font-size:12px; color:var(--text-muted);">${page + 1} / ${totalPages}</span>
+              <button class="btn btn-sm btn-ghost" id="dupeNext" ${page >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
+            </div>
+          ` : ''}
+        `}
+        
+        <!-- ===== SENTENCE DUPLICATES ===== -->
+        ${(() => {
+          const sentMap = {};
+          state.sentences.forEach(s => {
+            if (!s.sentence) return;
+            const norm = s.sentence.replace(/\s+/g, '').trim();
+            if (!sentMap[norm]) sentMap[norm] = [];
+            sentMap[norm].push(s);
+          });
+          const sentDupes = Object.entries(sentMap).filter(([, arr]) => arr.length > 1).sort((a, b) => b[1].length - a[1].length);
+          
+          return `
+            <div style="margin-top:24px; margin-bottom:16px;">
+              <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">💬 Duplicate Sentences</h2>
+              <p style="font-size:12px; color:var(--text-muted);">Same sentence text appearing multiple times.</p>
+            </div>
+            
+            <div class="stats-row" style="margin-bottom:16px;">
+              <div class="stat-card"><div class="stat-num" style="color:${sentDupes.length > 0 ? 'var(--amber)' : 'var(--emerald)'}">${sentDupes.length}</div><div class="stat-label">Duplicate Sentences</div></div>
+              <div class="stat-card"><div class="stat-num">${sentDupes.reduce((a, [, arr]) => a + arr.length, 0)}</div><div class="stat-label">Total Duplicate Rows</div></div>
+            </div>
+            
+            ${sentDupes.length === 0 ? `<div style="text-align:center; padding:20px; color:var(--text-muted);">No duplicate sentences found!</div>` : `
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                ${sentDupes.slice(0, 20).map(([, sents]) => {
+                  return '<div class="card" style="padding:12px 16px;">' +
+                    '<div style="font-size:14px; color:var(--text-primary); margin-bottom:8px; line-height:1.6;">' + escapeHtml(sents[0].sentence) + '</div>' +
+                    '<div style="display:flex; flex-direction:column; gap:4px;">' +
+                    sents.map(s => {
+                      const links = (state.wordSentenceLinks || []).filter(l => l.sentence_id === s.id).length;
+                      return '<div style="display:flex; align-items:center; justify-content:space-between; padding:4px 8px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">' +
+                        '<div style="display:flex; align-items:center; gap:8px;">' +
+                          '<span class="mono" style="font-size:10px; color:var(--text-muted);">ID:' + s.id + '</span>' +
+                          '<span style="font-size:10px; color:var(--accent);">' + escapeHtml(s.source || '') + '</span>' +
+                          '<span style="font-size:10px; color:var(--text-muted);">' + (s.verified || 'unverified') + '</span>' +
+                          '<span style="font-size:10px; color:var(--text-muted);">' + links + ' word links</span>' +
+                        '</div>' +
+                        (links === 0 ? '<button class="btn btn-sm btn-ghost" data-delete-sentence="' + s.id + '" style="color:var(--red); font-size:10px;">\uD83D\uDDD1 Delete</button>' : '<span style="font-size:9px; color:var(--text-muted);">has links</span>') +
+                      '</div>';
+                    }).join('') +
+                    '</div></div>';
+                }).join('')}
+                ${sentDupes.length > 20 ? '<div style="font-size:11px; color:var(--text-muted); text-align:center; padding:8px;">Showing first 20 of ' + sentDupes.length + ' duplicate groups</div>' : ''}
+              </div>
+            `}
+          `;
+        })()}
+      `;
     }
     
     // ========== ORPHANED DATA CLEANUP TAB ==========
@@ -4338,59 +4323,6 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
       });
       
       // ===== DUPLICATE TAB =====
-      document.getElementById('dupeSearchInput')?.addEventListener('input', (e) => {
-        state.dupeSearch = e.target.value;
-        render();
-        setTimeout(() => { const el = document.getElementById('dupeSearchInput'); if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }, 10);
-      });
-      
-      document.getElementById('scanWordDupesBtn')?.addEventListener('click', () => {
-        const kanjiCount = {};
-        state.words.forEach(w => { const k = w.kanji; if (k) { if (!kanjiCount[k]) kanjiCount[k] = []; kanjiCount[k].push(w); } });
-        state._cachedWordDupes = Object.entries(kanjiCount).filter(([, arr]) => arr.length > 1).sort((a, b) => b[1].length - a[1].length);
-        state.dupePage = 0;
-        toast('Found ' + state._cachedWordDupes.length + ' word dupes');
-        render();
-      });
-      
-      document.getElementById('scanSentDupesBtn')?.addEventListener('click', () => {
-        const sentMap = {};
-        state.sentences.forEach(s => { const n = (s.sentence || '').replace(/\s+/g, '').trim(); if (n) { if (!sentMap[n]) sentMap[n] = []; sentMap[n].push(s); } });
-        state._cachedSentDupes = Object.entries(sentMap).filter(([, arr]) => arr.length > 1).sort((a, b) => b[1].length - a[1].length);
-        toast('Found ' + state._cachedSentDupes.length + ' sentence dupes');
-        render();
-      });
-      
-      document.getElementById('exportWordDupesBtn')?.addEventListener('click', () => {
-        if (!state._cachedWordDupes) return;
-        const batch = state._cachedWordDupes.slice(0, 50).map(([kanji, words]) => ({
-          kanji,
-          copies: words.map(w => ({
-            id: w.id, hiragana: w.hiragana || '', meaning_en: w.meaning_en || '', source: w.source || '',
-            book_links: (state.wordBooks || []).filter(wb => wb.word_id === w.id).length,
-            sentence_links: (state.wordSentenceLinks || []).filter(l => l.word_id === w.id).length,
-            group_links: (state.wordGroupMembers || []).filter(m => m.word_id === w.id).length,
-          })),
-          keep_id: null,
-          delete_ids: [],
-        }));
-        exportJSON('word_dupes_' + new Date().toISOString().slice(0, 10) + '.json', batch);
-      });
-      
-      document.getElementById('exportSentDupesBtn')?.addEventListener('click', () => {
-        if (!state._cachedSentDupes) return;
-        const batch = state._cachedSentDupes.slice(0, 50).map(([, sents]) => ({
-          sentence: sents[0].sentence,
-          copies: sents.map(s => ({
-            id: s.id, source: s.source || '', verified: s.verified || 'unverified',
-            word_links: (state.wordSentenceLinks || []).filter(l => l.sentence_id === s.id).length,
-          })),
-          keep_id: null,
-          delete_ids: [],
-        }));
-        exportJSON('sentence_dupes_' + new Date().toISOString().slice(0, 10) + '.json', batch);
-      });
-      
       document.getElementById('dupePrev')?.addEventListener('click', () => { state.dupePage--; render(); });
       document.getElementById('dupeNext')?.addEventListener('click', () => { state.dupePage++; render(); });
       
