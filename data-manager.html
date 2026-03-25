@@ -3234,18 +3234,45 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
     }
     
     function renderSentDupeCard(sents) {
+      // Build word links for each copy
+      const copyLinks = sents.map(s => {
+        const links = (state.wordSentenceLinks || []).filter(l => l.sentence_id === s.id);
+        const words = links.map(l => {
+          const w = state.words.find(w2 => w2.id === l.word_id);
+          return w ? { id: w.id, kanji: w.kanji || '', hiragana: w.hiragana || '' } : null;
+        }).filter(Boolean);
+        return { sent: s, links, words, wordIds: new Set(links.map(l => l.word_id)) };
+      });
+      
+      // For each copy, check if its word links are covered by other copies
+      // (safe to delete if all its linked words also appear in at least one other copy)
+      copyLinks.forEach(c => {
+        const otherWordIds = new Set();
+        copyLinks.forEach(other => { if (other.sent.id !== c.sent.id) other.wordIds.forEach(id => otherWordIds.add(id)); });
+        c.safeToDelete = [...c.wordIds].every(id => otherWordIds.has(id));
+      });
+      
       return '<div class="card" style="padding:12px 16px; margin-bottom:6px;">' +
-        '<div style="font-size:13px; color:var(--text-primary); margin-bottom:6px; line-height:1.6;">' + escapeHtml(sents[0].sentence) + '</div>' +
-        sents.map(s => {
-          const links = (state.wordSentenceLinks || []).filter(l => l.sentence_id === s.id).length;
-          return '<div style="display:flex; align-items:center; justify-content:space-between; padding:4px 8px; margin-bottom:2px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">' +
-            '<div style="display:flex; align-items:center; gap:6px;">' +
-              '<span class="mono" style="font-size:10px; color:var(--text-muted);">ID:' + s.id + '</span>' +
-              '<span style="font-size:10px; color:var(--accent);">' + escapeHtml(s.source || '') + '</span>' +
-              '<span style="font-size:10px; color:var(--text-muted);">' + (s.verified || 'unverified') + '</span>' +
-              '<span style="font-size:10px; color:var(--text-muted);">' + links + ' links</span>' +
+        '<div style="font-size:13px; color:var(--text-primary); margin-bottom:8px; line-height:1.6;">' + escapeHtml(sents[0].sentence) + '</div>' +
+        copyLinks.map(c => {
+          const s = c.sent;
+          return '<div style="padding:6px 8px; margin-bottom:3px; background:var(--bg-input); border-radius:6px; border:1px solid var(--border);">' +
+            '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:' + (c.words.length > 0 ? '4px' : '0') + ';">' +
+              '<div style="display:flex; align-items:center; gap:6px;">' +
+                '<span class="mono" style="font-size:10px; color:var(--text-muted);">ID:' + s.id + '</span>' +
+                '<span style="font-size:10px; color:var(--accent);">' + escapeHtml(s.source || '') + '</span>' +
+                '<span style="font-size:10px; color:var(--text-muted);">' + (s.verified || 'unverified') + '</span>' +
+              '</div>' +
+              (c.words.length === 0
+                ? '<button class="btn btn-sm btn-ghost" data-delete-sentence="' + s.id + '" style="color:var(--red); font-size:10px;">\uD83D\uDDD1 Delete</button>'
+                : c.safeToDelete
+                  ? '<button class="btn btn-sm btn-ghost" data-delete-dupe-sentence="' + s.id + '" style="color:var(--amber); font-size:10px;">\uD83D\uDDD1 Safe delete</button>'
+                  : '<span style="font-size:9px; color:var(--emerald);">\u2714 keep</span>'
+              ) +
             '</div>' +
-            (links === 0 ? '<button class="btn btn-sm btn-ghost" data-delete-sentence="' + s.id + '" style="color:var(--red); font-size:10px;">\uD83D\uDDD1</button>' : '<span style="font-size:9px; color:var(--text-muted);">linked</span>') +
+            (c.words.length > 0 ? '<div style="display:flex; gap:4px; flex-wrap:wrap;">' +
+              c.words.map(w => '<span style="font-size:10px; padding:1px 6px; background:rgba(99,102,241,0.1); color:var(--accent); border-radius:3px; border:1px solid rgba(99,102,241,0.15);">' + escapeHtml(w.kanji) + ' <span style="opacity:0.5;">' + escapeHtml(w.hiragana) + '</span></span>').join('') +
+            '</div>' : '') +
           '</div>';
         }).join('') +
       '</div>';
@@ -3415,18 +3442,37 @@ Return ONLY a JSON array, no markdown fences or explanation. Here are the senten
           const sent = state.sentences.find(s => s.id === id);
           if (!confirm(`Delete sentence?\n\n"${sent?.sentence || id}"`)) return;
           
-          // Delete word-sentence links first
           const { error: linkErr } = await sb.from('japanese_unified_word_sentences').delete().eq('sentence_id', id);
           if (linkErr) console.warn('Link delete:', linkErr.message);
           
-          // Delete the sentence
           const { error } = await sb.from('japanese_unified_sentences').delete().eq('id', id);
           if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
           
-          // Update local state
           state.sentences = state.sentences.filter(s => s.id !== id);
           state.wordSentenceLinks = (state.wordSentenceLinks || []).filter(l => l.sentence_id !== id);
+          if (state._cachedSentDupes) state._cachedSentDupes = state._cachedSentDupes.map(([k, arr]) => [k, arr.filter(s => s.id !== id)]).filter(([, arr]) => arr.length > 1);
           toast('Sentence deleted!');
+          render();
+        });
+      });
+      
+      // Safe delete: duplicate sentence where word links are covered by other copy
+      document.querySelectorAll('[data-delete-dupe-sentence]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = parseInt(btn.dataset.deleteDupeSentence);
+          const sent = state.sentences.find(s => s.id === id);
+          if (!confirm(`Safe delete duplicate?\n\n"${sent?.sentence || id}"\n(${sent?.source || ''} · ID:${id})\n\nWord links are covered by the other copy.`)) return;
+          
+          const { error: linkErr } = await sb.from('japanese_unified_word_sentences').delete().eq('sentence_id', id);
+          if (linkErr) console.warn('Link delete:', linkErr.message);
+          
+          const { error } = await sb.from('japanese_unified_sentences').delete().eq('id', id);
+          if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
+          
+          state.sentences = state.sentences.filter(s => s.id !== id);
+          state.wordSentenceLinks = (state.wordSentenceLinks || []).filter(l => l.sentence_id !== id);
+          if (state._cachedSentDupes) state._cachedSentDupes = state._cachedSentDupes.map(([k, arr]) => [k, arr.filter(s => s.id !== id)]).filter(([, arr]) => arr.length > 1);
+          toast('Duplicate deleted!');
           render();
         });
       });
