@@ -264,6 +264,35 @@ export function renderLevelSelector(app) {
     <div class="p-4 animate-fadeIn flex-1 overflow-auto">
       <div class="max-w-md mx-auto">
         
+        <!-- Resume Banner -->
+        ${(() => {
+          try {
+            const raw = localStorage.getItem('study_session');
+            if (!raw) return '';
+            const s = JSON.parse(raw);
+            const savedDate = s.savedAt?.slice(0, 10);
+            const today = new Date().toISOString().slice(0, 10);
+            if (savedDate !== today || !s.words?.length) return '';
+            const isResults = s.view === 'results';
+            const progress = (s.currentIndex || 0) + 1;
+            const total = s.words.length;
+            return `
+              <div class="bg-gradient-to-r ${isResults ? 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30' : 'from-purple-500/10 to-blue-500/10 border-purple-500/30'} border rounded-xl p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="${isResults ? 'text-emerald-400' : 'text-purple-400'} text-sm font-bold">${isResults ? '\u2714 Session Complete' : '\u23F5 Study in Progress'}</div>
+                  <div class="text-slate-400 text-xs">${isResults ? total + ' words reviewed' : progress + '/' + total}</div>
+                </div>
+                <div class="w-full bg-slate-700 rounded-full h-1.5 mb-3">
+                  <div class="${isResults ? 'bg-emerald-400' : 'bg-purple-400'} rounded-full h-1.5" style="width:${Math.round(progress/total*100)}%"></div>
+                </div>
+                <div class="flex gap-2">
+                  <button id="resumeStudyBtn" class="flex-1 py-2.5 rounded-lg font-bold text-sm ${isResults ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-purple-500 hover:bg-purple-600'} text-white transition-all">${isResults ? '\uD83D\uDCCA View Results' : '\u25B6 Resume'}</button>
+                  <button id="discardStudyBtn" class="py-2.5 px-4 rounded-lg text-sm bg-slate-700 text-slate-400 hover:bg-slate-600 transition-all">\u2715</button>
+                </div>
+              </div>`;
+          } catch { return ''; }
+        })()}
+        
         <!-- Test Type -->
         <div class="bg-slate-800 rounded-xl p-4 mb-4">
           <h3 class="text-sm text-slate-400 mb-3">Test Type</h3>
@@ -697,6 +726,36 @@ export function renderStudyResults(app) {
             \u2190 Back to Word List
           </button>
         </div>
+        
+        <!-- Session History -->
+        ${(() => {
+          const studySessions = app.getTodayStudySessions();
+          const today = app.getTodayPractice();
+          const totalWords = Object.keys(today.words || {}).length;
+          
+          if (studySessions.length <= 1) return '';
+          return `
+            <div class="bg-slate-800 rounded-xl p-4 mb-4">
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Today\u2019s Sessions (${studySessions.length})</p>
+                <span class="text-xs text-emerald-400">${totalWords} total words</span>
+              </div>
+              ${studySessions.map((s, i) => {
+                const time = new Date(s.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const isCurrent = i === studySessions.length - 1;
+                return `
+                  <div class="flex items-center gap-3 p-2 rounded-lg mb-1 ${isCurrent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-slate-700/30'}">
+                    <span class="text-xs text-slate-500 w-12">${time}</span>
+                    <span class="text-xs ${isCurrent ? 'text-emerald-400 font-bold' : 'text-slate-300'}">Session ${i + 1}</span>
+                    <span class="text-xs text-slate-400">${s.wordCount} words</span>
+                    ${isCurrent ? '<span class="text-[10px] text-emerald-400 ml-auto">\u25C0 current</span>' : ''}
+                  </div>`;
+              }).join('')}
+              <button id="reviewAllTodayBtn" class="w-full mt-3 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition-all">
+                \uD83D\uDCDA Review ALL today\u2019s words (${totalWords})
+              </button>
+            </div>`;
+        })()}
         
         <!-- Word List -->
         <div class="bg-slate-800 rounded-xl p-4">

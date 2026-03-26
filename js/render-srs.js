@@ -35,6 +35,37 @@ function renderSRSSetup(app) {
           <p class="text-slate-400 text-sm">Test your vocabulary knowledge</p>
         </div>
         
+        ${(() => {
+          try {
+            const raw = localStorage.getItem('srs_session');
+            if (!raw) return '';
+            const s = JSON.parse(raw);
+            const savedDate = s.savedAt?.slice(0, 10);
+            const today = new Date().toISOString().slice(0, 10);
+            if (savedDate !== today || !s.words?.length) return '';
+            if (s.view !== 'test' && s.view !== 'results') return '';
+            const isResults = s.view === 'results';
+            const progress = (s.currentIndex || 0) + 1;
+            const total = s.words.length;
+            const answered = (s.answers || []).length;
+            const correct = (s.answers || []).filter(a => a.correct).length;
+            return `
+              <div class="bg-gradient-to-r ${isResults ? 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30' : 'from-cyan-500/10 to-blue-500/10 border-cyan-500/30'} border rounded-xl p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="${isResults ? 'text-emerald-400' : 'text-cyan-400'} text-sm font-bold">${isResults ? '\u2714 Test Complete' : '\u23F5 Session in Progress'}</div>
+                  <div class="text-slate-400 text-xs">${isResults ? correct + '/' + total + ' correct' : progress + '/' + total + ' \u00B7 ' + answered + ' answered'}</div>
+                </div>
+                <div class="w-full bg-slate-700 rounded-full h-1.5 mb-3">
+                  <div class="${isResults ? 'bg-emerald-400' : 'bg-cyan-400'} rounded-full h-1.5" style="width:${isResults ? Math.round(correct/total*100) : Math.round(progress/total*100)}%"></div>
+                </div>
+                <div class="flex gap-2">
+                  <button id="resumeSessionBtn" class="flex-1 py-2.5 rounded-lg font-bold text-sm ${isResults ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-cyan-500 hover:bg-cyan-600'} text-white transition-all">${isResults ? '\uD83D\uDCCA View Results' : '\u25B6 Resume'}</button>
+                  <button id="discardSessionBtn" class="py-2.5 px-4 rounded-lg text-sm bg-slate-700 text-slate-400 hover:bg-slate-600 transition-all">\u2715</button>
+                </div>
+              </div>`;
+          } catch { return ''; }
+        })()}
+        
         <!-- Test Type -->
         <div class="bg-slate-800 rounded-xl p-4 mb-3">
           <h3 class="text-sm text-slate-400 mb-3">Test Type</h3>
@@ -211,16 +242,23 @@ function renderSRSSetup(app) {
         ${(() => {
           const today = app.getTodayPractice();
           const wordList = Object.values(today.words || {});
-          const sessions = today.sessions || [];
+          const srsSessions = today.sessions || [];
+          const studySessions = today.studySessions || [];
           if (wordList.length === 0) return '';
-          const totalCorrect = sessions.reduce((a, s) => a + (s.correct || 0), 0);
-          const totalAttempts = sessions.reduce((a, s) => a + (s.total || 0), 0);
+          const totalCorrect = srsSessions.reduce((a, s) => a + (s.correct || 0), 0);
+          const totalAttempts = srsSessions.reduce((a, s) => a + (s.total || 0), 0);
+          const totalStudyWords = studySessions.reduce((a, s) => a + (s.wordCount || 0), 0);
           return `
             <div class="bg-slate-800 rounded-xl p-4 mt-4">
               <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-white">\uD83D\uDCCA Today's Words (${wordList.length})</h3>
-                ${totalAttempts > 0 ? `<span class="text-xs text-slate-400">${totalCorrect}/${totalAttempts} correct (${Math.round(totalCorrect/totalAttempts*100)}%)</span>` : ''}
+                <span class="text-xs text-slate-400">${studySessions.length > 0 ? studySessions.length + ' study' : ''}${studySessions.length > 0 && srsSessions.length > 0 ? ' \u00B7 ' : ''}${srsSessions.length > 0 ? srsSessions.length + ' SRS' : ''}</span>
               </div>
+              ${studySessions.length > 0 || srsSessions.length > 0 ? `
+                <div class="flex gap-2 mb-3 flex-wrap">
+                  ${studySessions.length > 0 ? `<span class="text-[10px] px-2 py-1 rounded bg-purple-500/15 text-purple-400">\uD83D\uDCDA Study: ${totalStudyWords} words in ${studySessions.length} session${studySessions.length > 1 ? 's' : ''}</span>` : ''}
+                  ${totalAttempts > 0 ? `<span class="text-[10px] px-2 py-1 rounded bg-cyan-500/15 text-cyan-400">\uD83C\uDFAF SRS: ${totalCorrect}/${totalAttempts} (${Math.round(totalCorrect/totalAttempts*100)}%)</span>` : ''}
+                </div>` : ''}
               <div class="space-y-1 max-h-60 overflow-y-auto">
                 ${wordList.map(w => {
                   const pct = w.attempts ? Math.round((w.correctCount || 0) / w.attempts * 100) : -1;
@@ -234,7 +272,7 @@ function renderSRSSetup(app) {
                     </div>`;
                 }).join('')}
               </div>
-              ${sessions.length > 0 ? `<div class="mt-2 text-[10px] text-slate-500">${sessions.length} session${sessions.length > 1 ? 's' : ''} today \u00B7 Resets at midnight</div>` : ''}
+              <div class="mt-2 text-[10px] text-slate-500">Resets at midnight</div>
             </div>`;
         })()}
         

@@ -167,6 +167,14 @@ export function attachEventListeners(app) {
     app.studyView = 'wordlist';
     app.render();
   });
+  document.getElementById('reviewAllTodayBtn')?.addEventListener('click', () => app.reviewAllTodayWords());
+  document.getElementById('resumeStudyBtn')?.addEventListener('click', () => {
+    if (app._restoreStudySession()) app.render();
+  });
+  document.getElementById('discardStudyBtn')?.addEventListener('click', () => {
+    app._clearStudySession();
+    app.render();
+  });
   document.getElementById('revealNextBtn')?.addEventListener('click', () => app.revealNext());
   
   // Tap-to-reveal box (new two-box flashcard layout)

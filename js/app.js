@@ -1289,6 +1289,7 @@ class JLPTStudyApp {
   finishStudy() {
     this.studyView = 'results';
     this._saveTodayPractice(this.studyWords);
+    this._saveStudySessionToHistory(this.studyWords);
     this._saveStudySession();
     this.render();
   }
@@ -1700,7 +1701,8 @@ class JLPTStudyApp {
   _saveTodayPractice(words) {
     try {
       const key = this._todayKey();
-      const existing = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"words":{}}');
+      const existing = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"studySessions":[],"words":{}}');
+      if (!existing.studySessions) existing.studySessions = [];
       // Add words to today's set (dedup by kanji)
       words.forEach(w => {
         const k = w.kanji || w.raw || '';
@@ -1711,6 +1713,58 @@ class JLPTStudyApp {
       localStorage.setItem(key, JSON.stringify(existing));
       this._cleanOldPracticeData();
     } catch(e) { console.warn('_saveTodayPractice:', e); }
+  }
+  
+  _saveStudySessionToHistory(words) {
+    try {
+      const key = this._todayKey();
+      const existing = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"studySessions":[],"words":{}}');
+      if (!existing.studySessions) existing.studySessions = [];
+      
+      const sessionEntry = {
+        time: new Date().toISOString(),
+        wordCount: words.length,
+        words: words.map(w => {
+          const k = w.kanji || w.raw || '';
+          return { kanji: k, hiragana: w.hiragana || '', meaning: w.meaning || w.meaning_en || '', level: w.level || '' };
+        }),
+      };
+      existing.studySessions.push(sessionEntry);
+      localStorage.setItem(key, JSON.stringify(existing));
+    } catch(e) { console.warn('_saveStudySessionToHistory:', e); }
+  }
+  
+  getTodayStudySessions() {
+    try {
+      const key = this._todayKey();
+      const data = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"studySessions":[],"words":{}}');
+      return data.studySessions || [];
+    } catch { return []; }
+  }
+  
+  reviewAllTodayWords() {
+    try {
+      const key = this._todayKey();
+      const data = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"studySessions":[],"words":{}}');
+      const allWords = Object.values(data.words || {});
+      if (allWords.length === 0) { showToast('No words practiced today'); return; }
+      
+      // Map to full word objects from kanjiWords
+      const fullWords = allWords.map(w => {
+        const match = this.kanjiWords.find(kw => kw.kanji === w.kanji);
+        return match || { kanji: w.kanji, hiragana: w.hiragana, meaning: w.meaning, meaning_en: w.meaning, level: w.level };
+      });
+      
+      this.studyWords = shuffleArray([...fullWords]);
+      this.currentIndex = 0;
+      this.revealStep = 0;
+      this.canvasImageData = null;
+      this.sentencePanelExpanded = false;
+      this.studyView = 'flashcard';
+      this._saveStudySession();
+      this.loadSentencesForStudyWords(this.studyWords);
+      this.render();
+    } catch(e) { console.warn('reviewAllTodayWords:', e); }
   }
   
   _saveTodayResults(answers) {
