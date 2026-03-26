@@ -20,7 +20,7 @@ import {
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
   renderSelfStudyTopics, renderSelfStudyWordList,
-  renderWordAlertForm, renderStudyResults
+  renderWordAlertForm
 } from './render.js';
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
@@ -1286,45 +1286,6 @@ class JLPTStudyApp {
     }
   }
   
-  finishStudy() {
-    this.studyView = 'results';
-    this._saveTodayPractice(this.studyWords);
-    this._saveStudySession();
-    this.render();
-  }
-  
-  reviewAgain() {
-    this.currentIndex = 0;
-    this.revealStep = 0;
-    this.canvasImageData = null;
-    this.studyView = 'flashcard';
-    this._saveStudySession();
-    this.render();
-  }
-  
-  shuffleRestart() {
-    this.studyWords = shuffleArray([...this.studyWords]);
-    this.currentIndex = 0;
-    this.revealStep = 0;
-    this.canvasImageData = null;
-    this.studyView = 'flashcard';
-    this._saveStudySession();
-    this.render();
-  }
-  
-  reviewByMarking(mark) {
-    const filtered = this.studyWords.filter(w => getMarking(this.markings, w) === mark);
-    if (filtered.length === 0) { showToast('No words with this marking'); return; }
-    this.studyWords = shuffleArray([...filtered]);
-    this.currentIndex = 0;
-    this.revealStep = 0;
-    this.canvasImageData = null;
-    this.studyView = 'flashcard';
-    this._saveStudySession();
-    this.loadSentencesForStudyWords(this.studyWords);
-    this.render();
-  }
-  
   revealNext() {
     const maxSteps = this.selectedTestType === 'reading' ? 3 : 4;
     if (this.revealStep >= maxSteps) return;
@@ -1650,13 +1611,11 @@ class JLPTStudyApp {
   // ===== STUDY SESSION PERSISTENCE =====
   _saveStudySession() {
     try {
-      if (!this.studyWords?.length) return;
-      if (this.studyView !== 'flashcard' && this.studyView !== 'results') return;
+      if (!this.studyWords?.length || this.studyView !== 'flashcard') return;
       const session = {
         words: this.studyWords.map(w => ({ id: w.id, kanji: w.kanji, raw: w.raw, hiragana: w.hiragana, meaning: w.meaning, meaning_en: w.meaning_en, hint: w.hint, level: w.level, weekDayLabel: w.weekDayLabel, sentence_before: w.sentence_before, sentence_after: w.sentence_after })),
         currentIndex: this.currentIndex,
         revealStep: this.revealStep,
-        view: this.studyView,
         testType: this.selectedTestType,
         selectedLevel: this.selectedLevel,
         savedAt: new Date().toISOString(),
@@ -1681,9 +1640,9 @@ class JLPTStudyApp {
       this.selectedLevel = session.selectedLevel || null;
       this.canvasImageData = null;
       this.sentencePanelExpanded = false;
-      this.studyView = session.view || 'flashcard';
-      if (this.studyView === 'flashcard') this.loadSentencesForStudyWords(this.studyWords);
-      console.log(`Restored study session: ${this.studyView} ${this.currentIndex + 1}/${this.studyWords.length}`);
+      this.studyView = 'flashcard';
+      this.loadSentencesForStudyWords(this.studyWords);
+      console.log(`Restored study session: ${this.currentIndex + 1}/${this.studyWords.length}`);
       return true;
     } catch(e) { console.warn('_restoreStudySession:', e); this._clearStudySession(); return false; }
   }
@@ -2117,7 +2076,6 @@ class JLPTStudyApp {
         case 'weekday': content = renderWeekDaySelector(this); break;
         case 'wordlist': content = renderWordList(this); break;
         case 'flashcard': content = renderFlashcard(this); break;
-        case 'results': content = renderStudyResults(this); break;
         default: content = renderLevelSelector(this);
       }
     } else if (this.studySubTab === 'kanji') {
@@ -2129,7 +2087,6 @@ class JLPTStudyApp {
     } else {
       if (this.studyView === 'wordlist' && this.selectedTopic) content = renderSelfStudyWordList(this);
       else if (this.studyView === 'flashcard' && this.selectedTopic) content = renderFlashcard(this);
-      else if (this.studyView === 'results') content = renderStudyResults(this);
       else content = renderSelfStudyTopics(this);
     }
     

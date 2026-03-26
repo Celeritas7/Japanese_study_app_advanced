@@ -615,11 +615,8 @@ export function renderFlashcard(app) {
           <!-- Navigation -->
           <div class="flex gap-3">
             <button id="prevWordBtn" class="flex-1 py-4 bg-slate-700 text-white rounded-xl hover:bg-slate-600 disabled:opacity-50" ${app.currentIndex === 0 ? 'disabled' : ''}>← Prev</button>
-            <button id="randomWordBtn" class="px-6 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-500">\uD83C\uDFB2</button>
-            ${app.currentIndex >= app.studyWords.length - 1
-              ? `<button id="finishStudyBtn" class="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold hover:opacity-90">\u2714 Finish</button>`
-              : `<button id="nextWordBtn" class="flex-1 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500">Next \u2192</button>`
-            }
+            <button id="randomWordBtn" class="px-6 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-500">🎲</button>
+            <button id="nextWordBtn" class="flex-1 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50" ${app.currentIndex >= app.studyWords.length - 1 ? 'disabled' : ''}>Next →</button>
           </div>
           
           <!-- Progress -->
@@ -629,91 +626,6 @@ export function renderFlashcard(app) {
           
           <!-- Extra content slot (sentence panel, etc.) -->
           <div id="flashcardExtraContent"></div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-export function renderStudyResults(app) {
-  const words = app.studyWords || [];
-  if (words.length === 0) return '<div class="p-4 text-center text-white">No words in session</div>';
-  
-  // Count markings
-  const markCounts = {};
-  for (let k = 0; k <= 6; k++) markCounts[k] = 0;
-  words.forEach(w => {
-    const m = getMarking(app.markings, w);
-    markCounts[m] = (markCounts[m] || 0) + 1;
-  });
-  
-  return `
-    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
-      <div class="max-w-md mx-auto">
-        <div class="text-center mb-5">
-          <div class="text-4xl mb-2">\u2705</div>
-          <h1 class="text-xl font-bold text-white mb-1">Session Complete</h1>
-          <p class="text-slate-400 text-sm">${words.length} words reviewed</p>
-        </div>
-        
-        <!-- Marking Distribution -->
-        <div class="bg-slate-800 rounded-xl p-4 mb-4">
-          <p class="text-slate-400 text-xs text-center mb-3 font-semibold uppercase tracking-wider">Marking Distribution</p>
-          ${Object.entries(app.markingCategories).map(([k, cat]) => {
-            const count = markCounts[parseInt(k)] || 0;
-            if (count === 0) return '';
-            const pct = Math.round(count / words.length * 100);
-            return `
-              <div class="flex items-center gap-3 mb-2">
-                <div class="w-7 h-7 ${cat.color} rounded-lg flex items-center justify-center text-white text-xs flex-shrink-0">${cat.icon}</div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs text-slate-300">${cat.label}</span>
-                    <span class="text-xs text-slate-400">${count}</span>
-                  </div>
-                  <div class="bg-slate-700 rounded-full h-1.5">
-                    <div class="${cat.color} rounded-full h-1.5 transition-all" style="width:${pct}%"></div>
-                  </div>
-                </div>
-              </div>`;
-          }).join('')}
-        </div>
-        
-        <!-- Actions -->
-        <div class="space-y-2 mb-4">
-          <button id="reviewAgainBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-slate-700 text-white hover:bg-slate-600 transition-all">
-            \uD83D\uDD04 Review Again (same order)
-          </button>
-          <button id="shuffleRestartBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-purple-600 text-white hover:bg-purple-500 transition-all">
-            \uD83D\uDD00 Shuffle & Restart
-          </button>
-          ${Object.entries(markCounts).filter(([k, c]) => c > 0 && parseInt(k) >= 3).map(([k, c]) => {
-            const cat = app.markingCategories[parseInt(k)];
-            return `<button data-review-marking="${k}" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${cat.color} text-white hover:opacity-90 transition-all">
-              ${cat.icon} Review ${cat.label} only (${c} words)
-            </button>`;
-          }).join('')}
-          <button id="backToWordListBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border border-slate-600 hover:bg-slate-700 transition-all">
-            \u2190 Back to Word List
-          </button>
-        </div>
-        
-        <!-- Word List -->
-        <div class="bg-slate-800 rounded-xl p-4">
-          <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Today\u2019s Words (${words.length})</p>
-          <div class="space-y-1 max-h-80 overflow-y-auto">
-            ${words.map(w => {
-              const m = getMarking(app.markings, w);
-              const cat = app.markingCategories[m] || app.markingCategories[0];
-              return `
-                <div class="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50">
-                  <span class="text-sm flex-shrink-0">${cat.icon}</span>
-                  <span class="text-base font-bold text-white min-w-[60px]">${escapeHtml(w.kanji || w.raw || '')}</span>
-                  <span class="text-xs text-blue-400">${escapeHtml(w.hiragana || '')}</span>
-                  <span class="text-xs text-slate-400 flex-1 truncate">${escapeHtml(w.meaning || w.meaning_en || '')}</span>
-                </div>`;
-            }).join('')}
-          </div>
         </div>
       </div>
     </div>

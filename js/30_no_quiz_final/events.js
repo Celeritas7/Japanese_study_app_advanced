@@ -156,17 +156,6 @@ export function attachEventListeners(app) {
   document.getElementById('prevWordBtn')?.addEventListener('click', () => app.prevWord());
   document.getElementById('nextWordBtn')?.addEventListener('click', () => app.nextWord());
   document.getElementById('randomWordBtn')?.addEventListener('click', () => app.randomWord());
-  document.getElementById('finishStudyBtn')?.addEventListener('click', () => app.finishStudy());
-  document.getElementById('reviewAgainBtn')?.addEventListener('click', () => app.reviewAgain());
-  document.getElementById('shuffleRestartBtn')?.addEventListener('click', () => app.shuffleRestart());
-  document.querySelectorAll('[data-review-marking]').forEach(btn => {
-    btn.addEventListener('click', () => app.reviewByMarking(parseInt(btn.dataset.reviewMarking)));
-  });
-  document.getElementById('backToWordListBtn')?.addEventListener('click', () => {
-    app._clearStudySession();
-    app.studyView = 'wordlist';
-    app.render();
-  });
   document.getElementById('revealNextBtn')?.addEventListener('click', () => app.revealNext());
   
   // Tap-to-reveal box (new two-box flashcard layout)
