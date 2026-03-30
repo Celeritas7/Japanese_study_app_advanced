@@ -370,11 +370,9 @@ export function getCurrentStudyWord(app) {
 // Look up linked sentences for a word (by unified id or kanji text)
 export function getSentencesForWord(app, word) {
   if (!word || !app.kanjiSentenceMap) return [];
-  // Only use word.id if it's confirmed in the unified table (guards against ID collision)
-  if (word.id && app.kanjiWords?.some(w => w.id === word.id) && app.kanjiSentenceMap[word.id]) {
-    return app.kanjiSentenceMap[word.id];
-  }
-  // Fallback: look up unified word by kanji text, then check its ID in the map
+  // After merge, all words (Goi + Kanji) have unified IDs
+  if (word.id && app.kanjiSentenceMap[word.id]) return app.kanjiSentenceMap[word.id];
+  // Fallback: look up by kanji text
   const kanji = word.kanji || word.raw || '';
   if (!kanji || !app.kanjiWords) return [];
   const match = app.kanjiWords.find(w => w.kanji === kanji);
@@ -602,37 +600,6 @@ export function extractKanjiStem(word) {
   }
   
   return stem || word; // fallback to full word if extraction fails
-}
-
-/**
- * Find a word in a sentence, falling back to kanji stem for conjugated forms.
- * Returns { idx, matchLen } or null if not found.
- *
- * Example: findWordInSentence("私は毎朝早く起きます。", "起きる")
- *   → exact "起きる" not found → tries stem "起" → found at idx 7
- *   → extends through trailing hiragana → matches "起きます"
- */
-export function findWordInSentence(sentText, kanji) {
-  if (!sentText || !kanji) return null;
-  
-  // Try 1: exact dictionary form match
-  const exactIdx = sentText.indexOf(kanji);
-  if (exactIdx >= 0) return { idx: exactIdx, matchLen: kanji.length };
-  
-  // Try 2: kanji stem match (e.g., "起" from "起きる")
-  const stem = extractKanjiStem(kanji);
-  if (!stem || stem === kanji || stem.length === 0) return null;
-  const stemIdx = sentText.indexOf(stem);
-  if (stemIdx < 0) return null;
-  
-  // Extend match past trailing hiragana (captures conjugation: 起き → 起きます)
-  let endIdx = stemIdx + stem.length;
-  while (endIdx < sentText.length) {
-    const code = sentText[endIdx].codePointAt(0);
-    if (code >= 0x3040 && code <= 0x309F) { endIdx++; continue; } // hiragana
-    break;
-  }
-  return { idx: stemIdx, matchLen: endIdx - stemIdx };
 }
 
 // CJK Unified Ideographs range check

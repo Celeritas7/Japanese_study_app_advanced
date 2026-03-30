@@ -25,7 +25,7 @@ import {
 import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderRelationsTab, getWordGroupBadges, renderGroupBadges } from './render-relations.js';
-import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, findWordInSentence, getCurrentStudyWord } from './render-kanji.js';
+import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, getCurrentStudyWord } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
 
 // Guest user ID for testing (matches your Google OAuth user ID)
@@ -532,14 +532,14 @@ class JLPTStudyApp {
         if (sentences && sentences.length > 0) {
           const best = sentences[0]; // highest rated
           const sentText = best.sentence || '';
-          const match = findWordInSentence(sentText, w.kanji);
-          if (match) {
+          const idx = sentText.indexOf(w.kanji);
+          if (idx >= 0) {
             return {
               ...w,
-              sentence_before: sentText.substring(0, match.idx),
-              sentence_after: sentText.substring(match.idx + match.matchLen),
-              supporting_word_1: sentText.substring(0, match.idx),
-              supporting_word_2: sentText.substring(match.idx + match.matchLen),
+              sentence_before: sentText.substring(0, idx),
+              sentence_after: sentText.substring(idx + w.kanji.length),
+              supporting_word_1: sentText.substring(0, idx),
+              supporting_word_2: sentText.substring(idx + w.kanji.length),
             };
           }
           return { ...w, sentence: sentText };
@@ -1185,10 +1185,10 @@ class JLPTStudyApp {
           if (sentences && sentences.length > 0) {
             const best = sentences[0]; // highest rated
             const sentText = best.sentence || '';
-            const match = findWordInSentence(sentText, kanji);
-            if (match) {
-              w.sentence_before = sentText.substring(0, match.idx);
-              w.sentence_after = sentText.substring(match.idx + match.matchLen);
+            const idx = sentText.indexOf(kanji);
+            if (idx >= 0) {
+              w.sentence_before = sentText.substring(0, idx);
+              w.sentence_after = sentText.substring(idx + kanji.length);
               w.supporting_word_1 = w.sentence_before;
               w.supporting_word_2 = w.sentence_after;
             }

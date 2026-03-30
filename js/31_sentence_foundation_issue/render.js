@@ -3,7 +3,6 @@
 import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
 import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml, renderTappableSentence } from './utils.js';
 import { getWordGroupBadges } from './render-relations.js';
-import { findWordInSentence } from './render-kanji.js';
 
 // Dynamic font size for kanji display based on character count
 function kanjiFontSize(text) {
@@ -570,10 +569,10 @@ export function renderFlashcard(app) {
     if (sentences && sentences.length > 0) {
       const best = sentences[0];
       const sentText = best.sentence || '';
-      const match = findWordInSentence(sentText, kanji);
-      if (match) {
-        ctxBefore = sentText.substring(0, match.idx);
-        ctxAfter = sentText.substring(match.idx + match.matchLen);
+      const idx = sentText.indexOf(kanji);
+      if (idx >= 0) {
+        ctxBefore = sentText.substring(0, idx);
+        ctxAfter = sentText.substring(idx + kanji.length);
       }
     }
   }
