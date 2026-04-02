@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Script Reader — JLPT Vocabulary Master</title>
+  <meta name="theme-color" content="#0a0a0f">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=M+PLUS+Rounded+1c:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg-deep:#07070d;--bg-surface:#0f1019;--bg-card:#161822;--bg-elevated:#1e2030;--border-dim:#252839;--border-glow:#3d4166;--text-primary:#e8e9f0;--text-secondary:#8b8fa8;--text-muted:#555873;--accent-cyan:#00d4ff;--accent-pink:#ff3b8b;--accent-amber:#ffb03a;--accent-green:#00e88f;--accent-purple:#b07dff;--word-known:#00e88f;--word-unknown:#ff3b8b;--word-saved:#b07dff}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-deep);color:var(--text-primary);min-height:100vh;-webkit-font-smoothing:antialiased}
+    .app-header{background:var(--bg-surface);border-bottom:1px solid var(--border-dim);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+    .app-title{font-family:'M PLUS Rounded 1c',sans-serif;font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--accent-amber),var(--accent-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .header-actions{display:flex;gap:8px;align-items:center}
+    .btn-icon{width:36px;height:36px;border:1px solid var(--border-dim);background:var(--bg-card);border-radius:8px;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:16px;text-decoration:none}
+    .btn-icon:hover{border-color:var(--accent-cyan);color:var(--accent-cyan)}
+    .view{padding:16px;max-width:640px;margin:0 auto}
+    .card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:14px;padding:20px;margin-bottom:16px}
+    .form-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:block}
+    .form-input{width:100%;background:var(--bg-elevated);border:1px solid var(--border-dim);border-radius:8px;padding:10px 14px;font-size:15px;color:var(--text-primary);font-family:'Noto Sans JP',sans-serif;outline:none;transition:border-color .15s;margin-bottom:14px}
+    .form-input:focus{border-color:var(--accent-cyan)}.form-input::placeholder{color:var(--text-muted)}
+    textarea.form-input{min-height:180px;resize:vertical;line-height:1.8}
+    .btn-primary{width:100%;padding:14px 24px;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;transition:all .2s;background:linear-gradient(135deg,var(--accent-amber),#cc8a00);color:var(--bg-deep)}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(255,176,58,.3)}.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .btn-secondary{padding:10px 20px;border:1px solid var(--border-dim);border-radius:10px;font-size:13px;font-weight:500;background:var(--bg-card);color:var(--text-secondary);cursor:pointer;transition:all .15s}
+    .btn-secondary:hover{border-color:var(--accent-cyan);color:var(--text-primary)}
+    .btn-danger{padding:8px 14px;border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px;background:rgba(239,68,68,.1);color:#ef4444;cursor:pointer}
+    .folder-card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:14px;padding:18px;margin-bottom:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:14px}
+    .folder-card:hover{border-color:var(--accent-amber);transform:translateY(-1px)}
+    .folder-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+    .folder-info{flex:1;min-width:0}
+    .folder-name{font-size:15px;font-weight:700}.folder-count{font-size:12px;color:var(--text-muted);margin-top:2px}
+    .script-card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:14px;padding:16px;margin-bottom:12px;cursor:pointer;transition:all .15s}
+    .script-card:hover{border-color:var(--accent-amber);transform:translateY(-1px)}
+    .script-question{font-size:14px;font-weight:700;color:var(--accent-cyan);margin-bottom:4px}
+    .script-title{font-size:15px;font-weight:700;margin-bottom:4px}
+    .script-preview{font-size:13px;color:var(--text-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .script-stats{font-size:11px;color:var(--text-muted);margin-top:8px;font-family:'IBM Plex Mono',monospace}
+    .reading-header{background:var(--bg-surface);border-bottom:1px solid var(--border-dim);padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:49px;z-index:90}
+    .reading-meta{flex:1;min-width:0}
+    .reading-title{font-size:14px;font-weight:700;color:var(--accent-amber);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .reading-sub{font-size:11px;color:var(--text-muted)}
+    .reading-stats{display:flex;gap:12px;font-size:11px;font-family:'IBM Plex Mono',monospace}
+    .passage-container{padding:20px 16px;max-width:640px;margin:0 auto}
+    .question-box{background:linear-gradient(135deg,rgba(0,212,255,.06),rgba(0,212,255,.02));border:1px solid rgba(0,212,255,.2);border-radius:12px;padding:16px;margin-bottom:16px}
+    .question-label{font-size:10px;font-weight:700;color:var(--accent-cyan);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+    .question-text{font-size:17px;font-weight:600;line-height:1.7}
+    .passage-paragraph{margin-bottom:16px;padding:16px;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:12px;line-height:2}
+    .para-num{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text-muted);margin-bottom:6px;display:block}
+    .passage-text{font-size:19px;letter-spacing:.02em}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .word-token{display:inline;cursor:pointer;border-radius:3px;padding:1px 2px;transition:all .12s}
+    .word-token:hover{background:rgba(255,255,255,.08)}
+    .word-token.known{color:var(--word-known)}.word-token.unknown{color:var(--word-unknown);border-bottom:2px dotted var(--word-unknown)}.word-token.saved{color:var(--word-saved);border-bottom:2px solid var(--word-saved)}.word-token.punct{color:var(--text-muted);cursor:default}
+    .word-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);animation:fadeIn .15s}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .word-popup{width:100%;max-width:480px;background:var(--bg-elevated);border-top:1px solid var(--border-glow);border-radius:20px 20px 0 0;padding:24px 20px 32px;animation:slideUp .2s;max-height:70vh;overflow-y:auto}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .popup-handle{width:36px;height:4px;background:var(--border-glow);border-radius:2px;margin:0 auto 18px}
+    .popup-surface{font-size:36px;font-weight:700;text-align:center;margin-bottom:4px}
+    .popup-reading{font-size:16px;color:var(--accent-cyan);font-family:'M PLUS Rounded 1c',sans-serif;text-align:center;margin-bottom:4px}
+    .popup-meaning{font-size:14px;color:var(--text-secondary);text-align:center;margin-bottom:12px}
+    .popup-tag{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:500;margin-bottom:12px}
+    .popup-tag.known{background:rgba(0,232,143,.12);color:var(--word-known);border:1px solid rgba(0,232,143,.25)}
+    .popup-tag.unknown{background:rgba(255,59,139,.12);color:var(--word-unknown);border:1px solid rgba(255,59,139,.25)}
+    .popup-tag.saved{background:rgba(176,125,255,.12);color:var(--word-saved);border:1px solid rgba(176,125,255,.25)}
+    .btn-save-word{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;transition:all .2s;background:linear-gradient(135deg,var(--accent-pink),#cc2e6f);color:white}
+    .btn-save-word.already{background:var(--bg-card);color:var(--text-muted);border:1px solid var(--border-dim)}
+    .summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+    .summary-stat{text-align:center;padding:12px 8px;background:var(--bg-elevated);border-radius:10px}
+    .summary-stat b{font-size:22px;font-family:'M PLUS Rounded 1c',sans-serif;display:block}
+    .summary-stat small{font-size:10px;color:var(--text-muted);text-transform:uppercase}
+    .empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+    .empty-state .icon{font-size:48px;margin-bottom:12px;display:block}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;animation:toastIn .3s}
+    .toast-success{background:var(--accent-green);color:var(--bg-deep)}.toast-error{background:#ef4444;color:white}
+    @keyframes toastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+    .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .login-card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:20px;padding:32px;text-align:center;max-width:360px;width:100%}
+    .login-title{font-family:'M PLUS Rounded 1c',sans-serif;font-size:24px;font-weight:700;margin-bottom:8px;background:linear-gradient(135deg,var(--accent-amber),var(--accent-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .login-sub{font-size:13px;color:var(--text-muted);margin-bottom:24px}
+    .google-btn{width:100%;padding:14px;border:1px solid var(--border-dim);border-radius:12px;background:var(--bg-elevated);color:var(--text-primary);font-size:15px;font-weight:600;cursor:pointer}
+    .mode-toggle{display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--border-dim);margin-bottom:16px}
+    .mode-btn{flex:1;padding:10px 0;text-align:center;font-size:13px;font-weight:600;background:var(--bg-card);color:var(--text-secondary);cursor:pointer;border:none;transition:all .15s}
+    .mode-btn.active{background:var(--accent-amber);color:var(--bg-deep)}
+    .breadcrumb{font-size:12px;color:var(--text-muted);margin-bottom:12px}
+    .breadcrumb a{color:var(--accent-cyan);text-decoration:none;cursor:pointer}
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const SUPABASE_URL='https://ulgrfumbwjovbjzjiems.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const segmenter=(typeof Intl!=='undefined'&&Intl.Segmenter)?new Intl.Segmenter('ja',{granularity:'word'}):null;
+const FOLDER_ICONS={interview:'\uD83C\uDFA4',visa:'\uD83C\uDFE3',business:'\uD83D\uDCBC',email:'\u2709\uFE0F',presentation:'\uD83D\uDCCA',daily:'\uD83C\uDFE0',general:'\uD83D\uDCDD'};
+const FOLDER_COLORS={interview:'rgba(255,176,58,.15)',visa:'rgba(0,212,255,.15)',business:'rgba(99,102,241,.15)',email:'rgba(16,185,129,.15)',presentation:'rgba(244,63,94,.15)',daily:'rgba(176,125,255,.15)',general:'rgba(139,143,168,.15)'};
+
+const state={user:null,view:'folders',scripts:[],words:[],scriptWords:[],markings:{},selectedFolder:null,selectedScript:null,addMode:'single',popup:null,loading:true,loadDebug:'init'};
+
+function escapeHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function toast(m,t='success'){const e=document.createElement('div');e.className='toast toast-'+t;e.textContent=m;document.body.appendChild(e);setTimeout(()=>e.remove(),2500)}
+function isJapanese(c){const d=c.codePointAt(0);return(d>=0x3040&&d<=0x309F)||(d>=0x30A0&&d<=0x30FF)||(d>=0x4E00&&d<=0x9FFF)||(d>=0x3400&&d<=0x4DBF)}
+function isPunct(s){return/^[\u3000-\u303F\uFF00-\uFFEF\u3001\u3002\uFF01\uFF1F\u300C\u300D\uFF08\uFF09\u30FB\u2026\s.,!?()~\uFF5E\u301C]+$/.test(s)}
+function tokenize(t){if(!segmenter)return[{segment:t,isWordLike:true}];return[...segmenter.segment(t)]}
+function buildKnownSet(){const s=new Set();state.words.forEach(w=>{if(w.kanji)s.add(w.kanji);if(w.hiragana)s.add(w.hiragana)});return s}
+function buildSavedSet(sid){const s=new Set();state.scriptWords.filter(sw=>sw.script_id===sid).forEach(sw=>{s.add(sw.surface_form);const w=state.words.find(w2=>w2.id===sw.word_id);if(w){s.add(w.kanji);s.add(w.hiragana)}});return s}
+function findWord(surface){return state.words.find(w=>w.kanji===surface||w.hiragana===surface)||null}
+function getCategories(){return[...new Set(state.scripts.map(s=>s.category||'general'))].sort()}
+
+function parseBulkSections(text){
+  const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const sections=[];let current=null;
+  for(const line of lines){
+    const isHeader=/^[\u2460-\u2473\u2776-\u277F]/.test(line)||/^\d+[\.\)\uff0e]\s/.test(line);
+    if(isHeader){
+      if(current)sections.push(current);
+      const title=line.replace(/^[\u2460-\u2473\u2776-\u277F\d\.\)\uff0e\s]+/,'').trim();
+      current={title,question:'',content:''};
+    }else if(!current){
+      current={title:line.slice(0,40),question:'',content:line};
+    }else{
+      if(/[\u7406\u60F3][\u306E\u306B]\u56DE\u7B54|[\u79D2\u5206][\uff09)]/.test(line))continue;
+      current.content+=(current.content?'\n':'')+line;
+    }
+  }
+  if(current)sections.push(current);
+  return sections;
+}
+
+// DATA
+// Fast load: just scripts + script_words (small tables)
+async function loadAll(){
+  state.loading=true;state.loadDebug='loadAll:start';render();
+  try{
+    state.loadDebug='loadAll:scripts';render();
+    const{data:scripts,error:scriptErr}=await sb.from('japanese_scripts').select('*').eq('user_id',state.user.id).order('updated_at',{ascending:false});
+    if(scriptErr){console.error('Scripts load:',scriptErr);state.loadDebug='loadAll:scripts-err:'+scriptErr.message;toast('Scripts load failed','error');state.scripts=[];state.scriptWords=[];state.loading=false;render();return}
+    state.scripts=scripts||[];
+    state.loadDebug='loadAll:scripts-ok:'+state.scripts.length;render();
+    
+    const scriptIds=state.scripts.map(s=>s.id);
+    if(scriptIds.length>0){
+      state.loadDebug='loadAll:words:'+scriptIds.length;render();
+      let allSW=[];
+      const batch=500;
+      for(let i=0;i<scriptIds.length;i+=batch){
+        const ids=scriptIds.slice(i,i+batch);
+        const{data,error}=await sb.from('japanese_script_words').select('*').in('script_id',ids);
+        if(error){console.error('Script words load:',error);continue}
+        if(data)allSW=allSW.concat(data);
+      }
+      state.scriptWords=allSW;
+    }else{state.scriptWords=[]}
+  }catch(e){console.error('Load:',e);state.loadDebug='loadAll:catch:'+e.message;toast('Load failed - try refreshing','error')}
+  state.loading=false;state.loadDebug='done';render();
+}
+
+// Heavy load: words + markings (only when entering read view)
+let _wordsLoaded=false;
+async function ensureWordsLoaded(){
+  if(_wordsLoaded)return;
+  try{
+    const[words,markingsData]=await Promise.all([
+      loadPag('japanese_unified_words','id,kanji,hiragana,meaning_en,jlpt_level'),
+      loadPag('japanese_user_markings','kanji,marking'),
+    ]);
+    state.words=words;
+    const m={};markingsData.forEach(r=>{m[r.kanji]=r.marking});state.markings=m;
+    _wordsLoaded=true;
+  }catch(e){console.error('Words load:',e)}
+}
+async function loadPag(table,select='*'){
+  let all=[],page=0;
+  while(true){const{data,error}=await sb.from(table).select(select).order('id').range(page*1000,(page+1)*1000-1);if(error||!data?.length)break;all=all.concat(data);if(data.length<1000)break;page++}
+  return all;
+}
+async function saveScript(title,category,content,question){
+  const{data,error}=await sb.from('japanese_scripts').insert({user_id:state.user.id,title,category:category||'general',content,question:question||null}).select().single();
+  if(error){toast('Save failed: '+error.message,'error');return null}state.scripts.unshift(data);return data;
+}
+async function updateScript(id,updates){
+  updates.updated_at=new Date().toISOString();
+  const{error}=await sb.from('japanese_scripts').update(updates).eq('id',id);
+  if(error){toast('Update failed','error');return false}
+  const idx=state.scripts.findIndex(s=>s.id===id);if(idx>=0)Object.assign(state.scripts[idx],updates);return true;
+}
+async function deleteScript(id){
+  if(!confirm('Delete this script?'))return;
+  const{error}=await sb.from('japanese_scripts').delete().eq('id',id);
+  if(error){toast('Delete failed','error');return}
+  state.scripts=state.scripts.filter(s=>s.id!==id);state.scriptWords=state.scriptWords.filter(sw=>sw.script_id!==id);
+  state.selectedScript=null;state.view='folder';toast('Deleted');render();
+}
+async function saveWordLink(sid,surface,wid){
+  const{error}=await sb.from('japanese_script_words').upsert({script_id:sid,word_id:wid,surface_form:surface},{onConflict:'script_id,word_id'});
+  if(error){toast('Failed','error');return}
+  if(!state.scriptWords.some(sw=>sw.script_id===sid&&sw.word_id===wid))state.scriptWords.push({script_id:sid,word_id:wid,surface_form:surface});
+  toast('\u2B50 Saved');state.popup=null;render();
+}
+async function removeWordLink(sid,wid){
+  const{error}=await sb.from('japanese_script_words').delete().eq('script_id',sid).eq('word_id',wid);
+  if(error){toast('Failed','error');return}
+  state.scriptWords=state.scriptWords.filter(sw=>!(sw.script_id===sid&&sw.word_id===wid));
+  toast('Removed');state.popup=null;render();
+}
+
+// RENDER
+function render(){
+  const app=document.getElementById('app');
+  if(!state.user){app.innerHTML=renderLogin();document.getElementById('loginBtn')?.addEventListener('click',async()=>{await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href}})});return}
+  if(state.loading){app.innerHTML=hdr()+'<div class="view"><div class="empty-state"><p>Loading...</p><p style="font-size:10px;color:var(--text-muted);margin-top:8px">v2 | '+state.loadDebug+'</p></div></div>';return}
+  switch(state.view){
+    case'folders':app.innerHTML=renderFolders();break;
+    case'folder':app.innerHTML=renderFolder();break;
+    case'add':app.innerHTML=renderAdd();break;
+    case'read':app.innerHTML=renderRead();break;
+    case'edit':app.innerHTML=renderEdit();break;
+    default:app.innerHTML=renderFolders();
+  }
+  attachListeners();
+}
+
+function renderLogin(){
+  return'<div class="login-screen"><div class="login-card"><div class="login-title">\uD83D\uDCDD Script Reader</div><div class="login-sub">Study Japanese scripts & passages</div><button class="google-btn" id="loginBtn">\uD83D\uDD12 Sign in with Google</button><div style="margin-top:16px"><a href="./" style="color:var(--text-muted);font-size:12px;text-decoration:none">\u2190 Back</a></div></div></div>';
+}
+
+function hdr(extra=''){
+  const back=state.view!=='folders';
+  return'<div class="app-header"><div style="display:flex;align-items:center;gap:10px">'+(back?'<button class="btn-icon" id="backBtn">\u2190</button>':'<a href="javascript:void(0)" onclick="history.length>1?history.back():location.href=\'.\/\'" class="btn-icon">\u2190</a>')+'<span class="app-title">\uD83D\uDCDD Script Reader</span></div><div class="header-actions">'+extra+'<button class="btn-icon" id="signOutBtn">\u21A9</button></div></div>';
+}
+
+function renderFolders(){
+  const cats=getCategories();const tw=new Set(state.scriptWords.map(sw=>sw.word_id)).size;
+  return hdr('<button class="btn-icon" id="addScriptBtn">+</button>')+'<div class="view"><div class="summary-grid"><div class="summary-stat"><b style="color:var(--accent-amber)">'+state.scripts.length+'</b><small>Scripts</small></div><div class="summary-stat"><b style="color:var(--accent-purple)">'+state.scriptWords.length+'</b><small>Saved Words</small></div><div class="summary-stat"><b style="color:var(--accent-green)">'+tw+'</b><small>Unique</small></div></div>'+(cats.length===0?'<div class="empty-state"><span class="icon">\uD83D\uDCC1</span><p>No scripts yet. Add your interview script, business email, or any passage!</p><button class="btn-secondary" id="addScriptBtn2">+ Add Script</button></div>':cats.map(cat=>{
+    const scripts=state.scripts.filter(s=>(s.category||'general')===cat);
+    const wc=state.scriptWords.filter(sw=>scripts.some(s=>s.id===sw.script_id)).length;
+    const icon=FOLDER_ICONS[cat]||'\uD83D\uDCC1';const bg=FOLDER_COLORS[cat]||'rgba(139,143,168,.15)';
+    return'<div class="folder-card" data-open-folder="'+escapeHtml(cat)+'"><div class="folder-icon" style="background:'+bg+'">'+icon+'</div><div class="folder-info"><div class="folder-name">'+escapeHtml(cat)+'</div><div class="folder-count">'+scripts.length+' script'+(scripts.length!==1?'s':'')+' \u00B7 '+wc+' words</div></div><span style="color:var(--text-muted);font-size:18px">\u203A</span></div>';
+  }).join(''))+'</div>';
+}
+
+function renderFolder(){
+  const cat=state.selectedFolder||'general';const scripts=state.scripts.filter(s=>(s.category||'general')===cat);
+  const icon=FOLDER_ICONS[cat]||'\uD83D\uDCC1';
+  return hdr('<button class="btn-icon" id="addToFolderBtn">+</button>')+'<div class="view"><div class="breadcrumb"><a data-go-folders>All Folders</a> \u203A <strong>'+icon+' '+escapeHtml(cat)+'</strong></div>'+(scripts.length===0?'<div class="empty-state"><span class="icon">'+icon+'</span><p>No scripts in this folder yet.</p><button class="btn-secondary" id="addToFolderBtn2">+ Add Script</button></div>':scripts.map(s=>{
+    const wc=state.scriptWords.filter(sw=>sw.script_id===s.id).length;
+    return'<div class="script-card" data-open-script="'+s.id+'">'+(s.question?'<div class="script-question">Q: '+escapeHtml(s.question)+'</div>':'')+'<div class="script-title">'+escapeHtml(s.title)+'</div><div class="script-preview">'+escapeHtml((s.content||'').slice(0,100))+'</div><div class="script-stats">'+wc+' saved words \u00B7 '+(s.content||'').length+' chars</div></div>';
+  }).join(''))+'</div>';
+}
+
+function renderAdd(){
+  const pc=state.selectedFolder||'';
+  const iconBtns=Object.keys(FOLDER_ICONS).map(k=>'<button data-qcat="'+k+'" class="btn-icon" style="width:28px;height:28px;font-size:12px" title="'+k+'">'+FOLDER_ICONS[k]+'</button>').join('');
+  return hdr()+'<div class="view"><div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px">Add Script</h3><div class="mode-toggle"><button class="mode-btn '+(state.addMode==='single'?'active':'')+'" data-add-mode="single">\uD83D\uDCDD Single Q&A</button><button class="mode-btn '+(state.addMode==='bulk'?'active':'')+'" data-add-mode="bulk">\uD83D\uDCCB Bulk Paste</button></div>'+(state.addMode==='single'?
+  '<label class="form-label">Category</label><div style="display:flex;gap:8px;margin-bottom:14px"><input id="addCategory" class="form-input" style="margin-bottom:0;flex:1" value="'+escapeHtml(pc)+'" placeholder="e.g. interview, visa"><div style="display:flex;gap:4px;align-items:center">'+iconBtns.replace(/data-qcat/g,'data-qcat-s')+'</div></div><label class="form-label">Title</label><input id="addTitle" class="form-input" placeholder="e.g. \u81EA\u5DF1\u7D39\u4ECB"><label class="form-label">Question (optional)</label><input id="addQuestion" class="form-input" placeholder="e.g. \u306A\u305C\u65E5\u672C\u306B\u6765\u307E\u3057\u305F\u304B\uFF1F"><label class="form-label">Answer / Content</label><textarea id="addContent" class="form-input" placeholder="Your Japanese passage here..."></textarea><button class="btn-primary" id="saveSingleBtn">Save Script</button>'
+  :'<p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Paste full script with \u2460\u2461 or 1. 2. numbered sections. Each becomes a separate entry.</p><label class="form-label">Category for all</label><div style="display:flex;gap:8px;margin-bottom:14px"><input id="bulkCategory" class="form-input" style="margin-bottom:0;flex:1" value="'+escapeHtml(pc)+'" placeholder="e.g. interview"><div style="display:flex;gap:4px;align-items:center">'+iconBtns.replace(/data-qcat/g,'data-qcat-b')+'</div></div><label class="form-label">Content</label><textarea id="bulkContent" class="form-input" style="min-height:250px" placeholder="\u2460 \u81EA\u5DF1\u7D39\u4ECB\n\u30A2\u30CB\u30B1\u30C3\u30C8\u3068\u7533\u3057\u307E\u3059...\n\n\u2461 \u7559\u5B66\u306E\u7406\u7531\n..."></textarea><div id="bulkPreview" style="margin-bottom:16px"></div><div style="display:flex;gap:8px"><button class="btn-secondary" id="bulkPreviewBtn" style="flex:1">\uD83D\uDC41 Preview</button><button class="btn-primary" id="bulkSaveBtn" style="flex:1" disabled>Save All</button></div>')+'</div></div>';
+}
+
+function renderEdit(){
+  const s=state.selectedScript;if(!s)return renderFolders();
+  return hdr()+'<div class="view"><div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px">Edit Script</h3><label class="form-label">Category</label><input id="editCategory" class="form-input" value="'+escapeHtml(s.category||'general')+'"><label class="form-label">Title</label><input id="editTitle" class="form-input" value="'+escapeHtml(s.title)+'"><label class="form-label">Question (optional)</label><input id="editQuestion" class="form-input" value="'+escapeHtml(s.question||'')+'"><label class="form-label">Content</label><textarea id="editContent" class="form-input" style="min-height:300px">'+escapeHtml(s.content)+'</textarea><div style="display:flex;gap:8px"><button class="btn-primary" id="saveEditBtn" style="flex:1">Save Changes</button><button class="btn-danger" id="deleteScriptBtn">\uD83D\uDDD1</button></div></div></div>';
+}
+
+function renderRead(){
+  const s=state.selectedScript;if(!s)return renderFolders();
+  const ks=buildKnownSet(),ss=buildSavedSet(s.id);
+  const paras=(s.content||'').split('\n').filter(l=>l.trim());
+  let total=0,known=0,saved=0;
+  paras.forEach(p=>{tokenize(p).forEach(t=>{if(t.isWordLike&&!isPunct(t.segment)&&isJapanese(t.segment[0]||'')){total++;if(ss.has(t.segment))saved++;else if(ks.has(t.segment))known++}})});
+  const wl=state.scriptWords.filter(sw=>sw.script_id===s.id).map(sw=>{const w=state.words.find(w2=>w2.id===sw.word_id);return w?{...w,surface:sw.surface_form}:null}).filter(Boolean);
+  
+  return hdr('<button class="btn-icon" id="editScriptBtn">\u270F</button>')+'<div class="reading-header"><div class="reading-meta"><div class="reading-title">'+escapeHtml(s.title)+'</div><div class="reading-sub">'+escapeHtml(s.category||'general')+' \u00B7 '+paras.length+' paragraphs</div></div><div class="reading-stats">'+(!_wordsLoaded?'<span style="color:var(--text-muted)">loading...</span>':'<span style="color:var(--word-known)">'+known+'\u2714</span><span style="color:var(--word-saved)">'+saved+'\u2B50</span><span style="color:var(--word-unknown)">'+(total-known-saved)+'\u2753</span>')+'</div></div><div class="passage-container">'+(s.question?'<div class="question-box"><div class="question-label">Question</div><div class="question-text">'+tapText(s.question,ks,ss)+'</div></div>':'')+paras.map((p,i)=>'<div class="passage-paragraph" style="animation:fadeUp .3s ease-out '+i*50+'ms both"><span class="para-num">P'+(i+1)+'</span><div class="passage-text">'+tapText(p,ks,ss)+'</div></div>').join('')+(wl.length>0?'<div class="card" style="margin-top:16px"><h4 style="font-size:13px;font-weight:700;color:var(--accent-purple);margin-bottom:10px">\u2B50 Saved Words ('+wl.length+')</h4>'+wl.map(w=>'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-dim)"><span style="font-size:16px;font-weight:700;min-width:60px">'+escapeHtml(w.kanji||'')+'</span><span style="font-size:12px;color:var(--accent-cyan)">'+escapeHtml(w.hiragana||'')+'</span><span style="font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(w.meaning_en||'')+'</span><span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber)">'+escapeHtml(w.jlpt_level||'')+'</span></div>').join('')+'</div>':'')+'</div>'+(state.popup?renderPopup():'');
+}
+
+function tapText(text,ks,ss){
+  return tokenize(text).map(t=>{const g=t.segment;if(!t.isWordLike||isPunct(g)||!isJapanese(g[0]||''))return'<span class="word-token punct">'+escapeHtml(g)+'</span>';const c=ss.has(g)?'saved':ks.has(g)?'known':'unknown';return'<span class="word-token '+c+'" data-word="'+escapeHtml(g)+'">'+escapeHtml(g)+'</span>'}).join('');
+}
+
+function renderPopup(){
+  const p=state.popup;if(!p)return'';const s=state.selectedScript;
+  const linked=s&&state.scriptWords.some(sw=>sw.script_id===s.id&&sw.word_id===p.wordId);
+  let body='<div class="popup-handle"></div>';
+  
+  if(p.wordId){
+    body+='<div class="popup-surface">'+escapeHtml(p.surface)+'</div>';
+    if(p.reading)body+='<div class="popup-reading">'+escapeHtml(p.reading)+'</div>';
+    if(p.meaning)body+='<div class="popup-meaning">'+escapeHtml(p.meaning)+'</div>';
+    if(p.level)body+='<div style="text-align:center;margin-bottom:8px"><span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,176,58,.1);color:var(--accent-amber)">'+escapeHtml(p.level)+'</span></div>';
+    body+='<div style="text-align:center;margin-bottom:12px"><span class="popup-tag '+(linked?'saved':'known')+'">'+(linked?'\u2B50 Saved to script':'\u2714 In vocabulary')+'</span></div>';
+    body+=linked?'<button class="btn-save-word already" id="popupRemoveBtn">\u2715 Remove from script</button>':'<button class="btn-save-word" id="popupSaveBtn">\u2B50 Save to this script</button>';
+  } else {
+    body+='<div class="popup-surface">'+escapeHtml(p.surface)+'</div>';
+    body+='<div style="text-align:center;margin-bottom:12px"><span class="popup-tag unknown">\u2753 Not in database</span></div>';
+    body+='<div style="margin-bottom:12px">';
+    body+='<label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Reading</label>';
+    body+='<input type="text" id="addWordReading" placeholder="hiragana" style="width:100%;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--text-primary);font-family:inherit;outline:none;margin-bottom:8px">';
+    body+='<label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Meaning</label>';
+    body+='<input type="text" id="addWordMeaning" placeholder="English meaning" style="width:100%;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--text-primary);font-family:inherit;outline:none;margin-bottom:8px">';
+    body+='<div style="display:flex;gap:8px">';
+    body+='<select id="addWordLevel" style="flex:1;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:8px;padding:8px;font-size:13px;color:var(--text-primary);outline:none"><option value="">Level</option><option value="N1">N1</option><option value="N2">N2</option><option value="N3">N3</option></select>';
+    body+='<button id="addWordBtn" style="flex:2;padding:10px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent-green),#00b86e);color:var(--bg-deep)">Add to DB</button>';
+    body+='</div></div>';
+    body+='<a href="https://jisho.org/search/'+encodeURIComponent(p.surface)+'" target="_blank" style="display:block;text-align:center;font-size:12px;color:var(--accent-cyan);text-decoration:none;padding:8px">Look up on Jisho.org \u2197</a>';
+  }
+  
+  return'<div class="word-popup-overlay" id="popupOverlay"><div class="word-popup">'+body+'</div></div>';
+}
+
+// EVENTS
+function attachListeners(){
+  document.getElementById('signOutBtn')?.addEventListener('click',async()=>{await sb.auth.signOut();state.user=null;render()});
+  document.getElementById('backBtn')?.addEventListener('click',()=>{
+    if(state.view==='edit'){state.view='read'}
+    else if(state.view==='read'){state.view='folder';state.selectedScript=null}
+    else if(state.view==='add'){state.view=state.selectedFolder?'folder':'folders'}
+    else{state.view='folders';state.selectedFolder=null}
+    render();
+  });
+  document.querySelectorAll('[data-go-folders]').forEach(el=>el.addEventListener('click',()=>{state.view='folders';state.selectedFolder=null;render()}));
+  document.querySelectorAll('[data-open-folder]').forEach(el=>el.addEventListener('click',()=>{state.selectedFolder=el.dataset.openFolder;state.view='folder';render()}));
+  document.querySelectorAll('[data-open-script]').forEach(el=>el.addEventListener('click',async()=>{state.selectedScript=state.scripts.find(s=>s.id===parseInt(el.dataset.openScript));state.view='read';if(!_wordsLoaded){render();await ensureWordsLoaded()}render()}));
+  
+  document.getElementById('addScriptBtn')?.addEventListener('click',()=>{state.addMode='single';state.view='add';render()});
+  document.getElementById('addScriptBtn2')?.addEventListener('click',()=>{state.addMode='single';state.view='add';render()});
+  document.getElementById('addToFolderBtn')?.addEventListener('click',()=>{state.addMode='single';state.view='add';render()});
+  document.getElementById('addToFolderBtn2')?.addEventListener('click',()=>{state.addMode='single';state.view='add';render()});
+  document.querySelectorAll('[data-add-mode]').forEach(b=>b.addEventListener('click',()=>{state.addMode=b.dataset.addMode;render()}));
+  
+  // Quick category icon buttons
+  document.querySelectorAll('[data-qcat-s]').forEach(b=>b.addEventListener('click',()=>{const i=document.getElementById('addCategory');if(i)i.value=b.dataset.qcatS}));
+  document.querySelectorAll('[data-qcat-b]').forEach(b=>b.addEventListener('click',()=>{const i=document.getElementById('bulkCategory');if(i)i.value=b.dataset.qcatB}));
+  
+  // Save single
+  document.getElementById('saveSingleBtn')?.addEventListener('click',async()=>{
+    const title=document.getElementById('addTitle')?.value?.trim();
+    const cat=document.getElementById('addCategory')?.value?.trim()||'general';
+    const q=document.getElementById('addQuestion')?.value?.trim();
+    const content=document.getElementById('addContent')?.value?.trim();
+    if(!title||!content){toast('Title and content required','error');return}
+    const r=await saveScript(title,cat,content,q);
+    if(r){toast('\u2714 Saved!');state.selectedFolder=cat;state.view='folder';render()}
+  });
+  
+  // Bulk preview
+  document.getElementById('bulkPreviewBtn')?.addEventListener('click',()=>{
+    const content=document.getElementById('bulkContent')?.value||'';if(!content.trim())return;
+    const secs=parseBulkSections(content);
+    const area=document.getElementById('bulkPreview');if(!area)return;
+    area.innerHTML='<div style="font-size:12px;color:var(--accent-cyan);margin-bottom:8px">\u2714 Found '+secs.length+' section(s):</div>'+secs.map((s,i)=>'<div style="padding:8px 12px;margin-bottom:6px;background:var(--bg-elevated);border-radius:8px;border-left:3px solid var(--accent-amber)"><div style="font-size:13px;font-weight:700;color:var(--accent-amber)">'+(i+1)+'. '+escapeHtml(s.title)+'</div>'+(s.question?'<div style="font-size:11px;color:var(--accent-cyan);margin-top:2px">Q: '+escapeHtml(s.question)+'</div>':'')+'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+escapeHtml(s.content.slice(0,80))+'...</div></div>').join('');
+    document.getElementById('bulkSaveBtn').disabled=false;
+  });
+  
+  // Bulk save
+  document.getElementById('bulkSaveBtn')?.addEventListener('click',async()=>{
+    const content=document.getElementById('bulkContent')?.value||'';
+    const cat=document.getElementById('bulkCategory')?.value?.trim()||'general';
+    if(!content.trim())return;const secs=parseBulkSections(content);let n=0;
+    for(const s of secs){if(await saveScript(s.title,cat,s.content,s.question))n++}
+    toast('\u2714 Saved '+n+' script(s)');state.selectedFolder=cat;state.view='folder';render();
+  });
+  
+  // Edit
+  document.getElementById('editScriptBtn')?.addEventListener('click',()=>{state.view='edit';render()});
+  document.getElementById('saveEditBtn')?.addEventListener('click',async()=>{
+    const t=document.getElementById('editTitle')?.value?.trim();const c=document.getElementById('editCategory')?.value?.trim();
+    const q=document.getElementById('editQuestion')?.value?.trim();const ct=document.getElementById('editContent')?.value;
+    if(!t||!ct)return;const ok=await updateScript(state.selectedScript.id,{title:t,category:c,question:q||null,content:ct});
+    if(ok){state.selectedScript=state.scripts.find(s=>s.id===state.selectedScript.id);toast('Updated!');state.view='read';render()}
+  });
+  document.getElementById('deleteScriptBtn')?.addEventListener('click',()=>deleteScript(state.selectedScript?.id));
+  
+  // Word taps
+  document.querySelectorAll('.word-token:not(.punct)').forEach(el=>el.addEventListener('click',e=>{
+    e.stopPropagation();const surface=el.dataset.word;if(!surface)return;
+    const f=findWord(surface);state.popup={surface,reading:f?.hiragana||'',meaning:f?.meaning_en||'',level:f?.jlpt_level||'',wordId:f?.id||null,isKnown:!!f};render();
+  }));
+  document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay'){state.popup=null;render()}});
+  document.getElementById('popupSaveBtn')?.addEventListener('click',()=>{if(state.popup?.wordId&&state.selectedScript)saveWordLink(state.selectedScript.id,state.popup.surface,state.popup.wordId)});
+  document.getElementById('popupRemoveBtn')?.addEventListener('click',()=>{if(state.popup?.wordId&&state.selectedScript)removeWordLink(state.selectedScript.id,state.popup.wordId)});
+  
+  // Add unknown word to DB
+  document.getElementById('addWordBtn')?.addEventListener('click',async()=>{
+    const surface=state.popup?.surface;if(!surface)return;
+    const reading=document.getElementById('addWordReading')?.value?.trim()||'';
+    const meaning=document.getElementById('addWordMeaning')?.value?.trim()||'';
+    const level=document.getElementById('addWordLevel')?.value||'';
+    if(!reading&&!meaning){toast('Enter reading or meaning','error');return}
+    
+    const{data,error}=await sb.from('japanese_unified_words').insert({
+      kanji:surface, hiragana:reading, meaning_en:meaning, jlpt_level:level||'', source:'script_tap'
+    }).select().single();
+    
+    if(error){toast('Add failed: '+error.message,'error');return}
+    
+    // Update local state
+    state.words.push(data);
+    _wordsLoaded=true;
+    
+    // Auto-link to current script
+    if(state.selectedScript){
+      await saveWordLink(state.selectedScript.id,surface,data.id);
+    }
+    
+    toast('\u2714 Added: '+surface);
+    state.popup=null;render();
+  });
+}
+
+// INIT
+async function init(){
+  state.loadDebug='init:getSession';render();
+  const{data:{session}}=await sb.auth.getSession();
+  if(session){state.user=session.user;state.loadDebug='init:hasUser:'+session.user.email;render();await loadAll()}
+  else{state.loading=false;state.loadDebug='init:noSession'}
+  render();
+  
+  sb.auth.onAuthStateChange(async(ev,session)=>{
+    state.user=session?.user||null;
+    if(ev==='SIGNED_IN'&&state.user){await loadAll()}
+    if(ev==='TOKEN_REFRESHED'&&state.user&&state.scripts.length===0){await loadAll()}
+    if(!state.user){state.loading=false}
+    render();
+  });
+  
+  // Recover auth on page visibility change (returning from other tab/page)
+  document.addEventListener('visibilitychange',async()=>{
+    if(document.visibilityState==='visible'&&!state.user){
+      const{data:{session}}=await sb.auth.getSession();
+      if(session){state.user=session.user;await loadAll();render()}
+    }
+  });
+}
+init();
+</script>
+</body>
+</html>
