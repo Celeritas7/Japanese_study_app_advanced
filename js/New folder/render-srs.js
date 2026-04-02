@@ -35,6 +35,37 @@ function renderSRSSetup(app) {
           <p class="text-slate-400 text-sm">Test your vocabulary knowledge</p>
         </div>
         
+        ${(() => {
+          try {
+            const raw = localStorage.getItem('srs_session');
+            if (!raw) return '';
+            const s = JSON.parse(raw);
+            const savedDate = s.savedAt?.slice(0, 10);
+            const today = new Date().toISOString().slice(0, 10);
+            if (savedDate !== today || !s.words?.length) return '';
+            if (s.view !== 'test' && s.view !== 'results') return '';
+            const isResults = s.view === 'results';
+            const progress = (s.currentIndex || 0) + 1;
+            const total = s.words.length;
+            const answered = (s.answers || []).length;
+            const correct = (s.answers || []).filter(a => a.correct).length;
+            return `
+              <div class="bg-gradient-to-r ${isResults ? 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30' : 'from-cyan-500/10 to-blue-500/10 border-cyan-500/30'} border rounded-xl p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="${isResults ? 'text-emerald-400' : 'text-cyan-400'} text-sm font-bold">${isResults ? '\u2714 Test Complete' : '\u23F5 Session in Progress'}</div>
+                  <div class="text-slate-400 text-xs">${isResults ? correct + '/' + total + ' correct' : progress + '/' + total + ' \u00B7 ' + answered + ' answered'}</div>
+                </div>
+                <div class="w-full bg-slate-700 rounded-full h-1.5 mb-3">
+                  <div class="${isResults ? 'bg-emerald-400' : 'bg-cyan-400'} rounded-full h-1.5" style="width:${isResults ? Math.round(correct/total*100) : Math.round(progress/total*100)}%"></div>
+                </div>
+                <div class="flex gap-2">
+                  <button id="resumeSessionBtn" class="flex-1 py-2.5 rounded-lg font-bold text-sm ${isResults ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-cyan-500 hover:bg-cyan-600'} text-white transition-all">${isResults ? '\uD83D\uDCCA View Results' : '\u25B6 Resume'}</button>
+                  <button id="discardSessionBtn" class="py-2.5 px-4 rounded-lg text-sm bg-slate-700 text-slate-400 hover:bg-slate-600 transition-all">\u2715</button>
+                </div>
+              </div>`;
+          } catch { return ''; }
+        })()}
+        
         <!-- Test Type -->
         <div class="bg-slate-800 rounded-xl p-4 mb-3">
           <h3 class="text-sm text-slate-400 mb-3">Test Type</h3>
@@ -133,30 +164,70 @@ function renderSRSSetup(app) {
               ${[3,5,10].map(n => `<button data-srs-mark-all="${n}" class="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all">All ${n}</button>`).join('')}
             </div>
           </div>
-          ${[1,2,3,4,5,6].map(k => {
-            const cat = app.markingCategories[k];
-            const avail = markStats[k];
-            const curVal = app.srsConfig.markingCounts[k] || 0;
-            return `<div class="flex items-center gap-2 mb-2 p-2 bg-slate-700/50 rounded-lg">
-              <div class="w-8 h-8 ${cat.color} rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">${cat.icon}</div>
-              <div class="flex-1 min-w-0">
-                <div class="text-white text-xs font-semibold">${cat.label}</div>
-                <div class="text-slate-500 text-[10px]">${avail} words</div>
-              </div>
-              <div class="flex gap-0.5">
-                ${[0,1,3,5,10].map(n => `<button data-srs-mark-chip="${k}" data-srs-mark-chip-val="${n}" class="w-6 h-5 rounded text-[10px] font-bold transition-all ${
-                  curVal === n ? cat.color + ' text-white' : (n <= avail ? 'bg-slate-600 text-slate-300' : 'bg-slate-800 text-slate-600')
-                }">${n}</button>`).join('')}
-              </div>
-              <input type="number" id="srsMarkCount${k}" min="0" max="${avail}" value="${curVal}" 
-                class="w-12 p-1 text-center border ${cat.border} rounded-lg font-bold text-sm bg-slate-900 text-white focus:outline-none">
-            </div>`;
-          }).join('')}
+          ${(() => {
+            const dueStats = app.getDueStats();
+            return [1,2,3,4,5,6].map(k => {
+              const cat = app.markingCategories[k];
+              const avail = markStats[k];
+              const due = dueStats[k]?.due || 0;
+              const intervalDays = app.srsIntervals[k] || 7;
+              const curVal = app.srsConfig.markingCounts[k] || 0;
+              const useSRS = app.srsConfig.useSRSIntervals !== false;
+              const effectiveAvail = useSRS ? due : avail;
+              return `<div class="flex items-center gap-2 mb-2 p-2 bg-slate-700/50 rounded-lg">
+                <div class="w-8 h-8 ${cat.color} rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">${cat.icon}</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-white text-xs font-semibold">${cat.label}</div>
+                  <div class="text-slate-500 text-[10px]">${useSRS ? `<span class="${due > 0 ? 'text-amber-400' : 'text-emerald-400'}">${due} due</span> / ${avail} total \u00B7 ${intervalDays}d` : `${avail} words`}</div>
+                </div>
+                <div class="flex gap-0.5">
+                  ${[0,1,3,5,10].map(n => `<button data-srs-mark-chip="${k}" data-srs-mark-chip-val="${n}" class="w-6 h-5 rounded text-[10px] font-bold transition-all ${
+                    curVal === n ? cat.color + ' text-white' : (n <= effectiveAvail ? 'bg-slate-600 text-slate-300' : 'bg-slate-800 text-slate-600')
+                  }">${n}</button>`).join('')}
+                </div>
+                <input type="number" id="srsMarkCount${k}" min="0" max="${effectiveAvail}" value="${curVal}" 
+                  class="w-12 p-1 text-center border ${cat.border} rounded-lg font-bold text-sm bg-slate-900 text-white focus:outline-none">
+              </div>`;
+            }).join('');
+          })()}
           
           <div class="flex items-center gap-2 p-2 bg-slate-700/30 rounded-lg opacity-50">
             <div class="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center text-white text-sm">\u25CB</div>
             <div class="flex-1"><div class="text-slate-400 text-xs">Not Marked</div><div class="text-slate-600 text-[10px]">${markStats[0]} words</div></div>
             <span class="text-slate-600 text-xs px-2">\u2014</span>
+          </div>
+          
+          <!-- SRS Interval Toggle -->
+          <div class="flex items-center justify-between mt-3 p-2 bg-slate-700/30 rounded-lg">
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-400">\u23F0 Spaced Repetition</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="srsSettingsBtn" class="text-[10px] px-2 py-0.5 rounded bg-slate-600 text-slate-300 hover:bg-slate-500 transition-all">\u2699 Intervals</button>
+              <button id="srsIntervalToggle" class="w-10 h-5 rounded-full transition-all relative ${app.srsConfig.useSRSIntervals !== false ? 'bg-emerald-500' : 'bg-slate-600'}">
+                <div class="w-4 h-4 bg-white rounded-full absolute top-0.5 transition-all ${app.srsConfig.useSRSIntervals !== false ? 'left-5' : 'left-0.5'}"></div>
+              </button>
+            </div>
+          </div>
+          
+          <!-- SRS Interval Settings (hidden by default) -->
+          <div id="srsIntervalSettings" style="display:none;" class="mt-2 p-3 bg-slate-900 rounded-lg">
+            <div class="text-xs text-slate-400 font-semibold mb-2">Review intervals (days)</div>
+            ${[1,2,3,4,5,6].map(k => {
+              const cat = app.markingCategories[k];
+              const days = app.srsIntervals[k] || 7;
+              return `<div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] ${cat.color.replace('bg-','text-')} w-4 text-center">${cat.icon}</span>
+                <span class="text-[10px] text-slate-400 flex-1">${cat.label}</span>
+                <input type="number" id="srsInterval${k}" min="1" max="365" value="${days}" 
+                  class="w-14 p-1 text-center text-xs bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:border-blue-500">
+                <span class="text-[10px] text-slate-500">days</span>
+              </div>`;
+            }).join('')}
+            <div class="flex gap-2 mt-2">
+              <button id="srsIntervalSave" class="flex-1 py-1.5 text-xs font-bold rounded bg-emerald-500 text-white hover:bg-emerald-600 transition-all">Save</button>
+              <button id="srsIntervalReset" class="py-1.5 px-3 text-xs rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">Reset</button>
+            </div>
           </div>
         </div>
         
@@ -171,16 +242,23 @@ function renderSRSSetup(app) {
         ${(() => {
           const today = app.getTodayPractice();
           const wordList = Object.values(today.words || {});
-          const sessions = today.sessions || [];
+          const srsSessions = today.sessions || [];
+          const studySessions = today.studySessions || [];
           if (wordList.length === 0) return '';
-          const totalCorrect = sessions.reduce((a, s) => a + (s.correct || 0), 0);
-          const totalAttempts = sessions.reduce((a, s) => a + (s.total || 0), 0);
+          const totalCorrect = srsSessions.reduce((a, s) => a + (s.correct || 0), 0);
+          const totalAttempts = srsSessions.reduce((a, s) => a + (s.total || 0), 0);
+          const totalStudyWords = studySessions.reduce((a, s) => a + (s.wordCount || 0), 0);
           return `
             <div class="bg-slate-800 rounded-xl p-4 mt-4">
               <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold text-white">\uD83D\uDCCA Today's Words (${wordList.length})</h3>
-                ${totalAttempts > 0 ? `<span class="text-xs text-slate-400">${totalCorrect}/${totalAttempts} correct (${Math.round(totalCorrect/totalAttempts*100)}%)</span>` : ''}
+                <span class="text-xs text-slate-400">${studySessions.length > 0 ? studySessions.length + ' study' : ''}${studySessions.length > 0 && srsSessions.length > 0 ? ' \u00B7 ' : ''}${srsSessions.length > 0 ? srsSessions.length + ' SRS' : ''}</span>
               </div>
+              ${studySessions.length > 0 || srsSessions.length > 0 ? `
+                <div class="flex gap-2 mb-3 flex-wrap">
+                  ${studySessions.length > 0 ? `<span class="text-[10px] px-2 py-1 rounded bg-purple-500/15 text-purple-400">\uD83D\uDCDA Study: ${totalStudyWords} words in ${studySessions.length} session${studySessions.length > 1 ? 's' : ''}</span>` : ''}
+                  ${totalAttempts > 0 ? `<span class="text-[10px] px-2 py-1 rounded bg-cyan-500/15 text-cyan-400">\uD83C\uDFAF SRS: ${totalCorrect}/${totalAttempts} (${Math.round(totalCorrect/totalAttempts*100)}%)</span>` : ''}
+                </div>` : ''}
               <div class="space-y-1 max-h-60 overflow-y-auto">
                 ${wordList.map(w => {
                   const pct = w.attempts ? Math.round((w.correctCount || 0) / w.attempts * 100) : -1;
@@ -194,7 +272,7 @@ function renderSRSSetup(app) {
                     </div>`;
                 }).join('')}
               </div>
-              ${sessions.length > 0 ? `<div class="mt-2 text-[10px] text-slate-500">${sessions.length} session${sessions.length > 1 ? 's' : ''} today \u00B7 Resets at midnight</div>` : ''}
+              <div class="mt-2 text-[10px] text-slate-500">Resets at midnight</div>
             </div>`;
         })()}
         

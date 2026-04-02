@@ -129,7 +129,7 @@ export async function loadMarkings(supabase, userId) {
     while (true) {
       const { data, error } = await supabase
         .from('japanese_user_markings')
-        .select('kanji, marking')
+        .select('kanji, marking, marked_at')
         .eq('user_id', userId)
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
@@ -144,17 +144,19 @@ export async function loadMarkings(supabase, userId) {
       page++;
     }
     
-    // Convert to object
+    // Convert to objects
     const markings = {};
+    const timestamps = {};
     allData.forEach(row => {
       markings[row.kanji] = row.marking;
+      if (row.marked_at) timestamps[row.kanji] = row.marked_at;
     });
     
     console.log(`Loaded ${allData.length} markings`);
-    return markings;
+    return { markings, timestamps };
   } catch (err) {
     console.error('loadMarkings exception:', err);
-    return {};
+    return { markings: {}, timestamps: {} };
   }
 }
 
@@ -181,6 +183,7 @@ export async function updateMarkingInDB(supabase, userId, kanji, marking) {
           user_id: userId,
           kanji: kanji,
           marking: marking,
+          marked_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,kanji' });
     }

@@ -370,9 +370,11 @@ export function getCurrentStudyWord(app) {
 // Look up linked sentences for a word (by unified id or kanji text)
 export function getSentencesForWord(app, word) {
   if (!word || !app.kanjiSentenceMap) return [];
-  // After merge, all words (Goi + Kanji) have unified IDs
-  if (word.id && app.kanjiSentenceMap[word.id]) return app.kanjiSentenceMap[word.id];
-  // Fallback: look up by kanji text
+  // Only use word.id if it's confirmed in the unified table (guards against ID collision)
+  if (word.id && app.kanjiWords?.some(w => w.id === word.id) && app.kanjiSentenceMap[word.id]) {
+    return app.kanjiSentenceMap[word.id];
+  }
+  // Fallback: look up unified word by kanji text, then check its ID in the map
   const kanji = word.kanji || word.raw || '';
   if (!kanji || !app.kanjiWords) return [];
   const match = app.kanjiWords.find(w => w.kanji === kanji);
@@ -393,6 +395,14 @@ export function renderSentencePanel(app) {
   
   // Look up sentences
   const linked = getSentencesForWord(app, word);
+  // Sort by rating descending (highest-rated first), then verified > unverified
+  linked.sort((a, b) => {
+    const ratingDiff = (b.rating || 0) - (a.rating || 0);
+    if (ratingDiff !== 0) return ratingDiff;
+    // Prefer verified/corrected over unverified/rejected
+    const statusOrder = { verified: 0, corrected: 1, unverified: 2, rejected: 3 };
+    return (statusOrder[a.verified] ?? 2) - (statusOrder[b.verified] ?? 2);
+  });
   
   // Extract kanji stem for smarter sentence discovery
   const wordKanji = word.kanji || word.raw || '';
@@ -504,8 +514,8 @@ export function renderSentencePanel(app) {
                               }">★</button>
                           `).join('')}
                         </div>
-                        ${item.verified !== 'verified' ? `
-                          <button data-verify-sentence="${item.sentence_id || item.id}" class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all border border-emerald-500/20">✓ Verify</button>
+                        ${item.verified !== 'verified' && item.verified !== 'corrected' ? `
+                          <button data-verify-sentence="${item.sentence_id || item.id}" class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all border border-emerald-500/20">\u2713 Verify</button>
                         ` : ''}
                       </div>
                     </div>
@@ -594,6 +604,37 @@ export function extractKanjiStem(word) {
   return stem || word; // fallback to full word if extraction fails
 }
 
+/**
+ * Find a word in a sentence, falling back to kanji stem for conjugated forms.
+ * Returns { idx, matchLen } or null if not found.
+ *
+ * Example: findWordInSentence("私は毎朝早く起きます。", "起きる")
+ *   → exact "起きる" not found → tries stem "起" → found at idx 7
+ *   → extends through trailing hiragana → matches "起きます"
+ */
+export function findWordInSentence(sentText, kanji) {
+  if (!sentText || !kanji) return null;
+  
+  // Try 1: exact dictionary form match
+  const exactIdx = sentText.indexOf(kanji);
+  if (exactIdx >= 0) return { idx: exactIdx, matchLen: kanji.length };
+  
+  // Try 2: kanji stem match (e.g., "起" from "起きる")
+  const stem = extractKanjiStem(kanji);
+  if (!stem || stem === kanji || stem.length === 0) return null;
+  const stemIdx = sentText.indexOf(stem);
+  if (stemIdx < 0) return null;
+  
+  // Extend match past trailing hiragana (captures conjugation: 起き → 起きます)
+  let endIdx = stemIdx + stem.length;
+  while (endIdx < sentText.length) {
+    const code = sentText[endIdx].codePointAt(0);
+    if (code >= 0x3040 && code <= 0x309F) { endIdx++; continue; } // hiragana
+    break;
+  }
+  return { idx: stemIdx, matchLen: endIdx - stemIdx };
+}
+
 // CJK Unified Ideographs range check
 function isKanji(char) {
   const code = char.codePointAt(0);
@@ -633,7 +674,18 @@ export function renderAddSentenceSheet(app) {
         
         <!-- Form -->
         <div class="px-5 pb-5 space-y-3">
+          <!-- Quick Hint -->
           <div>
+            <label class="text-slate-400 text-xs block mb-1">\uD83D\uDCA1 Hint</label>
+            <div class="flex gap-2">
+              <input type="text" id="editHintInput" placeholder="e.g. German scientist who discovered X-rays"
+                value="${escapeHtml(word.hint || '')}"
+                class="flex-1 bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-amber-500 focus:outline-none text-sm">
+              <button id="saveHintBtn" class="px-4 py-2 rounded-xl text-sm font-bold transition-all bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30 flex-shrink-0">\uD83D\uDCA1 Save</button>
+            </div>
+          </div>
+          
+          <div class="border-t border-slate-700 pt-3">
             <label class="text-slate-400 text-xs block mb-1">Japanese Sentence *</label>
             <textarea id="newSentenceTextInput" rows="2" placeholder="e.g. 私は毎朝6時に起きます。"
               class="w-full bg-slate-900 text-white px-3 py-2.5 rounded-xl border border-slate-600 focus:border-emerald-500 focus:outline-none text-sm resize-none">${escapeHtml(app.newSentenceText || '')}</textarea>
@@ -813,9 +865,10 @@ function highlightMultipleWords(sentence, detectedWords) {
 // ===== TAG & VERIFICATION HELPERS =====
 
 const VERIFIED_BADGES = {
-  verified:       { label: '✓ Verified', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  native_checked: { label: '✓ Native', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  rejected:       { label: '✗ Rejected', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  verified:       { label: '\u2713 Verified', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  corrected:      { label: '\uD83D\uDD27 Corrected', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  native_checked: { label: '\u2713 Native', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  rejected:       { label: '\u2717 Rejected', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
 };
 
 function renderVerifiedBadge(status) {

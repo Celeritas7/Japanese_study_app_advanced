@@ -549,8 +549,8 @@ export function renderSentencePanel(app) {
                         <div class="sentence-tappable text-xs text-slate-400 leading-relaxed">${tappableUnlinked}</div>
                         ${s.meaning_en ? `<div class="text-[10px] text-slate-600 mt-0.5 truncate">${escapeHtml(s.meaning_en)}</div>` : ''}
                       </div>
-                      <button data-link-sentence="${s.id}" data-link-word="${unifiedWordId || 0}"
-                        class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 text-xs font-medium hover:bg-indigo-500/30 transition-all shrink-0 border border-indigo-500/20 ${!unifiedWordId ? 'opacity-30' : ''}">
+                      <button data-link-sentence="${s.id}" data-link-word="${unifiedWordId || ''}"
+                        class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 text-xs font-medium hover:bg-indigo-500/30 transition-all shrink-0 border border-indigo-500/20 ${!unifiedWordId ? 'opacity-30 pointer-events-none' : ''}">
                         + Link
                       </button>
                     </div>

@@ -628,7 +628,10 @@ class JLPTStudyApp {
     });
     document.querySelectorAll('[data-link-sentence]').forEach(btn => {
       btn.addEventListener('click', () => {
-        this.linkSentence(parseInt(btn.dataset.linkWord), parseInt(btn.dataset.linkSentence));
+        const wordId = parseInt(btn.dataset.linkWord);
+        const sentenceId = parseInt(btn.dataset.linkSentence);
+        if (!wordId || !sentenceId) { showToast('Cannot link: word not found in database', 'error'); return; }
+        this.linkSentence(wordId, sentenceId);
       });
     });
     // Verify from sentence panel

@@ -23,6 +23,16 @@ export const MARKING_CATEGORIES = {
   6: { label: "Deep Study", color: 'bg-cyan-500', lightColor: 'bg-cyan-100', textColor: 'text-cyan-700', icon: '\u2B50', border: 'border-cyan-400' },        // ⭐
 };
 
+// Default SRS intervals (days) per marking category
+export const DEFAULT_SRS_INTERVALS = {
+  1: 28,  // Monthly Review → 4 weeks
+  2: 21,  // Can't Converse → 3 weeks
+  3: 14,  // Can't Write → 2 weeks
+  4: 7,   // Can't Use → 1 week
+  5: 2,   // Don't Know → 2 days
+  6: 1,   // Deep Study → 1 day
+};
+
 // Test Types
 export const TEST_TYPES = {
   kanji: { label: 'Kanji Recognition', desc: 'See kanji, guess meaning', icon: '\u6F22' },    // 漢

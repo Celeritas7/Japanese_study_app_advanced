@@ -2,6 +2,7 @@
 
 import { initCanvas, clearCanvas } from './canvas.js';
 import { renderStorySearchResults } from './render-stories.js';
+import { DEFAULT_SRS_INTERVALS } from './config.js';
 
 // Helper: attach listeners to story search results (after surgical update)
 function attachStoryResultListeners(app) {
@@ -155,6 +156,25 @@ export function attachEventListeners(app) {
   document.getElementById('prevWordBtn')?.addEventListener('click', () => app.prevWord());
   document.getElementById('nextWordBtn')?.addEventListener('click', () => app.nextWord());
   document.getElementById('randomWordBtn')?.addEventListener('click', () => app.randomWord());
+  document.getElementById('finishStudyBtn')?.addEventListener('click', () => app.finishStudy());
+  document.getElementById('reviewAgainBtn')?.addEventListener('click', () => app.reviewAgain());
+  document.getElementById('shuffleRestartBtn')?.addEventListener('click', () => app.shuffleRestart());
+  document.querySelectorAll('[data-review-marking]').forEach(btn => {
+    btn.addEventListener('click', () => app.reviewByMarking(parseInt(btn.dataset.reviewMarking)));
+  });
+  document.getElementById('backToWordListBtn')?.addEventListener('click', () => {
+    app._clearStudySession();
+    app.studyView = 'wordlist';
+    app.render();
+  });
+  document.getElementById('reviewAllTodayBtn')?.addEventListener('click', () => app.reviewAllTodayWords());
+  document.getElementById('resumeStudyBtn')?.addEventListener('click', () => {
+    if (app._restoreStudySession()) app.render();
+  });
+  document.getElementById('discardStudyBtn')?.addEventListener('click', () => {
+    app._clearStudySession();
+    app.render();
+  });
   document.getElementById('revealNextBtn')?.addEventListener('click', () => app.revealNext());
   
   // Tap-to-reveal box (new two-box flashcard layout)
@@ -348,7 +368,7 @@ export function attachEventListeners(app) {
   document.querySelectorAll('[data-srs-mark-all]').forEach(btn => {
     btn.addEventListener('click', () => {
       const val = parseInt(btn.dataset.srsMarkAll);
-      for (let k = 1; k <= 5; k++) {
+      for (let k = 1; k <= 6; k++) {
         app.srsConfig.markingCounts[k] = val;
         const input = document.getElementById(`srsMarkCount${k}`);
         if (input) input.value = val;
@@ -357,7 +377,41 @@ export function attachEventListeners(app) {
     });
   });
   
+  // SRS Interval Toggle (on/off)
+  document.getElementById('srsIntervalToggle')?.addEventListener('click', () => {
+    app.srsConfig.useSRSIntervals = !(app.srsConfig.useSRSIntervals !== false);
+    app.render();
+  });
+  
+  // SRS Settings panel toggle
+  document.getElementById('srsSettingsBtn')?.addEventListener('click', () => {
+    const panel = document.getElementById('srsIntervalSettings');
+    if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+  
+  // SRS Interval Save
+  document.getElementById('srsIntervalSave')?.addEventListener('click', () => {
+    const intervals = {};
+    for (let k = 1; k <= 6; k++) {
+      intervals[k] = Math.max(1, parseInt(document.getElementById(`srsInterval${k}`)?.value) || 7);
+    }
+    app.saveSRSIntervals(intervals);
+    app.render();
+  });
+  
+  // SRS Interval Reset to defaults
+  document.getElementById('srsIntervalReset')?.addEventListener('click', () => {
+    app.saveSRSIntervals({ ...DEFAULT_SRS_INTERVALS });
+    app.render();
+  });
+  
   document.getElementById('startSRSTestBtn')?.addEventListener('click', () => app.startSRSTest());
+  document.getElementById('resumeSessionBtn')?.addEventListener('click', () => {
+    if (app._restoreSRSSession()) { app.currentTab = 'srs'; app.render(); }
+  });
+  document.getElementById('discardSessionBtn')?.addEventListener('click', () => {
+    app._clearSRSSession(); app.render();
+  });
   document.getElementById('backToSRSSetupBtn')?.addEventListener('click', () => app.resetSRS());
   
   // SRS MCQ Options

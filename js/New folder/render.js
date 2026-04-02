@@ -3,6 +3,7 @@
 import { LEVEL_COLORS, TEST_TYPES, TAB_ICONS } from './config.js';
 import { getMarking, getStatsByLevel, getAvailableWeekDays, escapeHtml, renderTappableSentence } from './utils.js';
 import { getWordGroupBadges } from './render-relations.js';
+import { findWordInSentence } from './render-kanji.js';
 
 // Dynamic font size for kanji display based on character count
 function kanjiFontSize(text) {
@@ -12,6 +13,36 @@ function kanjiFontSize(text) {
   if (len === 4) return 'font-size:2.8rem;';
   if (len === 5) return 'font-size:2.4rem;';
   return 'font-size:2rem;'; // 6+ chars
+}
+
+// Hint display (edit via ✏ sheet)
+function renderHintLine(word, revealStep) {
+  if (revealStep < 1 || !word.hint) return '';
+  return `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${escapeHtml(word.hint)}</p>`;
+}
+
+// What will the next reveal step show?
+function nextRevealLabel(word, currentStep, testType, hasContext) {
+  const hasHint = !!word?.hint;
+  let next = currentStep + 1;
+  if (next === 1 && !hasHint) next++;
+  if (next === 2 && !hasContext) next++;
+  
+  if (testType === 'kanji') {
+    if (next <= 1) return 'hint';
+    if (next <= 2) return 'context';
+    if (next <= 3) return 'reading';
+    return 'meaning';
+  } else if (testType === 'reading') {
+    if (next <= 1) return 'hint';
+    if (next <= 2) return 'context';
+    return 'kanji';
+  } else {
+    if (next <= 1) return 'hint';
+    if (next <= 2) return 'context';
+    if (next <= 3) return 'reading';
+    return 'kanji';
+  }
 }
 
 // ===== WORD ALERT FORM =====
@@ -178,7 +209,8 @@ export function renderTabs(currentTab) {
     { id: 'srs', label: 'SRS', icon: TAB_ICONS.srs },
     { id: 'stories', label: 'Stories', icon: TAB_ICONS.stories },
     { id: 'similar', label: 'Relations', icon: '\uD83D\uDD17' },
-    { id: 'anime', label: 'Anime', icon: TAB_ICONS.anime, href: 'anime-reader.html' }
+    { id: 'anime', label: 'Anime', icon: TAB_ICONS.anime, href: 'anime-reader.html' },
+    { id: 'script', label: 'Scripts', icon: '\uD83D\uDCDD', href: 'script-reader.html' }
   ];
   
   return `
@@ -232,6 +264,35 @@ export function renderLevelSelector(app) {
   return `
     <div class="p-4 animate-fadeIn flex-1 overflow-auto">
       <div class="max-w-md mx-auto">
+        
+        <!-- Resume Banner -->
+        ${(() => {
+          try {
+            const raw = localStorage.getItem('study_session');
+            if (!raw) return '';
+            const s = JSON.parse(raw);
+            const savedDate = s.savedAt?.slice(0, 10);
+            const today = new Date().toISOString().slice(0, 10);
+            if (savedDate !== today || !s.words?.length) return '';
+            const isResults = s.view === 'results';
+            const progress = (s.currentIndex || 0) + 1;
+            const total = s.words.length;
+            return `
+              <div class="bg-gradient-to-r ${isResults ? 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30' : 'from-purple-500/10 to-blue-500/10 border-purple-500/30'} border rounded-xl p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="${isResults ? 'text-emerald-400' : 'text-purple-400'} text-sm font-bold">${isResults ? '\u2714 Session Complete' : '\u23F5 Study in Progress'}</div>
+                  <div class="text-slate-400 text-xs">${isResults ? total + ' words reviewed' : progress + '/' + total}</div>
+                </div>
+                <div class="w-full bg-slate-700 rounded-full h-1.5 mb-3">
+                  <div class="${isResults ? 'bg-emerald-400' : 'bg-purple-400'} rounded-full h-1.5" style="width:${Math.round(progress/total*100)}%"></div>
+                </div>
+                <div class="flex gap-2">
+                  <button id="resumeStudyBtn" class="flex-1 py-2.5 rounded-lg font-bold text-sm ${isResults ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-purple-500 hover:bg-purple-600'} text-white transition-all">${isResults ? '\uD83D\uDCCA View Results' : '\u25B6 Resume'}</button>
+                  <button id="discardStudyBtn" class="py-2.5 px-4 rounded-lg text-sm bg-slate-700 text-slate-400 hover:bg-slate-600 transition-all">\u2715</button>
+                </div>
+              </div>`;
+          } catch { return ''; }
+        })()}
         
         <!-- Test Type -->
         <div class="bg-slate-800 rounded-xl p-4 mb-4">
@@ -509,10 +570,10 @@ export function renderFlashcard(app) {
     if (sentences && sentences.length > 0) {
       const best = sentences[0];
       const sentText = best.sentence || '';
-      const idx = sentText.indexOf(kanji);
-      if (idx >= 0) {
-        ctxBefore = sentText.substring(0, idx);
-        ctxAfter = sentText.substring(idx + kanji.length);
+      const match = findWordInSentence(sentText, kanji);
+      if (match) {
+        ctxBefore = sentText.substring(0, match.idx);
+        ctxAfter = sentText.substring(match.idx + match.matchLen);
       }
     }
   }
@@ -584,8 +645,11 @@ export function renderFlashcard(app) {
           <!-- Navigation -->
           <div class="flex gap-3">
             <button id="prevWordBtn" class="flex-1 py-4 bg-slate-700 text-white rounded-xl hover:bg-slate-600 disabled:opacity-50" ${app.currentIndex === 0 ? 'disabled' : ''}>← Prev</button>
-            <button id="randomWordBtn" class="px-6 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-500">🎲</button>
-            <button id="nextWordBtn" class="flex-1 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50" ${app.currentIndex >= app.studyWords.length - 1 ? 'disabled' : ''}>Next →</button>
+            <button id="randomWordBtn" class="px-6 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-500">\uD83C\uDFB2</button>
+            ${app.currentIndex >= app.studyWords.length - 1
+              ? `<button id="finishStudyBtn" class="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold hover:opacity-90">\u2714 Finish</button>`
+              : `<button id="nextWordBtn" class="flex-1 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500">Next \u2192</button>`
+            }
           </div>
           
           <!-- Progress -->
@@ -595,6 +659,121 @@ export function renderFlashcard(app) {
           
           <!-- Extra content slot (sentence panel, etc.) -->
           <div id="flashcardExtraContent"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderStudyResults(app) {
+  const words = app.studyWords || [];
+  if (words.length === 0) return '<div class="p-4 text-center text-white">No words in session</div>';
+  
+  // Count markings
+  const markCounts = {};
+  for (let k = 0; k <= 6; k++) markCounts[k] = 0;
+  words.forEach(w => {
+    const m = getMarking(app.markings, w);
+    markCounts[m] = (markCounts[m] || 0) + 1;
+  });
+  
+  return `
+    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
+      <div class="max-w-md mx-auto">
+        <div class="text-center mb-5">
+          <div class="text-4xl mb-2">\u2705</div>
+          <h1 class="text-xl font-bold text-white mb-1">Session Complete</h1>
+          <p class="text-slate-400 text-sm">${words.length} words reviewed</p>
+        </div>
+        
+        <!-- Marking Distribution -->
+        <div class="bg-slate-800 rounded-xl p-4 mb-4">
+          <p class="text-slate-400 text-xs text-center mb-3 font-semibold uppercase tracking-wider">Marking Distribution</p>
+          ${Object.entries(app.markingCategories).map(([k, cat]) => {
+            const count = markCounts[parseInt(k)] || 0;
+            if (count === 0) return '';
+            const pct = Math.round(count / words.length * 100);
+            return `
+              <div class="flex items-center gap-3 mb-2">
+                <div class="w-7 h-7 ${cat.color} rounded-lg flex items-center justify-center text-white text-xs flex-shrink-0">${cat.icon}</div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-slate-300">${cat.label}</span>
+                    <span class="text-xs text-slate-400">${count}</span>
+                  </div>
+                  <div class="bg-slate-700 rounded-full h-1.5">
+                    <div class="${cat.color} rounded-full h-1.5 transition-all" style="width:${pct}%"></div>
+                  </div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+        
+        <!-- Actions -->
+        <div class="space-y-2 mb-4">
+          <button id="reviewAgainBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-slate-700 text-white hover:bg-slate-600 transition-all">
+            \uD83D\uDD04 Review Again (same order)
+          </button>
+          <button id="shuffleRestartBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-purple-600 text-white hover:bg-purple-500 transition-all">
+            \uD83D\uDD00 Shuffle & Restart
+          </button>
+          ${Object.entries(markCounts).filter(([k, c]) => c > 0 && parseInt(k) >= 3).map(([k, c]) => {
+            const cat = app.markingCategories[parseInt(k)];
+            return `<button data-review-marking="${k}" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${cat.color} text-white hover:opacity-90 transition-all">
+              ${cat.icon} Review ${cat.label} only (${c} words)
+            </button>`;
+          }).join('')}
+          <button id="backToWordListBtn" class="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border border-slate-600 hover:bg-slate-700 transition-all">
+            \u2190 Back to Word List
+          </button>
+        </div>
+        
+        <!-- Session History -->
+        ${(() => {
+          const studySessions = app.getTodayStudySessions();
+          const today = app.getTodayPractice();
+          const totalWords = Object.keys(today.words || {}).length;
+          
+          if (studySessions.length <= 1) return '';
+          return `
+            <div class="bg-slate-800 rounded-xl p-4 mb-4">
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Today\u2019s Sessions (${studySessions.length})</p>
+                <span class="text-xs text-emerald-400">${totalWords} total words</span>
+              </div>
+              ${studySessions.map((s, i) => {
+                const time = new Date(s.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const isCurrent = i === studySessions.length - 1;
+                return `
+                  <div class="flex items-center gap-3 p-2 rounded-lg mb-1 ${isCurrent ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-slate-700/30'}">
+                    <span class="text-xs text-slate-500 w-12">${time}</span>
+                    <span class="text-xs ${isCurrent ? 'text-emerald-400 font-bold' : 'text-slate-300'}">Session ${i + 1}</span>
+                    <span class="text-xs text-slate-400">${s.wordCount} words</span>
+                    ${isCurrent ? '<span class="text-[10px] text-emerald-400 ml-auto">\u25C0 current</span>' : ''}
+                  </div>`;
+              }).join('')}
+              <button id="reviewAllTodayBtn" class="w-full mt-3 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition-all">
+                \uD83D\uDCDA Review ALL today\u2019s words (${totalWords})
+              </button>
+            </div>`;
+        })()}
+        
+        <!-- Word List -->
+        <div class="bg-slate-800 rounded-xl p-4">
+          <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Today\u2019s Words (${words.length})</p>
+          <div class="space-y-1 max-h-80 overflow-y-auto">
+            ${words.map(w => {
+              const m = getMarking(app.markings, w);
+              const cat = app.markingCategories[m] || app.markingCategories[0];
+              return `
+                <div class="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50">
+                  <span class="text-sm flex-shrink-0">${cat.icon}</span>
+                  <span class="text-base font-bold text-white min-w-[60px]">${escapeHtml(w.kanji || w.raw || '')}</span>
+                  <span class="text-xs text-blue-400">${escapeHtml(w.hiragana || '')}</span>
+                  <span class="text-xs text-slate-400 flex-1 truncate">${escapeHtml(w.meaning || w.meaning_en || '')}</span>
+                </div>`;
+            }).join('')}
+          </div>
         </div>
       </div>
     </div>
@@ -638,13 +817,13 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Reveal Box (tappable) -->
       <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
         <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
+          ${renderHintLine(word, app.revealStep)}
           ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
           ${app.revealStep >= 3 ? `<p class="text-2xl text-blue-600 mb-3 animate-fadeIn">${word.hiragana || ''}</p>` : ''}
           ${app.revealStep >= 4 ? `<p class="text-xl text-emerald-700 font-medium animate-fadeIn">${word.meaning}</p>` : ''}
           ${app.revealStep < 4 ? `
             <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : app.revealStep === 2 ? 'reading' : 'meaning'}
+              \uD83D\uDC46 Tap to reveal ${nextRevealLabel(word, app.revealStep, 'kanji', hasContext)}
             </p>
           ` : ''}
         </div>
@@ -670,12 +849,12 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Reveal Box (tappable) -->
       <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
         <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
+          ${renderHintLine(word, app.revealStep)}
           ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
           ${app.revealStep >= 3 ? `<p class="kanji-highlight animate-fadeIn" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</p>` : ''}
           ${app.revealStep < 3 ? `
             <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : 'kanji'}
+              \uD83D\uDC46 Tap to reveal ${nextRevealLabel(word, app.revealStep, 'reading', hasContext)}
             </p>
           ` : ''}
         </div>
@@ -702,7 +881,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Reveal Box (tappable) -->
       <div class="reveal-box rounded-2xl shadow-xl overflow-hidden mb-4 cursor-pointer" id="revealBox">
         <div class="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
-          ${app.revealStep >= 1 && word.hint ? `<p class="hint-text mb-3 animate-fadeIn">\uD83D\uDCA1 ${word.hint}</p>` : ''}
+          ${renderHintLine(word, app.revealStep)}
           ${app.revealStep >= 2 && hasContext ? `
             <div class="mb-3 animate-fadeIn">
               <span class="context-text sentence-tappable">${tappableBefore}</span>
@@ -714,7 +893,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
           ${app.revealStep >= 4 ? `<p class="kanji-highlight animate-fadeIn" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</p>` : ''}
           ${app.revealStep < 4 ? `
             <p class="text-slate-400 text-sm mt-4">
-              \uD83D\uDC46 Tap to reveal ${app.revealStep === 0 ? 'hint' : app.revealStep === 1 ? 'context' : app.revealStep === 2 ? 'reading' : 'kanji'}
+              \uD83D\uDC46 Tap to reveal ${nextRevealLabel(word, app.revealStep, 'writing', hasContext)}
             </p>
           ` : ''}
         </div>
