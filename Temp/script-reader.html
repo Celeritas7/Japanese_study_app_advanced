@@ -136,15 +136,24 @@ function parseBulkSections(text){
 async function loadAll(){
   state.loading=true;render();
   try{
-    const timeout=ms=>new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms));
-    const[scripts,scriptWords]=await Promise.race([
-      Promise.all([
-        sb.from('japanese_scripts').select('*').eq('user_id',state.user.id).order('updated_at',{ascending:false}),
-        sb.from('japanese_script_words').select('*'),
-      ]),
-      timeout(10000)
-    ]);
-    state.scripts=scripts.data||[];state.scriptWords=scriptWords.data||[];
+    // Step 1: Load user's scripts (already filtered by RLS)
+    const{data:scripts,error:scriptErr}=await sb.from('japanese_scripts').select('*').eq('user_id',state.user.id).order('updated_at',{ascending:false});
+    if(scriptErr){console.error('Scripts load:',scriptErr);toast('Scripts load failed','error');state.scripts=[];state.scriptWords=[];state.loading=false;render();return}
+    state.scripts=scripts||[];
+    
+    // Step 2: Load script_words only for this user's scripts (not entire table)
+    const scriptIds=state.scripts.map(s=>s.id);
+    if(scriptIds.length>0){
+      let allSW=[];
+      const batch=500;
+      for(let i=0;i<scriptIds.length;i+=batch){
+        const ids=scriptIds.slice(i,i+batch);
+        const{data,error}=await sb.from('japanese_script_words').select('*').in('script_id',ids);
+        if(error){console.error('Script words load:',error);continue}
+        if(data)allSW=allSW.concat(data);
+      }
+      state.scriptWords=allSW;
+    }else{state.scriptWords=[]}
   }catch(e){console.error('Load:',e);toast('Load failed - try refreshing','error')}
   state.loading=false;render();
 }
