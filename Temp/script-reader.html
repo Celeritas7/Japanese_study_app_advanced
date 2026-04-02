@@ -99,7 +99,7 @@ const segmenter=(typeof Intl!=='undefined'&&Intl.Segmenter)?new Intl.Segmenter('
 const FOLDER_ICONS={interview:'\uD83C\uDFA4',visa:'\uD83C\uDFE3',business:'\uD83D\uDCBC',email:'\u2709\uFE0F',presentation:'\uD83D\uDCCA',daily:'\uD83C\uDFE0',general:'\uD83D\uDCDD'};
 const FOLDER_COLORS={interview:'rgba(255,176,58,.15)',visa:'rgba(0,212,255,.15)',business:'rgba(99,102,241,.15)',email:'rgba(16,185,129,.15)',presentation:'rgba(244,63,94,.15)',daily:'rgba(176,125,255,.15)',general:'rgba(139,143,168,.15)'};
 
-const state={user:null,view:'folders',scripts:[],words:[],scriptWords:[],markings:{},selectedFolder:null,selectedScript:null,addMode:'single',popup:null,loading:true};
+const state={user:null,view:'folders',scripts:[],words:[],scriptWords:[],markings:{},selectedFolder:null,selectedScript:null,addMode:'single',popup:null,loading:true,loadDebug:'init'};
 
 function escapeHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function toast(m,t='success'){const e=document.createElement('div');e.className='toast toast-'+t;e.textContent=m;document.body.appendChild(e);setTimeout(()=>e.remove(),2500)}
@@ -134,16 +134,17 @@ function parseBulkSections(text){
 // DATA
 // Fast load: just scripts + script_words (small tables)
 async function loadAll(){
-  state.loading=true;render();
+  state.loading=true;state.loadDebug='loadAll:start';render();
   try{
-    // Step 1: Load user's scripts (already filtered by RLS)
+    state.loadDebug='loadAll:scripts';render();
     const{data:scripts,error:scriptErr}=await sb.from('japanese_scripts').select('*').eq('user_id',state.user.id).order('updated_at',{ascending:false});
-    if(scriptErr){console.error('Scripts load:',scriptErr);toast('Scripts load failed','error');state.scripts=[];state.scriptWords=[];state.loading=false;render();return}
+    if(scriptErr){console.error('Scripts load:',scriptErr);state.loadDebug='loadAll:scripts-err:'+scriptErr.message;toast('Scripts load failed','error');state.scripts=[];state.scriptWords=[];state.loading=false;render();return}
     state.scripts=scripts||[];
+    state.loadDebug='loadAll:scripts-ok:'+state.scripts.length;render();
     
-    // Step 2: Load script_words only for this user's scripts (not entire table)
     const scriptIds=state.scripts.map(s=>s.id);
     if(scriptIds.length>0){
+      state.loadDebug='loadAll:words:'+scriptIds.length;render();
       let allSW=[];
       const batch=500;
       for(let i=0;i<scriptIds.length;i+=batch){
@@ -154,8 +155,8 @@ async function loadAll(){
       }
       state.scriptWords=allSW;
     }else{state.scriptWords=[]}
-  }catch(e){console.error('Load:',e);toast('Load failed - try refreshing','error')}
-  state.loading=false;render();
+  }catch(e){console.error('Load:',e);state.loadDebug='loadAll:catch:'+e.message;toast('Load failed - try refreshing','error')}
+  state.loading=false;state.loadDebug='done';render();
 }
 
 // Heavy load: words + markings (only when entering read view)
@@ -211,7 +212,7 @@ async function removeWordLink(sid,wid){
 function render(){
   const app=document.getElementById('app');
   if(!state.user){app.innerHTML=renderLogin();document.getElementById('loginBtn')?.addEventListener('click',async()=>{await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href}})});return}
-  if(state.loading){app.innerHTML=hdr()+'<div class="view"><div class="empty-state"><p>Loading...</p></div></div>';return}
+  if(state.loading){app.innerHTML=hdr()+'<div class="view"><div class="empty-state"><p>Loading...</p><p style="font-size:10px;color:var(--text-muted);margin-top:8px">v2 | '+state.loadDebug+'</p></div></div>';return}
   switch(state.view){
     case'folders':app.innerHTML=renderFolders();break;
     case'folder':app.innerHTML=renderFolder();break;
@@ -411,9 +412,10 @@ function attachListeners(){
 
 // INIT
 async function init(){
+  state.loadDebug='init:getSession';render();
   const{data:{session}}=await sb.auth.getSession();
-  if(session){state.user=session.user;await loadAll()}
-  else{state.loading=false}
+  if(session){state.user=session.user;state.loadDebug='init:hasUser:'+session.user.email;render();await loadAll()}
+  else{state.loading=false;state.loadDebug='init:noSession'}
   render();
   
   sb.auth.onAuthStateChange(async(ev,session)=>{
