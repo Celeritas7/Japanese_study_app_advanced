@@ -7,7 +7,6 @@
   <meta name="theme-color" content="#0a0a0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=M+PLUS+Rounded+1c:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -90,6 +89,7 @@
 const SUPABASE_URL='https://ulgrfumbwjovbjzjiems.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const KUROMOJI_SCRIPT_URL='https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js';
 const KUROMOJI_DICT_PATH='https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/';
 const isKanji=c=>c>='\u4E00'&&c<='\u9FFF';
 const isHiragana=c=>c>='\u3040'&&c<='\u309F';
@@ -110,20 +110,32 @@ class AnimeReader{
     this.importMode='srt';this.srtFile=null;this.rawText='';
     this.dialogueLines=[];this.allTokens=[];this.wordPopup=null;
     this.sessions=[];this.loading=false;
-    this.tokenizer=null;this.tokenizerPromise=this.initTokenizer();
+    this.tokenizer=null;this.tokenizerPromise=null;this.tokenizerError=null;this.tokenizerLoading=false;
     this.init();
   }
 
-  initTokenizer(){
-    this.tokenizerError=null;
-    return new Promise(resolve=>{
-      if(typeof kuromoji==='undefined'){this.tokenizerError='kuromoji.js script not loaded';console.error(this.tokenizerError);this.render();resolve(null);return}
-      console.log('[kuromoji] building tokenizer from',KUROMOJI_DICT_PATH);
-      kuromoji.builder({dicPath:KUROMOJI_DICT_PATH}).build((err,tk)=>{
-        if(err){this.tokenizerError='Dict load failed: '+(err.message||err);console.error('[kuromoji] init failed:',err);this.render();resolve(null);return}
-        this.tokenizer=tk;console.log('[kuromoji] ready');this.render();resolve(tk);
-      });
+  // Lazy-load kuromoji.js + IPADIC dict only when entering reading mode (~15MB).
+  ensureTokenizer(){
+    if(this.tokenizerPromise)return this.tokenizerPromise;
+    this.tokenizerError=null;this.tokenizerLoading=true;this.render();
+    this.tokenizerPromise=new Promise(resolve=>{
+      const build=()=>{
+        if(typeof kuromoji==='undefined'){this.tokenizerError='kuromoji global missing';this.tokenizerLoading=false;console.error(this.tokenizerError);this.render();resolve(null);return}
+        console.log('[kuromoji] building tokenizer from',KUROMOJI_DICT_PATH);
+        kuromoji.builder({dicPath:KUROMOJI_DICT_PATH}).build((err,tk)=>{
+          this.tokenizerLoading=false;
+          if(err){this.tokenizerError='Dict load failed: '+(err.message||err);console.error('[kuromoji] init failed:',err);this.render();resolve(null);return}
+          this.tokenizer=tk;console.log('[kuromoji] ready');this.render();resolve(tk);
+        });
+      };
+      if(typeof kuromoji!=='undefined'){build();return}
+      console.log('[kuromoji] loading script',KUROMOJI_SCRIPT_URL);
+      const s=document.createElement('script');s.src=KUROMOJI_SCRIPT_URL;
+      s.onload=build;
+      s.onerror=()=>{this.tokenizerError='Failed to load kuromoji.js script';this.tokenizerLoading=false;console.error(this.tokenizerError);this.render();resolve(null)};
+      document.head.appendChild(s);
     });
+    return this.tokenizerPromise;
   }
 
   async init(){
@@ -220,7 +232,7 @@ class AnimeReader{
     });
   }
   async processDialogue(rawLines,hasSpeaker=false){
-    await this.tokenizerPromise;
+    await this.ensureTokenizer();
     let lastSpeaker='';
     this.dialogueLines=rawLines.map((line,i)=>{
       let speaker=line.speaker||'';
@@ -317,7 +329,7 @@ class AnimeReader{
 
   // === EPISODES ===
   renderEpisodes(){
-    if(this.loading)return`<div class="view" style="text-align:center;padding:60px 0"><div style="font-size:32px;margin-bottom:12px">\u23F3</div><p style="color:var(--text-muted)">Loading episodes...</p></div>`;
+    if(this.loading)return`<div class="view" style="text-align:center;padding:60px 0"><div style="font-size:32px;margin-bottom:12px">\u23F3</div><p style="color:var(--text-muted)">${this.tokenizerLoading?'Loading Japanese tokenizer (~12MB, one-time download)…':'Loading episodes...'}</p></div>`;
     return`<div class="view">
       <div class="card"><h2 style="font-size:18px;font-weight:700;margin-bottom:4px">\uD83C\uDFAC ${this.esc(this.selectedAnime)}</h2>
         <p style="font-size:12px;color:var(--text-muted)">${this.episodeList.length} episodes available</p></div>
