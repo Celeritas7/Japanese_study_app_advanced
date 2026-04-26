@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep *)",
+      "Bash(git add *)",
+      "Bash(echo \"exit_workflows=$?\")",
+      "Bash(tasklist)",
+      "Bash(git config *)",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -match 'code|cursor|github|gitkraken|sourcetree|node|python|powershell|pwsh' } | Select-Object ProcessName, Id, Path | Format-Table -AutoSize)",
+      "PowerShell(Get-ScheduledTask *)",
+      "Bash(echo \"---exit=$?\")",
+      "Bash(git restore *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)"
+    ]
+  }
+}

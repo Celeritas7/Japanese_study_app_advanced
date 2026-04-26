@@ -404,18 +404,13 @@ export function renderSentencePanel(app) {
     return (statusOrder[a.verified] ?? 2) - (statusOrder[b.verified] ?? 2);
   });
   
-  // Extract kanji stem for smarter sentence discovery
+  // Multi-group phrases (会社を立てる) require AND across all kanji groups;
+  // single-group words preserve the existing OR-with-stem fallback.
   const wordKanji = word.kanji || word.raw || '';
+  const kanjiGroups = extractKanjiGroups(wordKanji);
   const kanjiStem = extractKanjiStem(wordKanji);
-  
-  // Find unlinked sentences containing this word
-  // Use full word first, then compound stems (2+ chars), skip single-char stems
   const linkedSentenceIds = new Set(linked.map(l => l.sentence_id || l.id));
-  const searchTerms = [wordKanji]; // always try full word
-  if (kanjiStem && kanjiStem.length >= 2 && kanjiStem !== wordKanji) {
-    searchTerms.push(kanjiStem); // add compound stem if different from full word
-  }
-  
+
   // Word-boundary-aware match: reject if the char before the match is also kanji
   // e.g. "治す" inside "退治する" → char before is 退 (kanji) → reject
   const sentenceContainsWord = (sentence, term) => {
@@ -431,23 +426,34 @@ export function renderSentencePanel(app) {
       return true; // valid match
     }
   };
-  
-  const matchesSentence = (s) => {
-    if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
-    return searchTerms.some(term => sentenceContainsWord(s.sentence, term));
-  };
-  
-  const unlinked = searchTerms.length > 0
+
+  let matchesSentence;
+  if (kanjiGroups.length >= 2) {
+    // Every group must satisfy the word-boundary guard. A 1-char group like 気
+    // in 気に入る still passes through sentenceContainsWord, so 気 inside 元気/
+    // 病気 is rejected by the kanji-before check.
+    matchesSentence = (s) => {
+      if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
+      if (sentenceContainsWord(s.sentence, wordKanji)) return true;
+      return kanjiGroups.every(g => sentenceContainsWord(s.sentence, g));
+    };
+  } else {
+    const searchTerms = [wordKanji];
+    if (kanjiStem && kanjiStem.length >= 2 && kanjiStem !== wordKanji) {
+      searchTerms.push(kanjiStem);
+    }
+    matchesSentence = (s) => {
+      if (linkedSentenceIds.has(s.id) || !s.sentence) return false;
+      return searchTerms.some(term => sentenceContainsWord(s.sentence, term));
+    };
+  }
+
+  const unlinked = wordKanji
     ? (app.allUnifiedSentences || []).filter(matchesSentence).slice(0, 8)
     : [];
-  
-  // Count ALL unlinked matches (not just the sliced 8)
-  const unlinkedTotal = searchTerms.length > 0
+  const unlinkedTotal = wordKanji
     ? (app.allUnifiedSentences || []).filter(matchesSentence).length
     : 0;
-  
-  // Use best available search term for highlighting
-  const highlightTerm = searchTerms[0] || '';
   
   const sentenceCount = linked.length;
   const isExpanded = app.sentencePanelExpanded;
@@ -605,6 +611,35 @@ export function extractKanjiStem(word) {
 }
 
 /**
+ * Extract all contiguous kanji runs from a word, in order.
+ * Used by sentence discovery for compound phrases like 会社を立てる where
+ * matching only the leading kanji group causes false positives.
+ *
+ *   会社を立てる → ["会社", "立"]
+ *   頭が固い     → ["頭", "固"]
+ *   気に入る     → ["気", "入"]
+ *   立てる       → ["立"]
+ *   苦しい       → ["苦"]
+ *   禁止         → ["禁止"]
+ *   ロープ       → []
+ */
+export function extractKanjiGroups(word) {
+  if (!word) return [];
+  const groups = [];
+  let current = '';
+  for (const c of word) {
+    if (isKanji(c)) {
+      current += c;
+    } else if (current) {
+      groups.push(current);
+      current = '';
+    }
+  }
+  if (current) groups.push(current);
+  return groups;
+}
+
+/**
  * Find a word in a sentence, falling back to kanji stem for conjugated forms.
  * Returns { idx, matchLen } or null if not found.
  *
@@ -614,17 +649,41 @@ export function extractKanjiStem(word) {
  */
 export function findWordInSentence(sentText, kanji) {
   if (!sentText || !kanji) return null;
-  
+
   // Try 1: exact dictionary form match
   const exactIdx = sentText.indexOf(kanji);
   if (exactIdx >= 0) return { idx: exactIdx, matchLen: kanji.length };
-  
-  // Try 2: kanji stem match (e.g., "起" from "起きる")
+
+  // Try 2: multi-group AND match (e.g. 会社を立てる requires both 会社 AND 立 in
+  // sequence). Prevents the first-group-only false positive — a sentence with
+  // 会社 but no 立 must not match 会社を立てる.
+  const groups = extractKanjiGroups(kanji);
+  if (groups.length >= 2) {
+    let cursor = 0;
+    let firstIdx = -1;
+    let lastEnd = -1;
+    for (const g of groups) {
+      const gIdx = sentText.indexOf(g, cursor);
+      if (gIdx < 0) return null;
+      if (firstIdx < 0) firstIdx = gIdx;
+      lastEnd = gIdx + g.length;
+      cursor = lastEnd;
+    }
+    let endIdx = lastEnd;
+    while (endIdx < sentText.length) {
+      const code = sentText[endIdx].codePointAt(0);
+      if (code >= 0x3040 && code <= 0x309F) { endIdx++; continue; }
+      break;
+    }
+    return { idx: firstIdx, matchLen: endIdx - firstIdx };
+  }
+
+  // Try 3: single-group stem match (e.g., "起" from "起きる" — Phase 1 conjugation)
   const stem = extractKanjiStem(kanji);
   if (!stem || stem === kanji || stem.length === 0) return null;
   const stemIdx = sentText.indexOf(stem);
   if (stemIdx < 0) return null;
-  
+
   // Extend match past trailing hiragana (captures conjugation: 起き → 起きます)
   let endIdx = stemIdx + stem.length;
   while (endIdx < sentText.length) {
