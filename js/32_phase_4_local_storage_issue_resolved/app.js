@@ -3,8 +3,8 @@
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY, DEFAULT_SRS_INTERVALS } from './config.js';
 import { getMarking, sampleArray, shuffleArray, generatePronunciationMutations, showToast, escapeHtml } from './utils.js';
-import {
-  loadMarkings, loadStoryGroups, loadStories,
+import { 
+  loadMarkings, loadStoryGroups, loadStories, 
   loadSimilarGroups, loadSelfStudyTopics, loadSelfStudyWords,
   updateMarkingInDB, addTopic, addSelfStudyWord,
   loadMarkingCategories, DEFAULT_MARKING_CATEGORIES, saveStoryAlert, saveWordAlert,
@@ -13,11 +13,10 @@ import {
   addNewSentenceAndLink, bulkAddSentences, bulkLinkSentences,
   updateSentenceVerified, addSentenceTag, removeSentenceTag,
   loadWordGroups, loadWordGroupMembers,
-  loadGroupStudyLog, setGroupStudied,
   insertUnknownWord
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
-import {
+import { 
   renderLoading, renderLogin, renderHeader, renderTabs, renderStudySubTabs,
   renderLevelSelector, renderWeekDaySelector, renderWordList, renderFlashcard,
   renderSelfStudyTopics, renderSelfStudyWordList,
@@ -36,12 +35,12 @@ class JLPTStudyApp {
   constructor() {
     this.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     window.sb = this.supabase;
-
+    
     this.user = null;
     this.isGuestMode = false;
     this.loading = true;
     this.syncing = false;
-
+    
     this.vocabulary = [];
     this.markings = {};
     this.markingTimestamps = {}; // kanji → Date when marking was last set
@@ -50,7 +49,7 @@ class JLPTStudyApp {
     this.storyGroups = [];
     this.stories = [];
     this.similarGroups = [];
-
+    
     // Word relations (replaces Similar tab)
     this.wordGroups = [];
     this.wordGroupMembers = [];
@@ -59,10 +58,9 @@ class JLPTStudyApp {
     this.relationsFilter = 'all';
     this.relationsSearch = '';
     this.relationsPage = 0;
-    this.relationsStudiedGroups = new Set();  // populated by loadAllData() (Phase 4)
     this.selfStudyTopics = [];
     this.selfStudyWords = [];
-
+    
     // Unified kanji data
     this.kanjiWords = [];      // from japanese_unified_words
     this.kanjiWordBooks = [];  // from japanese_unified_word_books
@@ -72,26 +70,26 @@ class JLPTStudyApp {
     this.kanjiSentenceMap = {};   // word_id → [{ link_id, sentence_id, sentence, meaning_en, rating, source, jlpt_level }]
     this.allUnifiedSentences = [];  // all sentences for discovery
     this.sentencePanelExpanded = false;
-
+    
     // Add sentence bottom sheet
     this.showAddSentenceSheet = false;
     this.addSentenceSaving = false;
     this.newSentenceText = '';
     this.newSentenceMeaning = '';
     this.newSentenceSource = 'manual';
-
+    
     // Bulk sentence linker
     this.bulkSentenceInput = '';
     this.bulkSource = 'manual';
     this.bulkParsedResults = null; // [{ sentence, meaning, detectedWords, linkedWordIds }]
     this.bulkSaving = false;
     this.bulkResultMessage = '';
-
+    
     // Review queue
     this.reviewFilter = 'unverified';
     this.reviewSourceFilter = 'all';
     this.reviewPage = 0;
-
+    
     this.currentTab = 'study';
     this.studySubTab = 'goi';
     this.studyView = 'level';
@@ -100,41 +98,41 @@ class JLPTStudyApp {
     this.selectedCategory = null;
     this.selectedTestType = 'kanji';
     this.selectedTopic = null;
-
+    
     // Study level selector
     this.studyMode = 'all'; // 'all' or 'custom'
     this.studyPreset = 10;
     this.studyLevelCounts = { N1: 10, N2: 10, N3: 10 };
-
+    
     this.studyWords = [];
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
-
+    
     this.selectedStoryGroup = null;
     this.storyFilter = '';
     this.storySearchMode = 'groups'; // 'groups', 'kanji', 'words'
     this.selectedSimilarGroup = null;
     this.similarFilter = { search: '' };
-
+    
     // Story overlay state
     this.storyOverlay = null; // { word, step, expandedPart, groupKey, highlightKanji, kanjiParts }
-
+    
     // Story alert state
     this.storyAlertTarget = null; // { kanji, groupKanji, source }
     this.storyAlertComment = '';
     this.storyAlertType = 'incorrect';
     this.storyAlertSaving = false;
-
+    
     // Word alert state
     this.wordAlertTarget = null; // { kanji, hiragana, meaning, source }
     this.wordAlertComment = '';
     this.wordAlertType = 'wrong_reading';
     this.wordAlertSaving = false;
-
+    
     this.srsView = 'setup';
-    this.srsConfig = {
-      n1Count: 0, n2Count: 0, n3Count: 0,
+    this.srsConfig = { 
+      n1Count: 0, n2Count: 0, n3Count: 0, 
       testType: 'hiragana_to_kanji',
       selectionMode: 'level', // 'level' or 'marking'
       markingCounts: { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3, 6: 3 },
@@ -142,7 +140,7 @@ class JLPTStudyApp {
       levelPreset: 5,
       useSRSIntervals: true, // filter by due date in marking mode
     };
-
+    
     // Study word limit
     this.studyWordLimit = 0;
     this.srsWords = [];
@@ -151,18 +149,18 @@ class JLPTStudyApp {
     this.srsOptions = [];
     this.srsSelectedAnswer = null;
     this.srsShowResult = false;
-
+    
     this.showAddTopicModal = false;
     this.showAddWordModal = false;
-
+    
     this.init();
   }
-
+  
   async init() {
     this.render();
     const { data: { session } } = await this.supabase.auth.getSession();
     if (session) this.user = session.user;
-
+    
     this.supabase.auth.onAuthStateChange((event, session) => {
       // Skip INITIAL_SESSION to avoid double-load
       if (event === 'INITIAL_SESSION') return;
@@ -171,12 +169,12 @@ class JLPTStudyApp {
       if (event === 'SIGNED_IN') this.loadAllData();
       this.render();
     });
-
+    
     if (this.user) await this.loadAllData();
     this.loading = false;
     this.render();
   }
-
+  
   // Guest mode - skip login and use hardcoded user ID
   async enterGuestMode() {
     this.isGuestMode = true;
@@ -185,7 +183,7 @@ class JLPTStudyApp {
     await this.loadAllData();
     this.render();
   }
-
+  
   async signInWithGoogle() {
     const { error } = await this.supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -193,7 +191,7 @@ class JLPTStudyApp {
     });
     if (error) alert('Login failed: ' + error.message);
   }
-
+  
   async signOut() {
     if (this.isGuestMode) {
       this.isGuestMode = false;
@@ -208,15 +206,15 @@ class JLPTStudyApp {
     this.studyView = 'level';
     this.render();
   }
-
+  
   async loadAllData() {
     this.syncing = true;
     this.render();
-
+    
     const userId = this.user?.id;
     console.log('loadAllData: userId:', userId);
-
-    const [markingsResult, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences, wordGroups, wordGroupMembers, relationsStudiedRemote] = await Promise.all([
+    
+    const [markingsResult, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences, wordGroups, wordGroupMembers] = await Promise.all([
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
       loadStoryGroups(this.supabase),
@@ -228,10 +226,9 @@ class JLPTStudyApp {
       loadUnifiedWordBooks(this.supabase),
       loadAllUnifiedSentences(this.supabase),
       loadWordGroups(this.supabase),
-      loadWordGroupMembers(this.supabase),
-      loadGroupStudyLog(this.supabase, userId)
+      loadWordGroupMembers(this.supabase)
     ]);
-
+    
     this.markings = markingsResult.markings || markingsResult;
     this.markingTimestamps = markingsResult.timestamps || {};
     this.markingCategories = markingCategories;
@@ -245,41 +242,12 @@ class JLPTStudyApp {
     this.allUnifiedSentences = allSentences;
     this.wordGroups = wordGroups;
     this.wordGroupMembers = wordGroupMembers;
-
-    // ===== PHASE 4: Group study log + one-time localStorage migration =====
-    // Pulls 'relationsStudied' set from localStorage to japanese_group_study_log,
-    // then clears the local key. Idempotent — safe across multiple tabs.
-    try {
-      const remoteSet = relationsStudiedRemote || new Set();
-      const localRaw = localStorage.getItem('relationsStudied');
-      if (localRaw) {
-        let localIds = [];
-        try {
-          const parsed = JSON.parse(localRaw);
-          if (Array.isArray(parsed)) {
-            localIds = parsed
-              .map(id => parseInt(id, 10))
-              .filter(id => !Number.isNaN(id));
-          }
-        } catch { /* malformed — drop it */ }
-        const diff = localIds.filter(id => !remoteSet.has(id));
-        if (diff.length > 0) {
-          await Promise.all(diff.map(id => setGroupStudied(this.supabase, userId, id, true)));
-          diff.forEach(id => remoteSet.add(id));
-        }
-        localStorage.removeItem('relationsStudied');
-      }
-      this.relationsStudiedGroups = remoteSet;
-    } catch (err) {
-      console.error('[Phase 4] Group study log migration failed:', err);
-      this.relationsStudiedGroups = new Set();
-    }
-
+    
     // ===== PERF: Pre-build lookup caches =====
     // Known kanji set — used by tappable sentence renderer
     this.knownKanjiSet = new Set();
     kanjiWords.forEach(w => { if (w.kanji) this.knownKanjiSet.add(w.kanji); });
-
+    
     // Word group lookup — wordId → [groupId, ...]
     this._wordGroupLookup = {};
     this._groupMemberCount = {};
@@ -291,13 +259,13 @@ class JLPTStudyApp {
       }
       this._groupMemberCount[gid] = (this._groupMemberCount[gid] || 0) + 1;
     });
-
+    
     // Derive vocabulary (Goi study words) from unified tables
     // JLPT book entries → one vocabulary item per word-book pairing
     const JLPT_BOOKS = ['JLPT_N1', 'JLPT_N2', 'JLPT_N3'];
     const wordLookup = {};
     kanjiWords.forEach(w => { wordLookup[w.id] = w; });
-
+    
     this.vocabulary = kanjiWordBooks
       .filter(wb => JLPT_BOOKS.includes(wb.book_code))
       .map(wb => {
@@ -311,10 +279,10 @@ class JLPTStudyApp {
         };
       })
       .filter(Boolean);
-
+    
     console.log(`Loaded: ${this.vocabulary.length} vocab, ${kanjiWords.length} words, ${kanjiWordBooks.length} book-links, ${allSentences.length} sentences, ${wordGroups.length} word groups`);
     this.syncing = false;
-
+    
     // Restore active session if one was in progress (SRS takes priority)
     if (this._restoreSRSSession()) {
       this.currentTab = 'srs';
@@ -324,10 +292,10 @@ class JLPTStudyApp {
       this.studySubTab = 'goi';
       console.log('Resumed study session');
     }
-
+    
     this.render();
   }
-
+  
   selectTab(tab) {
     this.currentTab = tab;
     if (tab === 'study') {
@@ -344,7 +312,7 @@ class JLPTStudyApp {
     this.relationsCategory = null;
     this.render();
   }
-
+  
   // Word Relations navigation
   selectWordGroup(groupId) {
     const group = this.wordGroups.find(g => g.id === groupId);
@@ -353,12 +321,12 @@ class JLPTStudyApp {
       this.render();
     }
   }
-
+  
   backToRelationsList() {
     this.selectedWordGroup = null;
     this.render();
   }
-
+  
   backToFolders() {
     this.relationsCategory = null;
     this.selectedWordGroup = null;
@@ -366,7 +334,7 @@ class JLPTStudyApp {
     this.relationsPage = 0;
     this.render();
   }
-
+  
   openRelationsFolder(type) {
     this.relationsCategory = type;
     this.relationsSearch = '';
@@ -374,15 +342,15 @@ class JLPTStudyApp {
     this.selectedWordGroup = null;
     this.render();
   }
-
+  
   async addWordToGroup(groupId, kanji) {
     if (!kanji || !kanji.trim()) return;
     kanji = kanji.trim();
-
+    
     // Find or skip if word exists in unified words
     let wordEntry = this.kanjiWords.find(w => w.kanji === kanji);
     let wordId;
-
+    
     if (wordEntry) {
       wordId = wordEntry.id;
     } else {
@@ -400,15 +368,15 @@ class JLPTStudyApp {
         if (this.knownKanjiSet) this.knownKanjiSet.add(kanji);
       } catch (e) { console.error(e); return; }
     }
-
+    
     // Check if already a member
     const existing = this.wordGroupMembers.find(m => m.group_id === groupId && m.word_id === wordId);
     if (existing) { alert('This word is already in the group.'); return; }
-
+    
     // Get next sort_order
     const existingMembers = this.wordGroupMembers.filter(m => m.group_id === groupId);
     const nextSort = existingMembers.length > 0 ? Math.max(...existingMembers.map(m => m.sort_order || 0)) + 1 : 1;
-
+    
     try {
       const { data, error } = await this.supabase
         .from('japanese_word_group_members')
@@ -425,13 +393,13 @@ class JLPTStudyApp {
       this.render();
     } catch (e) { console.error(e); }
   }
-
+  
   setRelationsFilter(filter) {
     this.relationsFilter = filter;
     this.relationsPage = 0;
     this.render();
   }
-
+  
   setRelationsSearch(search) {
     this.relationsSearch = search;
     this.relationsPage = 0;
@@ -441,7 +409,7 @@ class JLPTStudyApp {
       // Re-render will happen naturally via events.js debounce
     }
   }
-
+  
   selectStudySubTab(subTab) {
     this.studySubTab = subTab;
     this.studyView = 'level';
@@ -454,20 +422,20 @@ class JLPTStudyApp {
     this.selectedCategory = null;
     this.render();
   }
-
+  
   selectLevel(level) {
     this.selectedLevel = level;
     this.selectedCategory = null;
     this.studyView = 'weekday';
     this.render();
   }
-
+  
   selectTopic(topicId) {
     this.selectedTopic = this.selfStudyTopics.find(t => t.id === topicId);
     this.studyView = 'wordlist';
     this.render();
   }
-
+  
   backToLevel() {
     if (this.studySubTab === 'kanji') {
       // From kanji chapters → back to book list
@@ -483,7 +451,7 @@ class JLPTStudyApp {
     }
     this.render();
   }
-
+  
   backToWeekDay() {
     if (this.studySubTab === 'kanji') {
       // From kanji flashcard → back to word list (or chapters if no chapter selected)
@@ -496,9 +464,9 @@ class JLPTStudyApp {
     }
     this.render();
   }
-
+  
   // ===== KANJI SUB-TAB NAVIGATION =====
-
+  
   selectBook(bookCode) {
     this.selectedBook = bookCode;
     this.selectedChapter = null;
@@ -506,14 +474,14 @@ class JLPTStudyApp {
     this.kanjiView = 'chapters';
     this.render();
   }
-
+  
   selectChapter(chapterName) {
     this.selectedChapter = chapterName;
     this.selectedCategory = null;
     this.kanjiView = 'wordlist';
     this.render();
   }
-
+  
   backToBooks() {
     this.selectedBook = null;
     this.selectedChapter = null;
@@ -521,14 +489,14 @@ class JLPTStudyApp {
     this.kanjiView = 'books';
     this.render();
   }
-
+  
   backToChapters() {
     this.selectedChapter = null;
     this.selectedCategory = null;
     this.kanjiView = 'chapters';
     this.render();
   }
-
+  
   async startKanjiStudy(allInBook = false) {
     // Determine which word IDs to study
     let bookEntries;
@@ -539,25 +507,25 @@ class JLPTStudyApp {
         wb.book_code === this.selectedBook && wb.chapter === this.selectedChapter
       );
     }
-
+    
     const wordIds = [...new Set(bookEntries.map(wb => wb.word_id))];
     let words = wordIds.map(id => this.kanjiWords.find(w => w.id === id)).filter(Boolean);
-
+    
     // Apply marking category filter if set
     if (this.selectedCategory !== null && this.selectedCategory !== undefined) {
       words = words.filter(w => getMarking(this.markings, w) === this.selectedCategory);
     }
-
+    
     // Read word limit from input
     this.studyWordLimit = parseInt(document.getElementById('kanjiWordLimitInput')?.value) || 0;
-
+    
     // Load sentences for context AND for the sentence panel
     try {
       const sentenceMap = await loadSentencesForWords(this.supabase, wordIds);
-
+      
       // Store raw sentence map for the sentence panel (with link_id for rating)
       this.kanjiSentenceMap = sentenceMap;
-
+      
       // Enrich words with best sentence context for flashcard display
       words = words.map(w => {
         const sentences = sentenceMap[w.id];
@@ -582,11 +550,11 @@ class JLPTStudyApp {
       console.warn('Sentences load skipped:', err);
       this.kanjiSentenceMap = {};
     }
-
+    
     // Apply word limit then shuffle
     let shuffled = shuffleArray([...words]);
     if (this.studyWordLimit > 0) shuffled = shuffled.slice(0, this.studyWordLimit);
-
+    
     this.studyWords = shuffled;
     this.currentIndex = 0;
     this.revealStep = 0;
@@ -595,7 +563,7 @@ class JLPTStudyApp {
     this.kanjiView = 'flashcard';
     this.render();
   }
-
+  
   toggleSentencePanel() {
     this.sentencePanelExpanded = !this.sentencePanelExpanded;
     // Surgical update — only re-render the sentence panel div
@@ -605,7 +573,7 @@ class JLPTStudyApp {
       this.attachSentencePanelListeners();
     }
   }
-
+  
   async rateSentence(linkId, newRating) {
     const result = await updateSentenceRating(this.supabase, linkId, newRating);
     if (result.success) {
@@ -627,7 +595,7 @@ class JLPTStudyApp {
       showToast('Rating failed', 'error');
     }
   }
-
+  
   async linkSentence(wordId, sentenceId) {
     const userId = this.user?.id || null;
     const result = await linkSentenceToWord(this.supabase, wordId, sentenceId, userId);
@@ -650,7 +618,7 @@ class JLPTStudyApp {
       showToast('Link failed: ' + result.error, 'error');
     }
   }
-
+  
   attachSentencePanelListeners() {
     document.getElementById('toggleSentencePanelBtn')?.addEventListener('click', () => this.toggleSentencePanel());
     document.querySelectorAll('[data-rate-link]').forEach(btn => {
@@ -680,7 +648,7 @@ class JLPTStudyApp {
         this.removeTagFromSentence(parseInt(btn.dataset.removeTag), btn.dataset.tagValue);
       });
     });
-
+    
     // ===== TAP-TO-SAVE: word taps in sentence panel =====
     document.querySelectorAll('#flashcardExtraContent [data-tap-word]').forEach(span => {
       span.addEventListener('click', (e) => {
@@ -691,26 +659,26 @@ class JLPTStudyApp {
       });
     });
   }
-
+  
   // ===== TAP-TO-SAVE: popup + DB insert =====
-
+  
   _dismissWordSavePopup() {
     document.querySelector('.word-save-popup')?.remove();
   }
-
+  
   _showWordSavePopup(kanji, anchorEl) {
     // Remove any existing popup
     this._dismissWordSavePopup();
-
+    
     // Look up word details
     const found = this.kanjiWords.find(w => w.kanji === kanji);
     const alreadySaved = !!found;
-
+    
     // Create popup element
     const popup = document.createElement('div');
     popup.className = 'word-save-popup';
     const kanjiEsc = escapeHtml(kanji);
-
+    
     if (alreadySaved) {
       popup.innerHTML = `
         <div style="display:flex; align-items:flex-start; gap:10px;">
@@ -722,28 +690,28 @@ class JLPTStudyApp {
             </div>
             ${found.meaning_en || found.meaning ? `<div style="font-size:0.7rem; color:#94a3b8; line-height:1.3; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(found.meaning_en || found.meaning || '')}</div>` : ''}
           </div>
-          <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>✕</button>
+          <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>\u2715</button>
         </div>
       `;
     } else {
       popup.innerHTML = `
         <span class="word-save-popup__word">${kanjiEsc}</span>
         <div class="word-save-popup__actions">
-          <button class="word-save-popup__btn word-save-popup__btn--save" data-save-tap-word="${kanjiEsc}">Save ❌</button>
-          <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>✕</button>
+          <button class="word-save-popup__btn word-save-popup__btn--save" data-save-tap-word="${kanjiEsc}">Save \u274C</button>
+          <button class="word-save-popup__btn word-save-popup__btn--cancel" data-dismiss-tap-popup>\u2715</button>
         </div>
       `;
     }
-
+    
     // Position below the tapped word
     const rect = anchorEl.getBoundingClientRect();
-
+    
     popup.style.position = 'fixed';
     popup.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 200))}px`;
     popup.style.top = `${rect.bottom + 6}px`;
-
+    
     document.body.appendChild(popup);
-
+    
     // Wire save button
     popup.querySelector('[data-save-tap-word]')?.addEventListener('click', async () => {
       const btn = popup.querySelector('[data-save-tap-word]');
@@ -751,12 +719,12 @@ class JLPTStudyApp {
       await this.saveUnknownWord(kanji);
       this._dismissWordSavePopup();
     });
-
+    
     // Wire cancel
     popup.querySelector('[data-dismiss-tap-popup]')?.addEventListener('click', () => {
       this._dismissWordSavePopup();
     });
-
+    
     // Auto-dismiss on outside click (delay to avoid immediate trigger)
     setTimeout(() => {
       const handler = (e) => {
@@ -767,18 +735,18 @@ class JLPTStudyApp {
       };
       document.addEventListener('click', handler, true);
     }, 50);
-
+    
     // Auto-dismiss if already saved after 1.5s
     if (alreadySaved) {
       setTimeout(() => this._dismissWordSavePopup(), 1500);
     }
   }
-
+  
   async saveUnknownWord(kanji) {
     if (!kanji) return;
-
+    
     const result = await insertUnknownWord(this.supabase, kanji);
-
+    
     if (result.success) {
       // Add to local kanjiWords cache so it immediately shows as "saved"
       const newWord = {
@@ -793,14 +761,14 @@ class JLPTStudyApp {
       };
       this.kanjiWords.push(newWord);
       if (this.knownKanjiSet) this.knownKanjiSet.add(kanji);
-
+      
       // Surgically refresh sentence panel to update tap-word styles
       const container = document.getElementById('flashcardExtraContent');
       if (container) {
         container.innerHTML = renderSentencePanel(this);
         this.attachSentencePanelListeners();
       }
-
+      
       showToast(`「${kanji}」saved — add reading/meaning in Data Manager`, 'success');
     } else if (result.reason === 'exists') {
       showToast(`「${kanji}」already in database`, 'warn');
@@ -808,9 +776,9 @@ class JLPTStudyApp {
       showToast('Save failed: ' + (result.error || 'Unknown error'), 'error');
     }
   }
-
+  
   // ===== ADD SENTENCE BOTTOM SHEET =====
-
+  
   openAddSentenceSheet() {
     this.showAddSentenceSheet = true;
     this.addSentenceSaving = false;
@@ -821,12 +789,12 @@ class JLPTStudyApp {
     // Focus the textarea after render
     setTimeout(() => document.getElementById('newSentenceTextInput')?.focus(), 100);
   }
-
+  
   closeAddSentenceSheet() {
     this.showAddSentenceSheet = false;
     this.render();
   }
-
+  
   // Find the unified word ID for any word
   // After merge, vocabulary words already have unified IDs
   resolveUnifiedWordId(word) {
@@ -836,21 +804,21 @@ class JLPTStudyApp {
     const match = this.kanjiWords.find(w => w.kanji === kanji);
     return match?.id || null;
   }
-
+  
   async submitNewSentence() {
     const sentence = document.getElementById('newSentenceTextInput')?.value?.trim();
     if (!sentence) { showToast('Please enter a sentence', 'error'); return; }
-
+    
     const word = getCurrentStudyWord(this);
     if (!word) return;
-
+    
     this.addSentenceSaving = true;
     this.render();
-
+    
     const meaning = document.getElementById('newSentenceMeaningInput')?.value?.trim() || '';
     const source = document.getElementById('newSentenceSourceInput')?.value?.trim() || 'manual';
     const level = document.getElementById('newSentenceLevelInput')?.value || '';
-
+    
     // Resolve unified word ID (Goi words don't have unified IDs directly)
     const unifiedWordId = this.resolveUnifiedWordId(word);
     if (!unifiedWordId) {
@@ -859,16 +827,16 @@ class JLPTStudyApp {
       this.render();
       return;
     }
-
+    
     const result = await addNewSentenceAndLink(this.supabase, {
       sentence,
       meaning_en: meaning,
       source,
       jlpt_level: level || word.jlpt_level || word.level || null,
     }, unifiedWordId, this.user?.id);
-
+    
     this.addSentenceSaving = false;
-
+    
     if (result.success) {
       if (result.sentence) {
         this.allUnifiedSentences.push(result.sentence);
@@ -880,7 +848,7 @@ class JLPTStudyApp {
           rating: null,
         });
       }
-
+      
       this.showAddSentenceSheet = false;
       this.render();
       showToast('Sentence added & linked!', 'success');
@@ -889,9 +857,9 @@ class JLPTStudyApp {
       showToast('Failed: ' + (result.error || 'Unknown error'), 'error');
     }
   }
-
+  
   // ===== BULK SENTENCE LINKER =====
-
+  
   openBulkLinker() {
     this.kanjiView = 'bulk-linker';
     this.bulkSentenceInput = '';
@@ -901,17 +869,17 @@ class JLPTStudyApp {
     this.bulkResultMessage = '';
     this.render();
   }
-
+  
   parseBulkSentences() {
     const text = document.getElementById('bulkSentenceInput')?.value?.trim();
     if (!text) { showToast('Paste some sentences first', 'error'); return; }
-
+    
     this.bulkSentenceInput = text;
     this.bulkSource = document.getElementById('bulkSourceInput')?.value?.trim() || 'manual';
     const level = document.getElementById('bulkLevelInput')?.value || '';
-
+    
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
+    
     // For each sentence, detect which words from kanjiWords it contains
     // Build a lookup: stem → word objects
     const stemMap = {};
@@ -922,14 +890,14 @@ class JLPTStudyApp {
         stemMap[stem].push(w);
       }
     });
-
+    
     // Sort stems by length descending for greedy matching
     const sortedStems = Object.keys(stemMap).sort((a, b) => b.length - a.length);
-
+    
     this.bulkParsedResults = lines.map(line => {
       const detectedWords = [];
       const seenWordIds = new Set();
-
+      
       for (const stem of sortedStems) {
         if (line.includes(stem)) {
           for (const w of stemMap[stem]) {
@@ -940,7 +908,7 @@ class JLPTStudyApp {
           }
         }
       }
-
+      
       return {
         sentence: line,
         meaning: '', // user can add later
@@ -949,18 +917,18 @@ class JLPTStudyApp {
         linkedWordIds: [], // track which have been linked
       };
     });
-
+    
     this.render();
     showToast(`Detected words in ${lines.length} sentences`, 'success');
   }
-
+  
   async bulkLinkSingle(wordId, sentenceIdx) {
     const result = this.bulkParsedResults?.[sentenceIdx];
     if (!result || !result.insertedSentenceId) {
       showToast('Save all sentences first', 'error');
       return;
     }
-
+    
     const linkResult = await linkSentenceToWord(this.supabase, wordId, result.insertedSentenceId, this.user?.id);
     if (linkResult.success) {
       if (!result.linkedWordIds) result.linkedWordIds = [];
@@ -971,16 +939,16 @@ class JLPTStudyApp {
       showToast('Link failed', 'error');
     }
   }
-
+  
   async bulkSaveAndLinkAll() {
     if (!this.bulkParsedResults || this.bulkParsedResults.length === 0) return;
-
+    
     this.bulkSaving = true;
     this.render();
-
+    
     const source = this.bulkSource || 'manual';
     const level = document.getElementById('bulkLevelInput')?.value || '';
-
+    
     // Step 1: Insert all sentences
     const sentencesToAdd = this.bulkParsedResults.map(r => ({
       sentence: r.sentence,
@@ -988,16 +956,16 @@ class JLPTStudyApp {
       source,
       jlpt_level: r.jlpt_level || level || null,
     }));
-
+    
     const addResult = await bulkAddSentences(this.supabase, sentencesToAdd, this.user?.id);
-
+    
     if (addResult.added === 0) {
       this.bulkSaving = false;
       this.render();
       showToast('Failed to save sentences: ' + (addResult.errors?.[0] || 'Unknown'), 'error');
       return;
     }
-
+    
     // Map inserted sentence IDs back to parsed results
     const inserted = addResult.insertedSentences || [];
     inserted.forEach((s, i) => {
@@ -1005,7 +973,7 @@ class JLPTStudyApp {
         this.bulkParsedResults[i].insertedSentenceId = s.id;
       }
     });
-
+    
     // Step 2: Build all word-sentence links
     const linksToCreate = [];
     this.bulkParsedResults.forEach((result, idx) => {
@@ -1014,28 +982,28 @@ class JLPTStudyApp {
         linksToCreate.push({ word_id: dw.id, sentence_id: result.insertedSentenceId });
       });
     });
-
+    
     let linkedCount = 0;
     if (linksToCreate.length > 0) {
       const linkResult = await bulkLinkSentences(this.supabase, linksToCreate, this.user?.id);
       linkedCount = linkResult.linked || 0;
-
+      
       // Mark all as linked in local state
       this.bulkParsedResults.forEach(result => {
         result.linkedWordIds = result.detectedWords.map(dw => dw.id);
       });
     }
-
+    
     // Add to local sentence pool
     inserted.forEach(s => this.allUnifiedSentences.push(s));
-
+    
     this.bulkSaving = false;
     this.bulkResultMessage = `✅ ${addResult.added} sentences saved, ${linkedCount} word links created`;
     this.render();
   }
-
+  
   // ===== REVIEW QUEUE =====
-
+  
   openReviewQueue() {
     this.kanjiView = 'review-queue';
     this.reviewFilter = 'unverified';
@@ -1043,22 +1011,22 @@ class JLPTStudyApp {
     this.reviewPage = 0;
     this.render();
   }
-
+  
   setReviewFilter(status) {
     this.reviewFilter = status;
     this.reviewPage = 0;
     this.render();
   }
-
+  
   setReviewSourceFilter(source) {
     this.reviewSourceFilter = source;
     this.reviewPage = 0;
     this.render();
   }
-
+  
   reviewPrevPage() { if (this.reviewPage > 0) { this.reviewPage--; this.render(); } }
   reviewNextPage() { this.reviewPage++; this.render(); }
-
+  
   async verifySentence(sentenceId, status = 'verified') {
     const result = await updateSentenceVerified(this.supabase, sentenceId, status);
     if (result.success) {
@@ -1077,12 +1045,12 @@ class JLPTStudyApp {
       showToast('Update failed: ' + result.error, 'error');
     }
   }
-
+  
   async addTagToSentence(sentenceId) {
     const input = document.querySelector(`[data-tag-input="${sentenceId}"]`);
     const tag = input?.value?.trim();
     if (!tag) return;
-
+    
     const result = await addSentenceTag(this.supabase, sentenceId, tag);
     if (result.success) {
       // Update local data
@@ -1098,7 +1066,7 @@ class JLPTStudyApp {
       showToast('Tag failed: ' + result.error, 'error');
     }
   }
-
+  
   async removeTagFromSentence(sentenceId, tag) {
     const result = await removeSentenceTag(this.supabase, sentenceId, tag);
     if (result.success) {
@@ -1114,47 +1082,47 @@ class JLPTStudyApp {
       showToast('Remove failed: ' + result.error, 'error');
     }
   }
-
+  
   setTestType(type) {
     this.selectedTestType = type;
     this.revealStep = 0;
     this.canvasImageData = null;
     this.render();
   }
-
+  
   async updateHint(kanji, newHint) {
     // Update in unified words DB
     const word = this.kanjiWords.find(w => w.kanji === kanji || w.raw === kanji);
     if (!word) { showToast('Word not found in DB', 'error'); return; }
-
+    
     const { error } = await this.supabase.from('japanese_unified_words').update({ hint: newHint }).eq('id', word.id);
     if (error) { showToast('Hint save failed: ' + error.message, 'error'); return; }
-
+    
     // Update local caches
     word.hint = newHint;
     // Also update in active study/SRS words
     [...(this.studyWords || []), ...(this.srsWords || [])].forEach(w => {
       if ((w.kanji === kanji || w.raw === kanji) && w.id === word.id) w.hint = newHint;
     });
-    showToast(newHint ? '💡 Hint saved' : 'Hint cleared');
+    showToast(newHint ? '\uD83D\uDCA1 Hint saved' : 'Hint cleared');
     this.render();
   }
-
+  
   async updateMarking(kanji, newMarking) {
     const oldMarking = this.markings[kanji] || 0;
     this.markings[kanji] = newMarking;
     this.markingTimestamps[kanji] = new Date().toISOString();
     this.render();
-
+    
     if (!this.user) { showToast('Not logged in — marking not saved!', 'error'); return; }
     const success = await updateMarkingInDB(this.supabase, this.user.id, kanji, newMarking);
-    if (!success) {
+    if (!success) { 
       showToast('Save failed!', 'error');
-      this.markings[kanji] = oldMarking;
-      this.render();
+      this.markings[kanji] = oldMarking; 
+      this.render(); 
     }
   }
-
+  
   // Check if a word is due for review based on its marking interval
   isWordDue(kanji, marking) {
     if (!marking || marking === 0) return false;
@@ -1165,7 +1133,7 @@ class JLPTStudyApp {
     const dueDate = new Date(markedDate.getTime() + intervalDays * 24 * 60 * 60 * 1000);
     return new Date() >= dueDate;
   }
-
+  
   // Get stats per category: total words and how many are due
   getDueStats() {
     const stats = {};
@@ -1176,22 +1144,22 @@ class JLPTStudyApp {
     }
     return stats;
   }
-
+  
   // Save custom SRS intervals to localStorage
   saveSRSIntervals(intervals) {
     this.srsIntervals = { ...intervals };
     localStorage.setItem('srs_intervals', JSON.stringify(this.srsIntervals));
   }
-
+  
   // Shared: load sentences for any set of study words (Goi, Kanji, SRS)
   // Maps words to unified IDs via kanji text, then loads sentences
   async loadSentencesForStudyWords(words) {
     if (!words || words.length === 0) return;
-
+    
     // Build a kanji → unified word ID lookup
     const kanjiToUnified = {};
     this.kanjiWords.forEach(w => { kanjiToUnified[w.kanji] = w.id; });
-
+    
     // Collect unified word IDs for the study set
     const unifiedIds = [];
     words.forEach(w => {
@@ -1199,9 +1167,9 @@ class JLPTStudyApp {
       const uid = w.id && this.kanjiWords.some(kw => kw.id === w.id) ? w.id : kanjiToUnified[kanji];
       if (uid && !unifiedIds.includes(uid)) unifiedIds.push(uid);
     });
-
+    
     if (unifiedIds.length === 0) return;
-
+    
     try {
       const sentenceMap = await loadSentencesForWords(this.supabase, unifiedIds);
       // Merge into kanjiSentenceMap (don't overwrite existing entries)
@@ -1209,7 +1177,7 @@ class JLPTStudyApp {
         this.kanjiSentenceMap[wid] = sentences;
       }
       console.log(`Sentences loaded: ${Object.keys(sentenceMap).length}/${unifiedIds.length} words have sentences`);
-
+      
       // Enrich study words with best sentence context (sentence_before/sentence_after)
       const activeWords = this.currentTab === 'srs' ? this.srsWords : this.studyWords;
       if (activeWords) {
@@ -1230,20 +1198,20 @@ class JLPTStudyApp {
           }
         });
       }
-
+      
       // Re-render to show updated context + sentence panel
       this.render();
     } catch (err) {
       console.warn('Sentence loading skipped:', err);
     }
   }
-
+  
   startStudy(weekDay = null) {
     this.studyWordLimit = parseInt(document.getElementById('studyWordLimit')?.value) || 0;
     let words = this.selectedLevel === 'ALL' ? this.vocabulary : this.vocabulary.filter(v => v.level === this.selectedLevel);
     if (weekDay) words = words.filter(w => w.weekDayLabel === weekDay);
     if (this.selectedCategory !== null) words = words.filter(w => getMarking(this.markings, w) === this.selectedCategory);
-
+    
     let shuffled = shuffleArray([...words]);
     if (this.studyWordLimit > 0) shuffled = shuffled.slice(0, this.studyWordLimit);
     this.studyWords = shuffled;
@@ -1253,13 +1221,13 @@ class JLPTStudyApp {
     this.sentencePanelExpanded = false;
     this.studyView = 'flashcard';
     this.render();
-
+    
     this._saveStudySession();
-
+    
     // Load sentences in background (non-blocking)
     this.loadSentencesForStudyWords(shuffled);
   }
-
+  
   // Quick start from level selector (All/Custom mode)
   startStudyQuick() {
     // Read counts from inputs or use stored values
@@ -1267,7 +1235,7 @@ class JLPTStudyApp {
       const input = document.getElementById(`studyLevel${level}`);
       if (input) this.studyLevelCounts[level] = parseInt(input.value) || 0;
     }
-
+    
     let allWords = [];
     for (const level of ['N1', 'N2', 'N3']) {
       const count = this.studyLevelCounts[level];
@@ -1275,7 +1243,7 @@ class JLPTStudyApp {
       const pool = this.vocabulary.filter(v => v.level === level);
       allWords.push(...sampleArray(pool, count));
     }
-
+    
     this.studyWords = shuffleArray(allWords);
     this.currentIndex = 0;
     this.revealStep = 0;
@@ -1283,13 +1251,13 @@ class JLPTStudyApp {
     this.sentencePanelExpanded = false;
     this.studyView = 'flashcard';
     this.render();
-
+    
     this._saveStudySession();
-
+    
     // Load sentences in background (non-blocking)
     this.loadSentencesForStudyWords(this.studyWords);
   }
-
+  
   nextWord() {
     if (this.currentIndex < this.studyWords.length - 1) {
       this.currentIndex++;
@@ -1299,7 +1267,7 @@ class JLPTStudyApp {
       this.render();
     }
   }
-
+  
   prevWord() {
     if (this.currentIndex > 0) {
       this.currentIndex--;
@@ -1309,7 +1277,7 @@ class JLPTStudyApp {
       this.render();
     }
   }
-
+  
   randomWord() {
     if (this.studyWords.length > 1) {
       let n; do { n = Math.floor(Math.random() * this.studyWords.length); } while (n === this.currentIndex);
@@ -1320,7 +1288,7 @@ class JLPTStudyApp {
       this.render();
     }
   }
-
+  
   finishStudy() {
     this.studyView = 'results';
     this._saveTodayPractice(this.studyWords);
@@ -1328,7 +1296,7 @@ class JLPTStudyApp {
     this._saveStudySession();
     this.render();
   }
-
+  
   reviewAgain() {
     this.currentIndex = 0;
     this.revealStep = 0;
@@ -1337,7 +1305,7 @@ class JLPTStudyApp {
     this._saveStudySession();
     this.render();
   }
-
+  
   shuffleRestart() {
     this.studyWords = shuffleArray([...this.studyWords]);
     this.currentIndex = 0;
@@ -1347,7 +1315,7 @@ class JLPTStudyApp {
     this._saveStudySession();
     this.render();
   }
-
+  
   reviewByMarking(mark) {
     const filtered = this.studyWords.filter(w => getMarking(this.markings, w) === mark);
     if (filtered.length === 0) { showToast('No words with this marking'); return; }
@@ -1360,18 +1328,18 @@ class JLPTStudyApp {
     this.loadSentencesForStudyWords(this.studyWords);
     this.render();
   }
-
+  
   revealNext() {
     const maxSteps = this.selectedTestType === 'reading' ? 3 : 4;
     if (this.revealStep >= maxSteps) return;
     if (this.selectedTestType === 'writing') this.canvasImageData = saveCanvasData('writingCanvas');
-
+    
     // Get current word to check what content exists
     const word = this.currentTab === 'srs' ? this.srsWords?.[this.srsCurrentIndex] : this.studyWords?.[this.currentIndex];
     const hasHint = word?.hint;
     const hasContext = word?.sentence_before || word?.sentence_after || word?.supporting_word_1 || word?.supporting_word_2 ||
       (word && this.kanjiSentenceMap && this.kanjiSentenceMap[word.id]?.length > 0);
-
+    
     // Advance, skipping empty steps
     this.revealStep++;
     // Step 1 = hint: skip if no hint
@@ -1380,22 +1348,22 @@ class JLPTStudyApp {
     if (this.revealStep === 2 && !hasContext) this.revealStep++;
     // Cap at max
     if (this.revealStep > maxSteps) this.revealStep = maxSteps;
-
+    
     this.render();
   }
-
+  
   restoreCanvasData() {
     if (this.canvasImageData) {
       restoreCanvasData(this.canvasImageData, 'writingCanvas');
       restoreCanvasData(this.canvasImageData, 'srsWritingCanvas');
     }
   }
-
+  
   startSRSTest() {
     let allWords = [];
     // Use ALL unified words for SRS (not just JLPT vocabulary)
     const wordPool = this.kanjiWords;
-
+    
     if (this.srsConfig.selectionMode === 'marking') {
       for (let k = 1; k <= 6; k++) {
         this.srsConfig.markingCounts[k] = parseInt(document.getElementById(`srsMarkCount${k}`)?.value) || 0;
@@ -1427,7 +1395,7 @@ class JLPTStudyApp {
         ...sampleArray(n3, this.srsConfig.n3Count)
       ];
     }
-
+    
     this.srsWords = shuffleArray(allWords);
     this.srsCurrentIndex = 0;
     this.srsAnswers = [];
@@ -1438,24 +1406,24 @@ class JLPTStudyApp {
     this.generateMCQOptions();
     this.srsView = 'test';
     this.render();
-
+    
     // Persist session for resuming after page navigation
     this._saveSRSSession();
-
+    
     // Save today's practice words
     this._saveTodayPractice(this.srsWords);
-
+    
     // Load sentences in background (non-blocking)
     this.loadSentencesForStudyWords(this.srsWords);
   }
-
+  
   generateMCQOptions() {
     if (this.srsConfig.testType === 'writing') return;
     const word = this.srsWords[this.srsCurrentIndex];
     if (!word) return;
-
+    
     const testType = this.srsConfig.testType;
-
+    
     if (testType === 'kanji_recognition') {
       // Kanji Recognition: show kanji, choose meaning
       const correct = word.meaning;
@@ -1465,42 +1433,42 @@ class JLPTStudyApp {
     } else {
       const isH2K = testType === 'hiragana_to_kanji';
       const correct = isH2K ? (word.kanji || word.raw) : word.hiragana;
-
+      
       let options;
       if (isH2K) {
         options = this.generateH2KOptions(word, correct);
       } else {
         options = this.generateK2HOptions(word, correct);
       }
-
+      
       this.srsOptions = shuffleArray([correct, ...options.slice(0, 3)]);
     }
   }
-
+  
   generateH2KOptions(word, correct) {
     const all = this.kanjiWords;  // Use all unified words for better distractors
     const kanjiLen = [...(correct || '')].length;
     const distractors = [];
-
+    
     // P1: Homophones
     const homophones = all.filter(v => v.hiragana === word.hiragana && (v.kanji || v.raw) !== correct);
     distractors.push(...homophones.map(v => v.kanji || v.raw));
     if (distractors.length >= 3) return shuffleArray([...new Set(distractors)]);
-
+    
     // P2: Same length + shared kanji
     const correctChars = [...(correct || '')];
     const sameLenKanji = all.filter(v => {
       const k = v.kanji || v.raw;
       return k !== correct && [...k].length === kanjiLen;
     });
-
+    
     // Sub-priority: last kanji match, first match, any match
     for (const pos of ['last', 'first', 'any']) {
       const matches = sameLenKanji.filter(v => {
         const chars = [...(v.kanji || v.raw)];
         if (pos === 'last') return chars[chars.length - 1] === correctChars[correctChars.length - 1];
         if (pos === 'first') return chars[0] === correctChars[0];
-        return chars.some(c => correctChars.includes(c) && /[一-龯]/.test(c));
+        return chars.some(c => correctChars.includes(c) && /[\u4e00-\u9faf]/.test(c));
       });
       distractors.push(...matches.map(v => v.kanji || v.raw));
       if ([...new Set(distractors)].filter(d => d !== correct).length >= 3) break;
@@ -1508,7 +1476,7 @@ class JLPTStudyApp {
     if ([...new Set(distractors)].filter(d => d !== correct).length >= 3) {
       return shuffleArray([...new Set(distractors)].filter(d => d !== correct));
     }
-
+    
     // P3: Semantic proximity (shared meaning keywords)
     const meaningWords = (word.meaning || '').toLowerCase().split(/[\s,;/]+/).filter(w => w.length > 2);
     if (meaningWords.length > 0) {
@@ -1519,7 +1487,7 @@ class JLPTStudyApp {
       });
       distractors.push(...semantic.map(v => v.kanji || v.raw));
     }
-
+    
     // Fallback: same level then random
     const unique = [...new Set(distractors)].filter(d => d !== correct);
     if (unique.length < 3) {
@@ -1531,13 +1499,13 @@ class JLPTStudyApp {
     }
     return [...new Set(unique)].filter(d => d !== correct);
   }
-
+  
   generateK2HOptions(word, correct) {
     const all = this.kanjiWords;  // Use all unified words for better distractors
     const distractors = [];
     const correctKanji = word.kanji || word.raw;
-    const kanjiChars = [...(correctKanji || '')].filter(c => /[一-龯]/.test(c));
-
+    const kanjiChars = [...(correctKanji || '')].filter(c => /[\u4e00-\u9faf]/.test(c));
+    
     // P2: Shared kanji (onyomi match proxy)
     if (kanjiChars.length > 0) {
       const sharedKanji = all.filter(v => {
@@ -1547,12 +1515,12 @@ class JLPTStudyApp {
       });
       distractors.push(...sharedKanji.map(v => v.hiragana));
     }
-
+    
     // P3: Pronunciation mutations
     const mutations = generatePronunciationMutations(correct);
     const mutationMatches = all.filter(v => mutations.includes(v.hiragana) && v.hiragana !== correct);
     distractors.push(...mutationMatches.map(v => v.hiragana));
-
+    
     // Fallback
     const unique = [...new Set(distractors)].filter(d => d && d !== correct);
     if (unique.length < 3) {
@@ -1561,9 +1529,9 @@ class JLPTStudyApp {
     }
     return [...new Set(unique)].filter(d => d && d !== correct);
   }
-
+  
   selectSRSOption(idx) { this.srsSelectedAnswer = idx; this.render(); }
-
+  
   submitSRSAnswer() {
     const word = this.srsWords[this.srsCurrentIndex];
     const testType = this.srsConfig.testType;
@@ -1581,7 +1549,7 @@ class JLPTStudyApp {
     this._saveSRSSession();
     this.render();
   }
-
+  
   srsNextQuestion() {
     if (this.srsCurrentIndex < this.srsWords.length - 1) {
       this.srsCurrentIndex++;
@@ -1598,16 +1566,16 @@ class JLPTStudyApp {
       this.render();
     }
   }
-
+  
   revealSRSWriting() { this.srsShowResult = true; this.render(); }
-
+  
   markSRSWritingResult(isCorrect) {
     const word = this.srsWords[this.srsCurrentIndex];
     this.srsAnswers.push({ word, correct: isCorrect, userAnswer: isCorrect ? 'Correct' : 'Wrong', correctAnswer: word.kanji || word.raw });
     this._saveSRSSession();
     this.srsNextQuestion();
   }
-
+  
   retestWrongAnswers() {
     const wrong = this.srsAnswers.filter(a => !a.correct).map(a => a.word);
     if (wrong.length === 0) return;
@@ -1622,7 +1590,7 @@ class JLPTStudyApp {
     this._saveSRSSession();
     this.render();
   }
-
+  
   resetSRS() {
     this.srsView = 'setup';
     this.srsWords = [];
@@ -1634,7 +1602,7 @@ class JLPTStudyApp {
     this._clearSRSSession();
     this.render();
   }
-
+  
   // ===== SRS SESSION PERSISTENCE =====
   _saveSRSSession() {
     try {
@@ -1650,7 +1618,7 @@ class JLPTStudyApp {
       localStorage.setItem('srs_session', JSON.stringify(session));
     } catch(e) { console.warn('_saveSRSSession:', e); }
   }
-
+  
   _restoreSRSSession() {
     try {
       const raw = localStorage.getItem('srs_session');
@@ -1662,7 +1630,7 @@ class JLPTStudyApp {
       if (savedDate !== today || !session.words?.length) { this._clearSRSSession(); return false; }
       // Restore active test or completed results
       if (session.view !== 'test' && session.view !== 'results') { this._clearSRSSession(); return false; }
-
+      
       this.srsWords = session.words;
       this.srsCurrentIndex = session.currentIndex || 0;
       this.srsAnswers = session.answers || [];
@@ -1678,11 +1646,11 @@ class JLPTStudyApp {
       return true;
     } catch(e) { console.warn('_restoreSRSSession:', e); this._clearSRSSession(); return false; }
   }
-
+  
   _clearSRSSession() {
     try { localStorage.removeItem('srs_session'); } catch(e) {}
   }
-
+  
   // ===== STUDY SESSION PERSISTENCE =====
   _saveStudySession() {
     try {
@@ -1700,7 +1668,7 @@ class JLPTStudyApp {
       localStorage.setItem('study_session', JSON.stringify(session));
     } catch(e) { console.warn('_saveStudySession:', e); }
   }
-
+  
   _restoreStudySession() {
     try {
       const raw = localStorage.getItem('study_session');
@@ -1709,7 +1677,7 @@ class JLPTStudyApp {
       const savedDate = session.savedAt?.slice(0, 10);
       const today = new Date().toISOString().slice(0, 10);
       if (savedDate !== today || !session.words?.length) { this._clearStudySession(); return false; }
-
+      
       this.studyWords = session.words;
       this.currentIndex = session.currentIndex || 0;
       this.revealStep = session.revealStep || 0;
@@ -1723,16 +1691,16 @@ class JLPTStudyApp {
       return true;
     } catch(e) { console.warn('_restoreStudySession:', e); this._clearStudySession(); return false; }
   }
-
+  
   _clearStudySession() {
     try { localStorage.removeItem('study_session'); } catch(e) {}
   }
-
+  
   // ===== DAILY PRACTICE HISTORY =====
   _todayKey() {
     return 'practice_' + new Date().toISOString().slice(0, 10);
   }
-
+  
   _saveTodayPractice(words) {
     try {
       const key = this._todayKey();
@@ -1749,13 +1717,13 @@ class JLPTStudyApp {
       this._cleanOldPracticeData();
     } catch(e) { console.warn('_saveTodayPractice:', e); }
   }
-
+  
   _saveStudySessionToHistory(words) {
     try {
       const key = this._todayKey();
       const existing = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"studySessions":[],"words":{}}');
       if (!existing.studySessions) existing.studySessions = [];
-
+      
       const sessionEntry = {
         time: new Date().toISOString(),
         wordCount: words.length,
@@ -1768,7 +1736,7 @@ class JLPTStudyApp {
       localStorage.setItem(key, JSON.stringify(existing));
     } catch(e) { console.warn('_saveStudySessionToHistory:', e); }
   }
-
+  
   getTodayStudySessions() {
     try {
       const key = this._todayKey();
@@ -1776,20 +1744,20 @@ class JLPTStudyApp {
       return data.studySessions || [];
     } catch { return []; }
   }
-
+  
   reviewAllTodayWords() {
     try {
       const key = this._todayKey();
       const data = JSON.parse(localStorage.getItem(key) || '{"sessions":[],"studySessions":[],"words":{}}');
       const allWords = Object.values(data.words || {});
       if (allWords.length === 0) { showToast('No words practiced today'); return; }
-
+      
       // Map to full word objects from kanjiWords
       const fullWords = allWords.map(w => {
         const match = this.kanjiWords.find(kw => kw.kanji === w.kanji);
         return match || { kanji: w.kanji, hiragana: w.hiragana, meaning: w.meaning, meaning_en: w.meaning, level: w.level };
       });
-
+      
       this.studyWords = shuffleArray([...fullWords]);
       this.currentIndex = 0;
       this.revealStep = 0;
@@ -1801,7 +1769,7 @@ class JLPTStudyApp {
       this.render();
     } catch(e) { console.warn('reviewAllTodayWords:', e); }
   }
-
+  
   _saveTodayResults(answers) {
     try {
       const key = this._todayKey();
@@ -1826,14 +1794,14 @@ class JLPTStudyApp {
       localStorage.setItem(key, JSON.stringify(existing));
     } catch(e) { console.warn('_saveTodayResults:', e); }
   }
-
+  
   getTodayPractice() {
     try {
       const key = this._todayKey();
       return JSON.parse(localStorage.getItem(key) || '{"sessions":[],"words":{}}');
     } catch { return { sessions: [], words: {} }; }
   }
-
+  
   _cleanOldPracticeData() {
     // Remove practice data older than today
     try {
@@ -1846,38 +1814,38 @@ class JLPTStudyApp {
       }
     } catch { }
   }
-
+  
   async submitNewTopic() {
     const name = document.getElementById('topicNameInput')?.value?.trim();
     if (!name) { alert('Please enter a topic name'); return; }
-
-    const data = await addTopic(this.supabase, this.user.id, { name, icon: '📚', color: 'blue', description: document.getElementById('topicDescInput')?.value || '' });
+    
+    const data = await addTopic(this.supabase, this.user.id, { name, icon: '\uD83D\uDCDA', color: 'blue', description: document.getElementById('topicDescInput')?.value || '' });
     if (data) { this.selfStudyTopics.push(data); this.showAddTopicModal = false; this.render(); }
     else alert('Failed to add topic');
   }
-
+  
   async submitNewWord() {
     const kanji = document.getElementById('wordKanjiInput')?.value?.trim();
     if (!kanji || !this.selectedTopic) { alert('Please enter the word'); return; }
-
+    
     const wordData = {
       kanji,
       hiragana: document.getElementById('wordHiraganaInput')?.value || '',
       meaning: document.getElementById('wordMeaningInput')?.value || '',
       hint: document.getElementById('wordHintInput')?.value || ''
     };
-
+    
     const data = await addSelfStudyWord(this.supabase, this.user.id, this.selectedTopic.id, wordData);
     if (data) { this.selfStudyWords.push(data); this.showAddWordModal = false; this.render(); }
     else alert('Failed to add word');
   }
-
+  
   // ===== STORY OVERLAY =====
   openStoryOverlay(word) {
     if (this.selectedTestType === 'writing' || this.srsConfig.testType === 'writing') {
       this.canvasImageData = saveCanvasData('writingCanvas') || saveCanvasData('srsWritingCanvas');
     }
-    const kanjiChars = [...(word.kanji || '')].filter(c => /[一-龯]/.test(c));
+    const kanjiChars = [...(word.kanji || '')].filter(c => /[\u4e00-\u9faf]/.test(c));
     this.storyOverlay = {
       word, step: kanjiChars.length > 0 ? 2 : 1,
       expandedPart: kanjiChars[0] || null,
@@ -1885,9 +1853,9 @@ class JLPTStudyApp {
     };
     this.render();
   }
-
+  
   closeStoryOverlay() { this.storyOverlay = null; this.storyAlertTarget = null; this.render(); }
-
+  
   storyGoGroup(groupKanji, highlightKanji) {
     if (!this.storyOverlay) return;
     this.storyOverlay.step = 3;
@@ -1895,34 +1863,34 @@ class JLPTStudyApp {
     this.storyOverlay.highlightKanji = highlightKanji;
     this.render();
   }
-
+  
   storyBackToBreakdown() {
     if (!this.storyOverlay) return;
     this.storyOverlay.step = 2;
     this.storyOverlay.groupKey = null;
     this.render();
   }
-
+  
   storySelectPart(kanjiChar) {
     if (!this.storyOverlay) return;
     this.storyOverlay.expandedPart = kanjiChar;
     this.render();
   }
-
+  
   findStoryForKanji(kanjiChar) {
     return this.stories.find(s => s.kanji === kanjiChar) || null;
   }
-
+  
   findGroupForKanji(kanjiChar) {
     const story = this.findStoryForKanji(kanjiChar);
     if (!story || !story.group_kanji) return null;
     return this.storyGroups.find(g => g.group_kanji === story.group_kanji) || null;
   }
-
+  
   getGroupMembersForKanji(groupKanji) {
     return this.stories.filter(s => s.group_kanji === groupKanji);
   }
-
+  
   // ===== STORY ALERT =====
   openStoryAlert(kanji, groupKanji, source) {
     this.storyAlertTarget = { kanji, groupKanji, source };
@@ -1931,14 +1899,14 @@ class JLPTStudyApp {
     this.storyAlertSaving = false;
     this.render();
   }
-
+  
   closeStoryAlert() { this.storyAlertTarget = null; this.render(); }
-
+  
   async submitStoryAlert() {
     if (!this.storyAlertTarget || !this.user) return;
     this.storyAlertSaving = true;
     this.render();
-
+    
     const result = await saveStoryAlert(this.supabase, this.user.id, {
       kanji: this.storyAlertTarget.kanji,
       groupKanji: this.storyAlertTarget.groupKanji,
@@ -1946,7 +1914,7 @@ class JLPTStudyApp {
       comment: this.storyAlertComment,
       source: this.storyAlertTarget.source
     });
-
+    
     this.storyAlertSaving = false;
     if (result.success) {
       this.storyAlertTarget = null;
@@ -1956,7 +1924,7 @@ class JLPTStudyApp {
       showToast(`Alert save failed: ${result.error}`, 'error');
     }
   }
-
+  
   // ===== REQUEST MISSING STORY =====
   async requestMissingStory(kanji) {
     if (!kanji || !this.user) { showToast('Not logged in', 'error'); return; }
@@ -1973,31 +1941,31 @@ class JLPTStudyApp {
       showToast('Request failed: ' + (result.error || 'Unknown'), 'error');
     }
   }
-
+  
   // ===== INLINE GROUP PREVIEW (from flashcard badges) =====
   _dismissGroupPreview() {
     document.querySelector('.group-preview-popup')?.remove();
     document.querySelector('.group-preview-backdrop')?.remove();
   }
-
+  
   _showGroupPreview(groupId, anchorEl) {
     this._dismissGroupPreview();
-
+    
     const group = this.wordGroups.find(g => g.id === groupId);
     if (!group) return;
-
+    
     const members = (this.wordGroupMembers || []).filter(m => m.group_id === groupId);
     const memberWords = members.map(m => {
       const w = this.kanjiWords.find(kw => kw.id === m.word_id);
       return w || null;
     }).filter(Boolean);
-
+    
     const popup = document.createElement('div');
     popup.className = 'group-preview-popup';
     popup.innerHTML = `
       <div class="group-preview-popup__header">
         <span class="group-preview-popup__title">${escapeHtml(group.group_name || group.group_key)} (${memberWords.length} words)</span>
-        <button class="group-preview-popup__close" data-dismiss-group-preview>✕</button>
+        <button class="group-preview-popup__close" data-dismiss-group-preview>\u2715</button>
       </div>
       <div class="group-preview-popup__words">
         ${memberWords.map(w => `
@@ -2008,26 +1976,26 @@ class JLPTStudyApp {
           </div>
         `).join('')}
       </div>
-      <button class="group-preview-popup__nav" data-goto-group="${groupId}">View in Relations →</button>
+      <button class="group-preview-popup__nav" data-goto-group="${groupId}">View in Relations \u2192</button>
     `;
-
+    
     // Position as fixed overlay centered on screen (mobile-friendly)
     popup.style.position = 'fixed';
     popup.style.left = '50%';
     popup.style.top = '50%';
     popup.style.transform = 'translate(-50%, -50%)';
     popup.style.zIndex = '9999';
-
+    
     // Add backdrop
     const backdrop = document.createElement('div');
     backdrop.className = 'group-preview-backdrop';
     backdrop.addEventListener('click', () => this._dismissGroupPreview());
     document.body.appendChild(backdrop);
     document.body.appendChild(popup);
-
+    
     // Wire close button
     popup.querySelector('[data-dismiss-group-preview]')?.addEventListener('click', () => this._dismissGroupPreview());
-
+    
     // Wire "View in Relations" (optional full navigation)
     popup.querySelector('[data-goto-group]')?.addEventListener('click', () => {
       this._dismissGroupPreview();
@@ -2038,28 +2006,28 @@ class JLPTStudyApp {
       this.selectWordGroup(gid);
     });
   }
-
+  
   // ===== WORD ALERT =====
   openWordAlert(word, source = 'flashcard') {
-    this.wordAlertTarget = {
-      kanji: word.kanji || word.raw,
-      hiragana: word.hiragana || '',
+    this.wordAlertTarget = { 
+      kanji: word.kanji || word.raw, 
+      hiragana: word.hiragana || '', 
       meaning: word.meaning || '',
-      source
+      source 
     };
     this.wordAlertComment = '';
     this.wordAlertType = 'wrong_reading';
     this.wordAlertSaving = false;
     this.render();
   }
-
+  
   closeWordAlert() { this.wordAlertTarget = null; this.render(); }
-
+  
   async submitWordAlert() {
     if (!this.wordAlertTarget || !this.user) return;
     this.wordAlertSaving = true;
     this.render();
-
+    
     const result = await saveWordAlert(this.supabase, this.user.id, {
       kanji: this.wordAlertTarget.kanji,
       hiragana: this.wordAlertTarget.hiragana,
@@ -2068,7 +2036,7 @@ class JLPTStudyApp {
       comment: this.wordAlertComment,
       source: this.wordAlertTarget.source
     });
-
+    
     this.wordAlertSaving = false;
     if (result.success) {
       this.wordAlertTarget = null;
@@ -2078,7 +2046,7 @@ class JLPTStudyApp {
       showToast(`Flag save failed: ${result.error}`, 'error');
     }
   }
-
+  
   // ===== HELPERS =====
   getMarkingStats() {
     const stats = {};
@@ -2087,13 +2055,13 @@ class JLPTStudyApp {
     }
     return stats;
   }
-
+  
   render() {
     const app = document.getElementById('app');
-
+    
     if (this.loading) { app.innerHTML = renderLoading(); return; }
     if (!this.user) { app.innerHTML = renderLogin(); attachEventListeners(this); return; }
-
+    
     // Build a view key that captures the exact "page" we're on
     const getViewKey = () => {
       if (this.currentTab === 'stories') return this.selectedStoryGroup ? 'stories-detail' : 'stories-list';
@@ -2101,7 +2069,7 @@ class JLPTStudyApp {
       if (this.currentTab === 'study') return `study-${this.studySubTab}-${this.studyView}-${this.kanjiView}`;
       return this.currentTab;
     };
-
+    
     // Save scroll position before re-render
     if (!this._scrollCache) this._scrollCache = {};
     const prevKey = this._lastViewKey;
@@ -2109,7 +2077,7 @@ class JLPTStudyApp {
     if (scrollable && prevKey) {
       this._scrollCache[prevKey] = scrollable.scrollTop;
     }
-
+    
     let content;
     switch (this.currentTab) {
       case 'study': content = this.renderStudyTab(); break;
@@ -2118,10 +2086,10 @@ class JLPTStudyApp {
       case 'similar': content = renderRelationsTab(this); break;
       default: content = this.renderStudyTab();
     }
-
+    
     const newKey = getViewKey();
     this._lastViewKey = newKey;
-
+    
     app.innerHTML = `
       ${renderHeader(this)}
       ${renderTabs(this.currentTab)}
@@ -2132,22 +2100,22 @@ class JLPTStudyApp {
       ${renderWordAlertForm(this)}
       ${renderAddSentenceSheet(this)}
     `;
-
+    
     // Restore scroll position for this view
     const savedScroll = this._scrollCache[newKey];
     if (savedScroll > 0) {
       const newScrollable = app.querySelector('main .overflow-auto');
       if (newScrollable) newScrollable.scrollTop = savedScroll;
     }
-
+    
     attachEventListeners(this);
-
+    
     // Inject sentence panel into ANY flashcard view (Goi, Kanji, SRS)
-    const isFlashcard =
+    const isFlashcard = 
       (this.currentTab === 'study' && this.studySubTab === 'goi' && this.studyView === 'flashcard') ||
       (this.currentTab === 'study' && this.studySubTab === 'kanji' && this.kanjiView === 'flashcard') ||
       (this.currentTab === 'srs' && this.srsView === 'test');
-
+    
     if (isFlashcard) {
       const container = document.getElementById('flashcardExtraContent');
       if (container) {
@@ -2157,7 +2125,7 @@ class JLPTStudyApp {
         console.warn('Sentence panel: flashcardExtraContent div not found. Deploy latest render.js with ?v= cache-bust.');
       }
     }
-
+    
     // Add sentence sheet listeners
     document.getElementById('openAddSentenceSheetBtn')?.addEventListener('click', () => this.openAddSentenceSheet());
     document.getElementById('closeAddSentenceSheetBtn')?.addEventListener('click', () => this.closeAddSentenceSheet());
@@ -2170,9 +2138,9 @@ class JLPTStudyApp {
       const word = this.currentTab === 'srs' ? this.srsWords?.[this.srsCurrentIndex] : this.studyWords?.[this.currentIndex];
       if (word) this.updateHint(word.kanji || word.raw, hint);
     });
-
+    
     // (Bulk linker and review queue moved to data-manager.html)
-
+    
     // Verify / reject / unverify
     document.querySelectorAll('[data-verify-sentence]').forEach(btn => {
       btn.addEventListener('click', () => this.verifySentence(parseInt(btn.dataset.verifySentence), 'verified'));
@@ -2183,7 +2151,7 @@ class JLPTStudyApp {
     document.querySelectorAll('[data-unverify-sentence]').forEach(btn => {
       btn.addEventListener('click', () => this.verifySentence(parseInt(btn.dataset.unverifySentence), 'unverified'));
     });
-
+    
     // Tag add / remove
     document.querySelectorAll('[data-add-tag]').forEach(btn => {
       btn.addEventListener('click', () => this.addTagToSentence(parseInt(btn.dataset.addTag)));
@@ -2195,11 +2163,11 @@ class JLPTStudyApp {
       });
     });
   }
-
+  
   renderStudyTab() {
     const subTabs = renderStudySubTabs(this.studySubTab);
     let content;
-
+    
     if (this.studySubTab === 'goi') {
       switch (this.studyView) {
         case 'level': content = renderLevelSelector(this); break;
@@ -2221,10 +2189,10 @@ class JLPTStudyApp {
       else if (this.studyView === 'results') content = renderStudyResults(this);
       else content = renderSelfStudyTopics(this);
     }
-
+    
     return subTabs + content;
   }
-
+  
   renderModals() {
     if (this.showAddTopicModal) {
       return `
@@ -2249,7 +2217,7 @@ class JLPTStudyApp {
         </div>
       `;
     }
-
+    
     if (this.showAddWordModal) {
       return `
         <div id="modalOverlay" class="modal-overlay">
@@ -2281,7 +2249,7 @@ class JLPTStudyApp {
         </div>
       `;
     }
-
+    
     return '';
   }
 }

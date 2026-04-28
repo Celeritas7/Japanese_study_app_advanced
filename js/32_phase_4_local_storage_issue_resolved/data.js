@@ -32,14 +32,14 @@ export async function loadMarkingCategories(supabase, userId) {
     console.log('loadMarkingCategories: No userId, using defaults');
     return { ...DEFAULT_MARKING_CATEGORIES };
   }
-
+  
   try {
     const { data, error } = await supabase
       .from('japanese_marking_categories')
       .select('category_id, label, icon, color')
       .eq('user_id', userId)
       .order('category_id');
-
+    
     if (error) {
       // Table may not exist yet — fall back silently to defaults
       if (error.code === 'PGRST205' || error.message?.includes('not find')) {
@@ -49,12 +49,12 @@ export async function loadMarkingCategories(supabase, userId) {
       }
       return { ...DEFAULT_MARKING_CATEGORIES };
     }
-
+    
     if (!data || data.length === 0) {
       console.log('loadMarkingCategories: No custom categories found, using defaults');
       return { ...DEFAULT_MARKING_CATEGORIES };
     }
-
+    
     // Build categories object from DB data
     const categories = {};
     data.forEach(row => {
@@ -65,14 +65,14 @@ export async function loadMarkingCategories(supabase, userId) {
         ...colorInfo
       };
     });
-
+    
     // Fill in any missing categories with defaults
     for (let i = 0; i <= 5; i++) {
       if (!categories[i]) {
         categories[i] = DEFAULT_MARKING_CATEGORIES[i];
       }
     }
-
+    
     console.log('loadMarkingCategories: Loaded', data.length, 'custom categories');
     return categories;
   } catch (err) {
@@ -86,7 +86,7 @@ export async function loadMarkingCategories(supabase, userId) {
  */
 export async function updateMarkingCategory(supabase, userId, categoryId, updates) {
   if (!userId) return false;
-
+  
   try {
     const { error } = await supabase
       .from('japanese_marking_categories')
@@ -98,7 +98,7 @@ export async function updateMarkingCategory(supabase, userId, categoryId, update
         color: updates.color,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,category_id' });
-
+    
     if (error) {
       console.error('updateMarkingCategory error:', error);
       return false;
@@ -118,32 +118,32 @@ export async function loadMarkings(supabase, userId) {
     console.log('loadMarkings: No userId provided');
     return {};
   }
-
+  
   console.log('loadMarkings: Loading for userId:', userId);
-
+  
   try {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
-
+    
     while (true) {
       const { data, error } = await supabase
         .from('japanese_user_markings')
         .select('kanji, marking, marked_at')
         .eq('user_id', userId)
         .range(page * pageSize, (page + 1) * pageSize - 1);
-
+      
       if (error) {
         console.error('Markings load error:', error, 'userId:', userId);
         break;
       }
       if (!data || data.length === 0) break;
-
+      
       allData = allData.concat(data);
       if (data.length < pageSize) break;
       page++;
     }
-
+    
     // Convert to objects
     const markings = {};
     const timestamps = {};
@@ -151,7 +151,7 @@ export async function loadMarkings(supabase, userId) {
       markings[row.kanji] = row.marking;
       if (row.marked_at) timestamps[row.kanji] = row.marked_at;
     });
-
+    
     console.log(`Loaded ${allData.length} markings`);
     return { markings, timestamps };
   } catch (err) {
@@ -165,7 +165,7 @@ export async function loadMarkings(supabase, userId) {
  */
 export async function updateMarkingInDB(supabase, userId, kanji, marking) {
   if (!userId) return false;
-
+  
   try {
     let result;
     if (marking === 0) {
@@ -187,7 +187,7 @@ export async function updateMarkingInDB(supabase, userId, kanji, marking) {
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,kanji' });
     }
-
+    
     if (result.error) {
       console.error('Update marking error:', result.error);
       return false;
@@ -208,7 +208,7 @@ export async function loadStoryGroups(supabase) {
       .from('japanese_kanji_story_groups')
       .select('*')
       .order('group_number');
-
+    
     if (error) {
       console.error('Story groups error:', error);
       return [];
@@ -228,25 +228,25 @@ export async function loadStories(supabase) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
-
+    
     while (true) {
       const { data, error } = await supabase
         .from('japanese_kanji_stories')
         .select('*')
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .order('id');
-
+      
       if (error) {
         console.error('Stories load error:', error);
         break;
       }
       if (!data || data.length === 0) break;
-
+      
       allData = allData.concat(data);
       if (data.length < pageSize) break;
       page++;
     }
-
+    
     return allData;
   } catch (err) {
     console.error('loadStories exception:', err);
@@ -263,7 +263,7 @@ export async function loadSimilarGroups(supabase) {
       .from('japanese_kanji_similar_groups')
       .select('*')
       .order('id');
-
+    
     if (error) {
       console.error('Similar groups error:', error);
       return [];
@@ -280,7 +280,7 @@ export async function loadSimilarGroups(supabase) {
  */
 export async function loadSelfStudyTopics(supabase, userId) {
   if (!userId) return [];
-
+  
   try {
     const { data, error } = await supabase
       .from('japanese_self_study_topics')
@@ -288,7 +288,7 @@ export async function loadSelfStudyTopics(supabase, userId) {
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at');
-
+    
     if (error) {
       console.error('Self study topics error:', error);
       return [];
@@ -305,7 +305,7 @@ export async function loadSelfStudyTopics(supabase, userId) {
  */
 export async function loadSelfStudyWords(supabase, userId) {
   if (!userId) return [];
-
+  
   try {
     const { data, error } = await supabase
       .from('japanese_self_study_words')
@@ -313,7 +313,7 @@ export async function loadSelfStudyWords(supabase, userId) {
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at');
-
+    
     if (error) {
       console.error('Self study words error:', error);
       return [];
@@ -341,7 +341,7 @@ export async function addTopic(supabase, userId, topicData) {
       })
       .select()
       .single();
-
+    
     if (error) {
       console.error('Add topic error:', error);
       return null;
@@ -372,7 +372,7 @@ export async function addSelfStudyWord(supabase, userId, topicId, wordData) {
       })
       .select()
       .single();
-
+    
     if (error) {
       console.error('Add word error:', error);
       return null;
@@ -389,7 +389,7 @@ export async function addSelfStudyWord(supabase, userId, topicId, wordData) {
  */
 export async function saveSRSMistake(supabase, userId, word, testType) {
   if (!userId) return;
-
+  
   try {
     await supabase
       .from('japanese_user_reviews')
@@ -410,7 +410,7 @@ export async function saveSRSMistake(supabase, userId, word, testType) {
  */
 export async function saveStoryAlert(supabase, userId, alertData) {
   if (!userId) return { success: false, error: 'Not logged in' };
-
+  
   try {
     const { error } = await supabase
       .from('japanese_story_alerts')
@@ -423,7 +423,7 @@ export async function saveStoryAlert(supabase, userId, alertData) {
         source: alertData.source || 'overlay',
         created_at: new Date().toISOString()
       });
-
+    
     if (error) {
       console.error('Story alert save error:', error);
       return { success: false, error: error.message };
@@ -440,7 +440,7 @@ export async function saveStoryAlert(supabase, userId, alertData) {
  */
 export async function saveWordAlert(supabase, userId, alertData) {
   if (!userId) return { success: false, error: 'Not logged in' };
-
+  
   try {
     const { error } = await supabase
       .from('japanese_word_alerts')
@@ -454,7 +454,7 @@ export async function saveWordAlert(supabase, userId, alertData) {
         source: alertData.source || 'flashcard',
         created_at: new Date().toISOString()
       });
-
+    
     if (error) {
       console.error('Word alert save error:', error);
       return { success: false, error: error.message };
@@ -479,14 +479,14 @@ export async function loadUnifiedWords(supabase) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
-
+    
     while (true) {
       const { data, error } = await supabase
         .from('japanese_unified_words')
         .select('*')
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .order('id');
-
+      
       if (error) {
         console.error('Unified words load error:', error);
         break;
@@ -496,7 +496,7 @@ export async function loadUnifiedWords(supabase) {
       if (data.length < pageSize) break;
       page++;
     }
-
+    
     // Transform to be compatible with flashcard renderer fields
     return allData.map(row => ({
       ...row,
@@ -523,14 +523,14 @@ export async function loadUnifiedWordBooks(supabase) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
-
+    
     while (true) {
       const { data, error } = await supabase
         .from('japanese_unified_word_books')
         .select('*')
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .order('id');
-
+      
       if (error) {
         console.error('Word books load error:', error);
         break;
@@ -540,7 +540,7 @@ export async function loadUnifiedWordBooks(supabase) {
       if (data.length < pageSize) break;
       page++;
     }
-
+    
     return allData;
   } catch (err) {
     console.error('loadUnifiedWordBooks exception:', err);
@@ -555,7 +555,7 @@ export async function loadUnifiedWordBooks(supabase) {
  */
 export async function loadSentencesForWords(supabase, wordIds) {
   if (!wordIds || wordIds.length === 0) return {};
-
+  
   try {
     // Load word-sentence link rows (may need pagination for large batches)
     let allLinks = [];
@@ -566,16 +566,16 @@ export async function loadSentencesForWords(supabase, wordIds) {
         .from('japanese_unified_word_sentences')
         .select('id, word_id, sentence_id, rating')
         .in('word_id', batch);
-
+      
       if (error) { console.error('Word-sentences link error:', error); continue; }
       if (data) allLinks = allLinks.concat(data);
     }
-
+    
     if (allLinks.length === 0) return {};
-
+    
     // Get unique sentence IDs
     const sentenceIds = [...new Set(allLinks.map(l => l.sentence_id))];
-
+    
     // Load actual sentence rows
     let allSentences = [];
     for (let i = 0; i < sentenceIds.length; i += batchSize) {
@@ -584,15 +584,15 @@ export async function loadSentencesForWords(supabase, wordIds) {
         .from('japanese_unified_sentences')
         .select('*')
         .in('id', batch);
-
+      
       if (error) { console.error('Sentences load error:', error); continue; }
       if (data) allSentences = allSentences.concat(data);
     }
-
+    
     // Build sentence lookup
     const sentenceMap = {};
     allSentences.forEach(s => { sentenceMap[s.id] = s; });
-
+    
     // Build word_id → sentences array
     const result = {};
     allLinks.forEach(link => {
@@ -607,12 +607,12 @@ export async function loadSentencesForWords(supabase, wordIds) {
         });
       }
     });
-
+    
     // Sort each word's sentences by rating desc (highest = best)
     Object.values(result).forEach(arr => {
       arr.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     });
-
+    
     return result;
   } catch (err) {
     console.error('loadSentencesForWords exception:', err);
@@ -628,14 +628,14 @@ export async function loadAllUnifiedSentences(supabase) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
-
+    
     while (true) {
       const { data, error } = await supabase
         .from('japanese_unified_sentences')
         .select('*')
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .order('id');
-
+      
       if (error) {
         console.error('All sentences load error:', error);
         break;
@@ -645,7 +645,7 @@ export async function loadAllUnifiedSentences(supabase) {
       if (data.length < pageSize) break;
       page++;
     }
-
+    
     return allData;
   } catch (err) {
     console.error('loadAllUnifiedSentences exception:', err);
@@ -665,19 +665,19 @@ export async function updateSentenceRating(supabase, linkId, newRating) {
       .select('rating')
       .eq('id', linkId)
       .single();
-
+    
     if (readErr) {
       console.error('Read sentence rating error:', readErr);
       return { success: false, error: readErr.message };
     }
-
+    
     const finalRating = (current?.rating === newRating) ? null : newRating;
-
+    
     const { error } = await supabase
       .from('japanese_unified_word_sentences')
       .update({ rating: finalRating })
       .eq('id', linkId);
-
+    
     if (error) {
       console.error('Update sentence rating error:', error);
       return { success: false, error: error.message, rating: null };
@@ -701,13 +701,13 @@ export async function linkSentenceToWord(supabase, wordId, sentenceId, userId) {
       created_at: new Date().toISOString()
     };
     if (userId) insertData.user_id = userId;
-
+    
     const { data, error } = await supabase
       .from('japanese_unified_word_sentences')
       .insert(insertData)
       .select()
       .single();
-
+    
     if (error) {
       console.error('Link sentence error:', error);
       return { success: false, error: error.message };
@@ -736,12 +736,12 @@ export async function addNewSentenceAndLink(supabase, sentenceData, wordId, user
       })
       .select()
       .single();
-
+    
     if (sentErr) {
       console.error('Add sentence error:', sentErr);
       return { success: false, error: sentErr.message };
     }
-
+    
     // Step 2: Create word-sentence link
     const linkData = {
       word_id: wordId,
@@ -750,19 +750,19 @@ export async function addNewSentenceAndLink(supabase, sentenceData, wordId, user
       created_at: new Date().toISOString()
     };
     if (userId) linkData.user_id = userId;
-
+    
     const { data: newLink, error: linkErr } = await supabase
       .from('japanese_unified_word_sentences')
       .insert(linkData)
       .select()
       .single();
-
+    
     if (linkErr) {
       console.error('Link after add error:', linkErr);
       // Sentence was created but link failed
       return { success: true, sentence: newSentence, link: null, warning: 'Sentence saved but link failed' };
     }
-
+    
     return { success: true, sentence: newSentence, link: newLink };
   } catch (err) {
     console.error('addNewSentenceAndLink exception:', err);
@@ -777,7 +777,7 @@ export async function addNewSentenceAndLink(supabase, sentenceData, wordId, user
  */
 export async function bulkAddSentences(supabase, sentences, userId) {
   const results = { added: 0, errors: [] };
-
+  
   try {
     // Insert all sentences at once
     const insertRows = sentences.map(s => ({
@@ -787,17 +787,17 @@ export async function bulkAddSentences(supabase, sentences, userId) {
       jlpt_level: s.jlpt_level || null,
       difficulty: 1,
     }));
-
+    
     const { data, error } = await supabase
       .from('japanese_unified_sentences')
       .insert(insertRows)
       .select();
-
+    
     if (error) {
       console.error('Bulk add sentences error:', error);
       return { added: 0, errors: [error.message], insertedSentences: [] };
     }
-
+    
     results.added = data.length;
     return { ...results, insertedSentences: data };
   } catch (err) {
@@ -819,12 +819,12 @@ export async function bulkLinkSentences(supabase, links, userId) {
       user_id: userId || null,
       created_at: new Date().toISOString()
     }));
-
+    
     const { data, error } = await supabase
       .from('japanese_unified_word_sentences')
       .insert(insertRows)
       .select();
-
+    
     if (error) {
       console.error('Bulk link error:', error);
       return { linked: 0, error: error.message };
@@ -845,7 +845,7 @@ export async function updateSentenceVerified(supabase, sentenceId, status) {
       .from('japanese_unified_sentences')
       .update({ verified: status })
       .eq('id', sentenceId);
-
+    
     if (error) {
       console.error('Update verified error:', error);
       return { success: false, error: error.message };
@@ -868,19 +868,19 @@ export async function addSentenceTag(supabase, sentenceId, tag) {
       .select('tags')
       .eq('id', sentenceId)
       .single();
-
+    
     if (readErr) return { success: false, error: readErr.message };
-
+    
     const currentTags = current?.tags || [];
     if (currentTags.includes(tag)) return { success: true, tags: currentTags }; // already exists
-
+    
     const newTags = [...currentTags, tag];
-
+    
     const { error } = await supabase
       .from('japanese_unified_sentences')
       .update({ tags: newTags })
       .eq('id', sentenceId);
-
+    
     if (error) {
       console.error('Add tag error:', error);
       return { success: false, error: error.message };
@@ -902,16 +902,16 @@ export async function removeSentenceTag(supabase, sentenceId, tag) {
       .select('tags')
       .eq('id', sentenceId)
       .single();
-
+    
     if (readErr) return { success: false, error: readErr.message };
-
+    
     const newTags = (current?.tags || []).filter(t => t !== tag);
-
+    
     const { error } = await supabase
       .from('japanese_unified_sentences')
       .update({ tags: newTags })
       .eq('id', sentenceId);
-
+    
     if (error) {
       console.error('Remove tag error:', error);
       return { success: false, error: error.message };
@@ -937,7 +937,7 @@ export async function loadWordGroups(supabase) {
       .select('*')
       .order('group_type')
       .order('group_name');
-
+    
     if (error) {
       console.error('Load word groups error:', error);
       return [];
@@ -957,7 +957,7 @@ export async function loadWordGroupMembers(supabase) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
-
+    
     while (true) {
       const { data, error } = await supabase
         .from('japanese_word_group_members')
@@ -965,7 +965,7 @@ export async function loadWordGroupMembers(supabase) {
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .order('group_id')
         .order('sort_order');
-
+      
       if (error) {
         console.error('Load group members error:', error);
         break;
@@ -975,84 +975,11 @@ export async function loadWordGroupMembers(supabase) {
       if (data.length < pageSize) break;
       page++;
     }
-
+    
     return allData;
   } catch (err) {
     console.error('loadWordGroupMembers exception:', err);
     return [];
-  }
-}
-
-// ============================================================
-// GROUP STUDY LOG (Relations — per-user "studied" toggle, Phase 4)
-// ============================================================
-
-/**
- * Load the set of group IDs the user has marked as studied.
- * Returns Set<number>. Empty set on error, missing userId, or no rows.
- */
-export async function loadGroupStudyLog(supabase, userId) {
-  if (!userId) {
-    console.log('loadGroupStudyLog: No userId provided');
-    return new Set();
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('japanese_group_study_log')
-      .select('group_id')
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Load group study log error:', error);
-      return new Set();
-    }
-    return new Set((data || []).map(r => r.group_id));
-  } catch (err) {
-    console.error('loadGroupStudyLog exception:', err);
-    return new Set();
-  }
-}
-
-/**
- * Mark or unmark a group as studied for a user.
- * If studied is true, upsert (user_id, group_id, now()).
- * If false, delete the row.
- * groupId is coerced to integer at this boundary because the migration path
- * may pass values parsed from untrusted localStorage.
- * Returns true on success, false on failure.
- */
-export async function setGroupStudied(supabase, userId, groupId, studied) {
-  if (!userId) return false;
-  const id = parseInt(groupId, 10);
-  if (Number.isNaN(id)) return false;
-
-  try {
-    let result;
-    if (studied) {
-      result = await supabase
-        .from('japanese_group_study_log')
-        .upsert({
-          user_id: userId,
-          group_id: id,
-          studied_at: new Date().toISOString()
-        }, { onConflict: 'user_id,group_id' });
-    } else {
-      result = await supabase
-        .from('japanese_group_study_log')
-        .delete()
-        .eq('user_id', userId)
-        .eq('group_id', id);
-    }
-
-    if (result.error) {
-      console.error('setGroupStudied error:', result.error);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('setGroupStudied exception:', err);
-    return false;
   }
 }
 
@@ -1065,7 +992,7 @@ export async function setGroupStudied(supabase, userId, groupId, studied) {
 export async function insertUnknownWord(supabase, kanji) {
   if (!kanji || !kanji.trim()) return { success: false, error: 'Empty word' };
   kanji = kanji.trim();
-
+  
   try {
     // Check if word already exists
     const { data: existing } = await supabase
@@ -1073,11 +1000,11 @@ export async function insertUnknownWord(supabase, kanji) {
       .select('id, kanji, hiragana, meaning_en')
       .eq('kanji', kanji)
       .limit(1);
-
+    
     if (existing && existing.length > 0) {
       return { success: false, reason: 'exists', word: existing[0] };
     }
-
+    
     // Insert with kanji only, source marks it for data-manager cleanup
     // Try with source column first; if column doesn't exist, retry without
     let insertData = { kanji, hiragana: '', meaning_en: '', hint: '', jlpt_level: '', source: 'sentence_tap' };
@@ -1085,7 +1012,7 @@ export async function insertUnknownWord(supabase, kanji) {
       .from('japanese_unified_words')
       .insert(insertData)
       .select();
-
+    
     // If source column doesn't exist, retry without it
     if (error && (error.message?.includes('source') || error.code === 'PGRST204')) {
       console.warn('insertUnknownWord: source column missing, retrying without it');
@@ -1094,12 +1021,12 @@ export async function insertUnknownWord(supabase, kanji) {
       data = retry.data;
       error = retry.error;
     }
-
+    
     if (error) {
       console.error('insertUnknownWord error:', error);
       return { success: false, error: error.message };
     }
-
+    
     return { success: true, word: data[0] };
   } catch (err) {
     console.error('insertUnknownWord exception:', err);

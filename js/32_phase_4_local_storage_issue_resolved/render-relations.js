@@ -13,11 +13,17 @@ const GROUP_TYPE_INFO = {
 };
 
 // ===== STUDIED GROUPS HELPER =====
-// The studied set is loaded eagerly in app.js loadAllData() (Phase 4).
-// This is a synchronous read of the in-memory cache — no localStorage fallback.
 
 function getStudiedGroups(app) {
-  return app.relationsStudiedGroups || new Set();
+  if (!app.relationsStudiedGroups) {
+    try {
+      const stored = localStorage.getItem('relationsStudied');
+      app.relationsStudiedGroups = new Set(stored ? JSON.parse(stored) : []);
+    } catch {
+      app.relationsStudiedGroups = new Set();
+    }
+  }
+  return app.relationsStudiedGroups;
 }
 
 // ===== MAIN ROUTER =====
@@ -329,7 +335,7 @@ function renderGroupDetail(app) {
 export function getWordGroupBadges(app, word) {
   if (!app.wordGroups) return [];
   const kanji = word.kanji || word.raw || '';
-
+  
   // PERF: Use pre-built lookup instead of scanning all members
   let wordId = word.id;
   if (!wordId || !(app._wordGroupLookup && app._wordGroupLookup[wordId])) {
@@ -337,7 +343,7 @@ export function getWordGroupBadges(app, word) {
     wordId = match?.id;
   }
   const groupIds = (app._wordGroupLookup && wordId) ? (app._wordGroupLookup[wordId] || []) : [];
-
+  
   return groupIds.map(gid => {
     const group = app.wordGroups.find(g => g.id === gid);
     if (!group) return null;

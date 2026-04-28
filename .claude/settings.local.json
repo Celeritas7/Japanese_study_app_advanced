@@ -11,7 +11,12 @@
       "Bash(echo \"---exit=$?\")",
       "Bash(git restore *)",
       "Bash(git push *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(git commit *)",
+      "PowerShell(Get-Process | Where-Object {$_.ProcessName -match \"node|watchman|sync|git\"} | Select-Object Id, ProcessName, Path | Format-Table -AutoSize)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(Test-Path *)",
+      "Bash(echo \"---exit:$?---\")"
     ]
   }
 }

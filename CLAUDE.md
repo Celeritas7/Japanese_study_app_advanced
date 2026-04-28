@@ -26,6 +26,10 @@ Then open `http://localhost:8000`. There are no lint, test, or build commands.
 - **One focused change per session.** Test, commit, and push before starting the next change.
 - **Justify every new UI element**, especially on mobile. Prefer extending existing controls over adding new ones.
 
+## Auto-sync incident
+
+On 2026-04-26, an investigation traced "Auto sync: update files" commits in this repo's history (e.g. 1687a0d) to a user-owned batch script `1_git_auto_sync.bat` copied across ~17 projects. The script runs `git add -A` + generic commit + push, which silently bundles in-progress edits and bypasses the deliberate-commit workflow this CLAUDE.md specifies. Action taken: [retired script / added guard / etc]. If commits with the message "Auto sync: update files" reappear in this repo, the script has come back — investigate before continuing any session.
+
 ## Architecture
 
 ### File Responsibilities
