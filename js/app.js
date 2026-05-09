@@ -31,6 +31,9 @@ import { attachEventListeners } from './events.js';
 import * as storyOverlay from './handlers/story-overlay.js';
 import * as storyAlert from './handlers/story-alert.js';
 import * as wordAlert from './handlers/word-alert.js';
+import * as addSentence from './handlers/add-sentence.js';
+import * as bulkLinker from './handlers/bulk-linker.js';
+import * as reviewQueue from './handlers/review-queue.js';
 
 // Guest user ID for testing (matches your Google OAuth user ID)
 const GUEST_USER_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
@@ -814,309 +817,27 @@ class JLPTStudyApp {
 
   // ===== ADD SENTENCE BOTTOM SHEET =====
 
-  openAddSentenceSheet() {
-    this.showAddSentenceSheet = true;
-    this.addSentenceSaving = false;
-    this.newSentenceText = '';
-    this.newSentenceMeaning = '';
-    this.newSentenceSource = 'manual';
-    this.render();
-    // Focus the textarea after render
-    setTimeout(() => document.getElementById('newSentenceTextInput')?.focus(), 100);
-  }
-
-  closeAddSentenceSheet() {
-    this.showAddSentenceSheet = false;
-    this.render();
-  }
-
-  // Find the unified word ID for any word
-  // After merge, vocabulary words already have unified IDs
-  resolveUnifiedWordId(word) {
-    if (word.id && this.kanjiWords.some(w => w.id === word.id)) return word.id;
-    // Fallback: look up by kanji text
-    const kanji = word.kanji || word.raw || '';
-    const match = this.kanjiWords.find(w => w.kanji === kanji);
-    return match?.id || null;
-  }
-
-  async submitNewSentence() {
-    const sentence = document.getElementById('newSentenceTextInput')?.value?.trim();
-    if (!sentence) { showToast('Please enter a sentence', 'error'); return; }
-
-    const word = getCurrentStudyWord(this);
-    if (!word) return;
-
-    this.addSentenceSaving = true;
-    this.render();
-
-    const meaning = document.getElementById('newSentenceMeaningInput')?.value?.trim() || '';
-    const source = document.getElementById('newSentenceSourceInput')?.value?.trim() || 'manual';
-    const level = document.getElementById('newSentenceLevelInput')?.value || '';
-
-    // Resolve unified word ID (Goi words don't have unified IDs directly)
-    const unifiedWordId = this.resolveUnifiedWordId(word);
-    if (!unifiedWordId) {
-      this.addSentenceSaving = false;
-      showToast('Word not found in unified database', 'error');
-      this.render();
-      return;
-    }
-
-    const result = await addNewSentenceAndLink(this.supabase, {
-      sentence,
-      meaning_en: meaning,
-      source,
-      jlpt_level: level || word.jlpt_level || word.level || null,
-    }, unifiedWordId, this.user?.id);
-
-    this.addSentenceSaving = false;
-
-    if (result.success) {
-      if (result.sentence) {
-        this.allUnifiedSentences.push(result.sentence);
-        if (!this.kanjiSentenceMap[unifiedWordId]) this.kanjiSentenceMap[unifiedWordId] = [];
-        this.kanjiSentenceMap[unifiedWordId].push({
-          ...result.sentence,
-          link_id: result.link?.id,
-          sentence_id: result.sentence.id,
-          rating: null,
-        });
-      }
-
-      this.showAddSentenceSheet = false;
-      this.render();
-      showToast('Sentence added & linked!', 'success');
-    } else {
-      this.render();
-      showToast('Failed: ' + (result.error || 'Unknown error'), 'error');
-    }
-  }
+  openAddSentenceSheet() { return addSentence.open(this); }
+  closeAddSentenceSheet() { return addSentence.close(this); }
+  async submitNewSentence() { return addSentence.submit(this); }
 
   // ===== BULK SENTENCE LINKER =====
 
-  openBulkLinker() {
-    this.kanjiView = 'bulk-linker';
-    this.bulkSentenceInput = '';
-    this.bulkSource = 'manual';
-    this.bulkParsedResults = null;
-    this.bulkSaving = false;
-    this.bulkResultMessage = '';
-    this.render();
-  }
-
-  parseBulkSentences() {
-    const text = document.getElementById('bulkSentenceInput')?.value?.trim();
-    if (!text) { showToast('Paste some sentences first', 'error'); return; }
-
-    this.bulkSentenceInput = text;
-    this.bulkSource = document.getElementById('bulkSourceInput')?.value?.trim() || 'manual';
-    const level = document.getElementById('bulkLevelInput')?.value || '';
-
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-    // For each sentence, detect which words from kanjiWords it contains
-    // Build a lookup: stem → word objects
-    const stemMap = {};
-    this.kanjiWords.forEach(w => {
-      const stem = extractKanjiStem(w.kanji);
-      if (stem) {
-        if (!stemMap[stem]) stemMap[stem] = [];
-        stemMap[stem].push(w);
-      }
-    });
-
-    // Sort stems by length descending for greedy matching
-    const sortedStems = Object.keys(stemMap).sort((a, b) => b.length - a.length);
-
-    this.bulkParsedResults = lines.map(line => {
-      const detectedWords = [];
-      const seenWordIds = new Set();
-
-      for (const stem of sortedStems) {
-        if (line.includes(stem)) {
-          for (const w of stemMap[stem]) {
-            if (!seenWordIds.has(w.id)) {
-              seenWordIds.add(w.id);
-              detectedWords.push(w);
-            }
-          }
-        }
-      }
-
-      return {
-        sentence: line,
-        meaning: '', // user can add later
-        jlpt_level: level,
-        detectedWords,
-        linkedWordIds: [], // track which have been linked
-      };
-    });
-
-    this.render();
-    showToast(`Detected words in ${lines.length} sentences`, 'success');
-  }
-
-  async bulkLinkSingle(wordId, sentenceIdx) {
-    const result = this.bulkParsedResults?.[sentenceIdx];
-    if (!result || !result.insertedSentenceId) {
-      showToast('Save all sentences first', 'error');
-      return;
-    }
-
-    const linkResult = await linkSentenceToWord(this.supabase, wordId, result.insertedSentenceId, this.user?.id);
-    if (linkResult.success) {
-      if (!result.linkedWordIds) result.linkedWordIds = [];
-      result.linkedWordIds.push(wordId);
-      this.render();
-      showToast('Linked!', 'success');
-    } else {
-      showToast('Link failed', 'error');
-    }
-  }
-
-  async bulkSaveAndLinkAll() {
-    if (!this.bulkParsedResults || this.bulkParsedResults.length === 0) return;
-
-    this.bulkSaving = true;
-    this.render();
-
-    const source = this.bulkSource || 'manual';
-    const level = document.getElementById('bulkLevelInput')?.value || '';
-
-    // Step 1: Insert all sentences
-    const sentencesToAdd = this.bulkParsedResults.map(r => ({
-      sentence: r.sentence,
-      meaning_en: r.meaning || null,
-      source,
-      jlpt_level: r.jlpt_level || level || null,
-    }));
-
-    const addResult = await bulkAddSentences(this.supabase, sentencesToAdd, this.user?.id);
-
-    if (addResult.added === 0) {
-      this.bulkSaving = false;
-      this.render();
-      showToast('Failed to save sentences: ' + (addResult.errors?.[0] || 'Unknown'), 'error');
-      return;
-    }
-
-    // Map inserted sentence IDs back to parsed results
-    const inserted = addResult.insertedSentences || [];
-    inserted.forEach((s, i) => {
-      if (this.bulkParsedResults[i]) {
-        this.bulkParsedResults[i].insertedSentenceId = s.id;
-      }
-    });
-
-    // Step 2: Build all word-sentence links
-    const linksToCreate = [];
-    this.bulkParsedResults.forEach((result, idx) => {
-      if (!result.insertedSentenceId) return;
-      result.detectedWords.forEach(dw => {
-        linksToCreate.push({ word_id: dw.id, sentence_id: result.insertedSentenceId });
-      });
-    });
-
-    let linkedCount = 0;
-    if (linksToCreate.length > 0) {
-      const linkResult = await bulkLinkSentences(this.supabase, linksToCreate, this.user?.id);
-      linkedCount = linkResult.linked || 0;
-
-      // Mark all as linked in local state
-      this.bulkParsedResults.forEach(result => {
-        result.linkedWordIds = result.detectedWords.map(dw => dw.id);
-      });
-    }
-
-    // Add to local sentence pool
-    inserted.forEach(s => this.allUnifiedSentences.push(s));
-
-    this.bulkSaving = false;
-    this.bulkResultMessage = `✅ ${addResult.added} sentences saved, ${linkedCount} word links created`;
-    this.render();
-  }
+  openBulkLinker() { return bulkLinker.open(this); }
+  parseBulkSentences() { return bulkLinker.parse(this); }
+  async bulkLinkSingle(wordId, sentenceIdx) { return bulkLinker.linkSingle(this, wordId, sentenceIdx); }
+  async bulkSaveAndLinkAll() { return bulkLinker.saveAndLinkAll(this); }
 
   // ===== REVIEW QUEUE =====
 
-  openReviewQueue() {
-    this.kanjiView = 'review-queue';
-    this.reviewFilter = 'unverified';
-    this.reviewSourceFilter = 'all';
-    this.reviewPage = 0;
-    this.render();
-  }
-
-  setReviewFilter(status) {
-    this.reviewFilter = status;
-    this.reviewPage = 0;
-    this.render();
-  }
-
-  setReviewSourceFilter(source) {
-    this.reviewSourceFilter = source;
-    this.reviewPage = 0;
-    this.render();
-  }
-
-  reviewPrevPage() { if (this.reviewPage > 0) { this.reviewPage--; this.render(); } }
-  reviewNextPage() { this.reviewPage++; this.render(); }
-
-  async verifySentence(sentenceId, status = 'verified') {
-    const result = await updateSentenceVerified(this.supabase, sentenceId, status);
-    if (result.success) {
-      // Update local data
-      const sent = this.allUnifiedSentences.find(s => s.id === sentenceId);
-      if (sent) sent.verified = status;
-      // Also update in kanjiSentenceMap if present
-      for (const arr of Object.values(this.kanjiSentenceMap)) {
-        const item = arr.find(s => (s.sentence_id || s.id) === sentenceId);
-        if (item) item.verified = status;
-      }
-      this.render();
-      const labels = { verified: '✓ Verified', rejected: '✗ Rejected', unverified: '↩ Unverified' };
-      showToast(labels[status] || status, 'success');
-    } else {
-      showToast('Update failed: ' + result.error, 'error');
-    }
-  }
-
-  async addTagToSentence(sentenceId) {
-    const input = document.querySelector(`[data-tag-input="${sentenceId}"]`);
-    const tag = input?.value?.trim();
-    if (!tag) return;
-
-    const result = await addSentenceTag(this.supabase, sentenceId, tag);
-    if (result.success) {
-      // Update local data
-      const sent = this.allUnifiedSentences.find(s => s.id === sentenceId);
-      if (sent) sent.tags = result.tags;
-      for (const arr of Object.values(this.kanjiSentenceMap)) {
-        const item = arr.find(s => (s.sentence_id || s.id) === sentenceId);
-        if (item) item.tags = result.tags;
-      }
-      this.render();
-      showToast(`Tag "${tag}" added`, 'success');
-    } else {
-      showToast('Tag failed: ' + result.error, 'error');
-    }
-  }
-
-  async removeTagFromSentence(sentenceId, tag) {
-    const result = await removeSentenceTag(this.supabase, sentenceId, tag);
-    if (result.success) {
-      const sent = this.allUnifiedSentences.find(s => s.id === sentenceId);
-      if (sent) sent.tags = result.tags;
-      for (const arr of Object.values(this.kanjiSentenceMap)) {
-        const item = arr.find(s => (s.sentence_id || s.id) === sentenceId);
-        if (item) item.tags = result.tags;
-      }
-      this.render();
-      showToast(`Tag removed`, 'success');
-    } else {
-      showToast('Remove failed: ' + result.error, 'error');
-    }
-  }
+  openReviewQueue() { return reviewQueue.open(this); }
+  setReviewFilter(status) { return reviewQueue.setFilter(this, status); }
+  setReviewSourceFilter(source) { return reviewQueue.setSourceFilter(this, source); }
+  reviewPrevPage() { return reviewQueue.prevPage(this); }
+  reviewNextPage() { return reviewQueue.nextPage(this); }
+  async verifySentence(sentenceId, status = 'verified') { return reviewQueue.verifySentence(this, sentenceId, status); }
+  async addTagToSentence(sentenceId) { return reviewQueue.addTag(this, sentenceId); }
+  async removeTagFromSentence(sentenceId, tag) { return reviewQueue.removeTag(this, sentenceId, tag); }
 
   setTestType(type) {
     this.selectedTestType = type;
