@@ -28,6 +28,9 @@ import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './re
 import { renderRelationsTab, getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, findWordInSentence, getCurrentStudyWord } from './render-kanji.js';
 import { attachEventListeners } from './events.js';
+import * as storyOverlay from './handlers/story-overlay.js';
+import * as storyAlert from './handlers/story-alert.js';
+import * as wordAlert from './handlers/word-alert.js';
 
 // Guest user ID for testing (matches your Google OAuth user ID)
 const GUEST_USER_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
@@ -1873,106 +1876,22 @@ class JLPTStudyApp {
   }
 
   // ===== STORY OVERLAY =====
-  openStoryOverlay(word) {
-    if (this.selectedTestType === 'writing' || this.srsConfig.testType === 'writing') {
-      this.canvasImageData = saveCanvasData('writingCanvas') || saveCanvasData('srsWritingCanvas');
-    }
-    const kanjiChars = [...(word.kanji || '')].filter(c => /[一-龯]/.test(c));
-    this.storyOverlay = {
-      word, step: kanjiChars.length > 0 ? 2 : 1,
-      expandedPart: kanjiChars[0] || null,
-      groupKey: null, highlightKanji: null, kanjiParts: kanjiChars
-    };
-    this.render();
-  }
-
-  closeStoryOverlay() { this.storyOverlay = null; this.storyAlertTarget = null; this.render(); }
-
-  storyGoGroup(groupKanji, highlightKanji) {
-    if (!this.storyOverlay) return;
-    this.storyOverlay.step = 3;
-    this.storyOverlay.groupKey = groupKanji;
-    this.storyOverlay.highlightKanji = highlightKanji;
-    this.render();
-  }
-
-  storyBackToBreakdown() {
-    if (!this.storyOverlay) return;
-    this.storyOverlay.step = 2;
-    this.storyOverlay.groupKey = null;
-    this.render();
-  }
-
-  storySelectPart(kanjiChar) {
-    if (!this.storyOverlay) return;
-    this.storyOverlay.expandedPart = kanjiChar;
-    this.render();
-  }
-
-  findStoryForKanji(kanjiChar) {
-    return this.stories.find(s => s.kanji === kanjiChar) || null;
-  }
-
-  findGroupForKanji(kanjiChar) {
-    const story = this.findStoryForKanji(kanjiChar);
-    if (!story || !story.group_kanji) return null;
-    return this.storyGroups.find(g => g.group_kanji === story.group_kanji) || null;
-  }
-
-  getGroupMembersForKanji(groupKanji) {
-    return this.stories.filter(s => s.group_kanji === groupKanji);
-  }
+  openStoryOverlay(word) { return storyOverlay.open(this, word); }
+  closeStoryOverlay() { return storyOverlay.close(this); }
+  storyGoGroup(groupKanji, highlightKanji) { return storyOverlay.goGroup(this, groupKanji, highlightKanji); }
+  storyBackToBreakdown() { return storyOverlay.backToBreakdown(this); }
+  storySelectPart(kanjiChar) { return storyOverlay.selectPart(this, kanjiChar); }
+  findStoryForKanji(kanjiChar) { return storyOverlay.findStoryForKanji(this, kanjiChar); }
+  findGroupForKanji(kanjiChar) { return storyOverlay.findGroupForKanji(this, kanjiChar); }
+  getGroupMembersForKanji(groupKanji) { return storyOverlay.getGroupMembersForKanji(this, groupKanji); }
 
   // ===== STORY ALERT =====
-  openStoryAlert(kanji, groupKanji, source) {
-    this.storyAlertTarget = { kanji, groupKanji, source };
-    this.storyAlertComment = '';
-    this.storyAlertType = 'incorrect';
-    this.storyAlertSaving = false;
-    this.render();
-  }
-
-  closeStoryAlert() { this.storyAlertTarget = null; this.render(); }
-
-  async submitStoryAlert() {
-    if (!this.storyAlertTarget || !this.user) return;
-    this.storyAlertSaving = true;
-    this.render();
-
-    const result = await saveStoryAlert(this.supabase, this.user.id, {
-      kanji: this.storyAlertTarget.kanji,
-      groupKanji: this.storyAlertTarget.groupKanji,
-      alertType: this.storyAlertType,
-      comment: this.storyAlertComment,
-      source: this.storyAlertTarget.source
-    });
-
-    this.storyAlertSaving = false;
-    if (result.success) {
-      this.storyAlertTarget = null;
-      this.render();
-      showToast('⚠️ Story alert saved!', 'success');
-    } else {
-      showToast(`Alert save failed: ${result.error}`, 'error');
-    }
-  }
+  openStoryAlert(kanji, groupKanji, source) { return storyAlert.open(this, kanji, groupKanji, source); }
+  closeStoryAlert() { return storyAlert.close(this); }
+  async submitStoryAlert() { return storyAlert.submit(this); }
 
   // ===== REQUEST MISSING STORY =====
-  async requestMissingStory(kanji) {
-    if (!kanji || !this.user) { showToast('Not logged in', 'error'); return; }
-    const result = await saveStoryAlert(this.supabase, this.user.id, {
-      kanji,
-      groupKanji: '',
-      alertType: 'missing_story',
-      comment: 'Story requested — no story exists for this kanji',
-      source: 'flashcard'
-    });
-    if (result.success) {
-      showToast(`📝 Story request saved for「${kanji}」`, 'success');
-    } else {
-      showToast('Request failed: ' + (result.error || 'Unknown'), 'error');
-    }
-  }
+  async requestMissingStory(kanji) { return storyAlert.requestMissing(this, kanji); }
 
   // ===== INLINE GROUP PREVIEW (from flashcard badges) =====
   _dismissGroupPreview() {
@@ -2040,44 +1959,9 @@ class JLPTStudyApp {
   }
 
   // ===== WORD ALERT =====
-  openWordAlert(word, source = 'flashcard') {
-    this.wordAlertTarget = {
-      kanji: word.kanji || word.raw,
-      hiragana: word.hiragana || '',
-      meaning: word.meaning || '',
-      source
-    };
-    this.wordAlertComment = '';
-    this.wordAlertType = 'wrong_reading';
-    this.wordAlertSaving = false;
-    this.render();
-  }
-
-  closeWordAlert() { this.wordAlertTarget = null; this.render(); }
-
-  async submitWordAlert() {
-    if (!this.wordAlertTarget || !this.user) return;
-    this.wordAlertSaving = true;
-    this.render();
-
-    const result = await saveWordAlert(this.supabase, this.user.id, {
-      kanji: this.wordAlertTarget.kanji,
-      hiragana: this.wordAlertTarget.hiragana,
-      meaning: this.wordAlertTarget.meaning,
-      alertType: this.wordAlertType,
-      comment: this.wordAlertComment,
-      source: this.wordAlertTarget.source
-    });
-
-    this.wordAlertSaving = false;
-    if (result.success) {
-      this.wordAlertTarget = null;
-      this.render();
-      showToast('🚩 Word flag saved!', 'success');
-    } else {
-      showToast(`Flag save failed: ${result.error}`, 'error');
-    }
-  }
+  openWordAlert(word, source = 'flashcard') { return wordAlert.open(this, word, source); }
+  closeWordAlert() { return wordAlert.close(this); }
+  async submitWordAlert() { return wordAlert.submit(this); }
 
   // ===== HELPERS =====
   getMarkingStats() {
