@@ -160,6 +160,18 @@ export function attachEventListeners(app) {
   document.getElementById('finishStudyBtn')?.addEventListener('click', () => app.finishStudy());
   document.getElementById('reviewAgainBtn')?.addEventListener('click', () => app.reviewAgain());
   document.getElementById('shuffleRestartBtn')?.addEventListener('click', () => app.shuffleRestart());
+
+  // Sentence carousel pill in the flashcard yellow box (Phase 2)
+  document.querySelectorAll('[data-carousel-prev]').forEach(btn => {
+    btn.addEventListener('click', () => app.prevSentenceCarousel());
+  });
+  document.querySelectorAll('[data-carousel-next]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const total = parseInt(btn.dataset.carouselTotal) || 1;
+      app.nextSentenceCarousel(total - 1);
+    });
+  });
+
   document.querySelectorAll('[data-review-marking]').forEach(btn => {
     btn.addEventListener('click', () => app.reviewByMarking(parseInt(btn.dataset.reviewMarking)));
   });

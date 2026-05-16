@@ -556,29 +556,61 @@ export function renderFlashcard(app) {
   const levelColor = LEVEL_COLORS[word.level] || LEVEL_COLORS['ALL'];
   const kanjiEsc = escapeHtml(word.kanji || word.raw);
   
-  let ctxBefore = word.sentence_before || word.supporting_word_1 || '';
-  let ctxAfter = word.sentence_after || word.supporting_word_2 || '';
-  
-  // Live fallback: check kanjiSentenceMap if no pre-enriched context
-  // This catches sentences linked/rated during the current study session
-  if (!ctxBefore && !ctxAfter && app.kanjiSentenceMap && app.kanjiWords) {
+  // Phase 2 — Sentence carousel. When the word has ≥1 linked sentence, the
+  // yellow box pages through them via app.sentenceCarouselIdx. This re-derives
+  // context from kanjiSentenceMap and intentionally OVERRIDES any pre-baked
+  // word.sentence_before/after (startKanjiStudy bakes only sentence[0]), so the
+  // carousel works on both the Goi and Kanji study paths.
+  let ctxBefore = '';
+  let ctxAfter = '';
+  let sentenceTotal = 0;
+  let sentenceIdx = 0;
+
+  if (app.kanjiSentenceMap && app.kanjiWords) {
     const kanji = word.kanji || word.raw || '';
-    // Resolve unified word ID
+    // Resolve unified word ID (same resolution as the previous live fallback)
     let uid = (word.id && app.kanjiWords.some(kw => kw.id === word.id)) ? word.id : null;
     if (!uid) { const match = app.kanjiWords.find(w => w.kanji === kanji); uid = match?.id; }
-    const sentences = uid ? app.kanjiSentenceMap[uid] : null;
-    if (sentences && sentences.length > 0) {
-      const best = sentences[0];
-      const sentText = best.sentence || '';
+    const raw = uid ? app.kanjiSentenceMap[uid] : null;
+    if (raw && raw.length > 0) {
+      // Stable pill order: rating desc, then verified > unverified. Mirrors
+      // renderSentencePanel's comparator so the pill's N/M matches the panel.
+      const statusOrder = { verified: 0, corrected: 1, unverified: 2, rejected: 3 };
+      const sorted = [...raw].sort((a, b) => {
+        const r = (b.rating || 0) - (a.rating || 0);
+        if (r !== 0) return r;
+        return (statusOrder[a.verified] ?? 2) - (statusOrder[b.verified] ?? 2);
+      });
+      sentenceTotal = sorted.length;
+      sentenceIdx = Math.min(app.sentenceCarouselIdx || 0, sentenceTotal - 1);
+      const sentText = sorted[sentenceIdx]?.sentence || '';
       const match = findWordInSentence(sentText, kanji);
       if (match) {
         ctxBefore = sentText.substring(0, match.idx);
         ctxAfter = sentText.substring(match.idx + match.matchLen);
+      } else {
+        // Word not locatable in this sentence — show it whole so the box stays
+        // consistent with the pill counter (never falls back to a stale [0]).
+        ctxAfter = sentText;
       }
     }
   }
-  
+
+  // No linked sentences: fall back to pre-baked / supporting-word context.
+  if (!ctxBefore && !ctxAfter) {
+    ctxBefore = word.sentence_before || word.supporting_word_1 || '';
+    ctxAfter = word.sentence_after || word.supporting_word_2 || '';
+  }
+
   const hasContext = ctxBefore || ctxAfter;
+
+  // Carousel pill — only rendered when >1 linked sentence exists.
+  const carouselPillHtml = sentenceTotal > 1 ? `
+    <div class="sentence-carousel-pill absolute top-2 right-2 flex items-center gap-1 bg-amber-900/80 text-amber-50 text-xs font-semibold px-2 py-1 rounded-full" style="z-index: 10;">
+      <button data-carousel-prev aria-label="Previous sentence" class="w-6 h-6 flex items-center justify-center rounded-full hover:bg-amber-800 transition-colors ${sentenceIdx === 0 ? 'opacity-40 pointer-events-none' : ''}">◀</button>
+      <span class="px-0.5 tabular-nums">${sentenceIdx + 1}/${sentenceTotal}</span>
+      <button data-carousel-next data-carousel-total="${sentenceTotal}" aria-label="Next sentence" class="w-6 h-6 flex items-center justify-center rounded-full hover:bg-amber-800 transition-colors ${sentenceIdx >= sentenceTotal - 1 ? 'opacity-40 pointer-events-none' : ''}">▶</button>
+    </div>` : '';
   
   return `
     <div class="flex-1 flex flex-col overflow-hidden">
@@ -611,7 +643,7 @@ export function renderFlashcard(app) {
       <!-- Card Content -->
       <div class="flex-1 flex flex-col items-center justify-start p-4 overflow-auto">
         <div class="w-full max-w-2xl">
-          ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter)}
+          ${renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter, carouselPillHtml)}
           
           <!-- Story + Add Sentence + Flag Buttons -->
           <div class="flex gap-2 mb-3">
@@ -780,7 +812,7 @@ export function renderStudyResults(app) {
   `;
 }
 
-function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
+function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter, carouselPillHtml = '') {
   const type = app.selectedTestType;
   
   // Build tappable versions of context for tap-to-save
@@ -807,11 +839,14 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Sentence Box: Kanji always visible, context grows in -->
       <div class="sentence-box rounded-2xl p-6 mb-4">
         ${badgeHtml}
-        <p class="text-center leading-relaxed">
-          ${app.revealStep >= 2 && tappableBefore ? `<span class="context-text sentence-tappable">${tappableBefore}</span>` : ''}
-          <span class="kanji-highlight mx-1" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</span>
-          ${app.revealStep >= 2 && tappableAfter ? `<span class="context-text sentence-tappable">${tappableAfter}</span>` : ''}
-        </p>
+        ${carouselPillHtml}
+        <div class="sentence-box-scroll">
+          <p class="text-center leading-relaxed">
+            ${app.revealStep >= 2 && tappableBefore ? `<span class="context-text sentence-tappable">${tappableBefore}</span>` : ''}
+            <span class="kanji-highlight mx-1" style="${kanjiFontSize(word.kanji || word.raw)}">${word.kanji || word.raw}</span>
+            ${app.revealStep >= 2 && tappableAfter ? `<span class="context-text sentence-tappable">${tappableAfter}</span>` : ''}
+          </p>
+        </div>
       </div>
       
       <!-- Reveal Box (tappable) -->
@@ -835,15 +870,18 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Sentence Box: Hiragana + Meaning always visible -->
       <div class="sentence-box rounded-2xl p-6 mb-4">
         ${badgeHtml}
-        <p class="reading-display text-blue-700 font-bold mb-2">${word.hiragana || ''}</p>
-        <p class="meaning-display text-amber-800">${word.meaning}</p>
-        ${app.revealStep >= 2 && hasContext ? `
-          <div class="mt-3 text-center animate-fadeIn">
-            <span class="context-text sentence-tappable">${tappableBefore}</span>
-            <span class="text-red-500 font-bold mx-1">\uFF1F</span>
-            <span class="context-text sentence-tappable">${tappableAfter}</span>
-          </div>
-        ` : ''}
+        ${carouselPillHtml}
+        <div class="sentence-box-scroll">
+          <p class="reading-display text-blue-700 font-bold mb-2">${word.hiragana || ''}</p>
+          <p class="meaning-display text-amber-800">${word.meaning}</p>
+          ${app.revealStep >= 2 && hasContext ? `
+            <div class="mt-3 text-center animate-fadeIn">
+              <span class="context-text sentence-tappable">${tappableBefore}</span>
+              <span class="text-red-500 font-bold mx-1">\uFF1F</span>
+              <span class="context-text sentence-tappable">${tappableAfter}</span>
+            </div>
+          ` : ''}
+        </div>
       </div>
       
       <!-- Reveal Box (tappable) -->
@@ -866,7 +904,10 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter) {
       <!-- Sentence Box: Meaning always visible -->
       <div class="sentence-box rounded-2xl p-6 mb-4">
         ${badgeHtml}
-        <p class="meaning-display text-amber-800 font-bold text-center">${word.meaning}</p>
+        ${carouselPillHtml}
+        <div class="sentence-box-scroll">
+          <p class="meaning-display text-amber-800 font-bold text-center">${word.meaning}</p>
+        </div>
       </div>
       
       <!-- Writing Canvas -->

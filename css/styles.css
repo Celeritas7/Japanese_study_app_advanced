@@ -75,6 +75,22 @@ body {
   overflow: hidden;
 }
 
+/* Phase 2: inner scroller so long sentences scroll internally while the
+   carousel pill (a non-scrolling sibling) stays pinned to the box.
+   flex:1 + min-height:0 is the standard pattern for a scrollable flex
+   child — without min-height:0 the child won't shrink below its content
+   size and overflow-y never triggers. .sentence-box keeps height:160px so
+   the box footprint stays fixed across reveal steps (no layout shift). */
+.sentence-box-scroll {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .sentence-box .badge-row {
   position: absolute;
   top: 8px;

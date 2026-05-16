@@ -78,6 +78,7 @@ class JLPTStudyApp {
     this.kanjiSentenceMap = {};   // word_id → [{ link_id, sentence_id, sentence, meaning_en, rating, source, jlpt_level }]
     this.allUnifiedSentences = [];  // all sentences for discovery
     this.sentencePanelExpanded = false;
+    this.sentenceCarouselIdx = 0;  // which linked sentence the flashcard yellow box shows (resets on word change)
 
     // Add sentence bottom sheet
     this.showAddSentenceSheet = false;
@@ -597,6 +598,7 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentenceCarouselIdx = 0;
     this.sentencePanelExpanded = false;
     this.kanjiView = 'flashcard';
     this.render();
@@ -609,6 +611,20 @@ class JLPTStudyApp {
     if (container) {
       container.innerHTML = renderSentencePanel(this);
       this.attachSentencePanelListeners();
+    }
+  }
+
+  prevSentenceCarousel() {
+    if (this.sentenceCarouselIdx > 0) {
+      this.sentenceCarouselIdx--;
+      this.render();
+    }
+  }
+
+  nextSentenceCarousel(maxIdx) {
+    if (this.sentenceCarouselIdx < maxIdx) {
+      this.sentenceCarouselIdx++;
+      this.render();
     }
   }
 
@@ -974,6 +990,7 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentenceCarouselIdx = 0;
     this.sentencePanelExpanded = false;
     this.studyView = 'flashcard';
     this.render();
@@ -1004,6 +1021,7 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentenceCarouselIdx = 0;
     this.sentencePanelExpanded = false;
     this.studyView = 'flashcard';
     this.render();
@@ -1019,6 +1037,7 @@ class JLPTStudyApp {
       this.currentIndex++;
       this.revealStep = 0;
       this.canvasImageData = null;
+      this.sentenceCarouselIdx = 0;
       this._saveStudySession();
       this.render();
     }
@@ -1029,6 +1048,7 @@ class JLPTStudyApp {
       this.currentIndex--;
       this.revealStep = 0;
       this.canvasImageData = null;
+      this.sentenceCarouselIdx = 0;
       this._saveStudySession();
       this.render();
     }
@@ -1040,6 +1060,7 @@ class JLPTStudyApp {
       this.currentIndex = n;
       this.revealStep = 0;
       this.canvasImageData = null;
+      this.sentenceCarouselIdx = 0;
       this._saveStudySession();
       this.render();
     }
@@ -1057,6 +1078,7 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentenceCarouselIdx = 0;
     this.studyView = 'flashcard';
     this._saveStudySession();
     this.render();
@@ -1067,6 +1089,7 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentenceCarouselIdx = 0;
     this.studyView = 'flashcard';
     this._saveStudySession();
     this.render();
@@ -1079,6 +1102,7 @@ class JLPTStudyApp {
     this.currentIndex = 0;
     this.revealStep = 0;
     this.canvasImageData = null;
+    this.sentenceCarouselIdx = 0;
     this.studyView = 'flashcard';
     this._saveStudySession();
     this.loadSentencesForStudyWords(this.studyWords);
@@ -1440,6 +1464,7 @@ class JLPTStudyApp {
       this.selectedTestType = session.testType || 'kanji';
       this.selectedLevel = session.selectedLevel || null;
       this.canvasImageData = null;
+      this.sentenceCarouselIdx = 0;
       this.sentencePanelExpanded = false;
       this.studyView = session.view || 'flashcard';
       if (this.studyView === 'flashcard') this.loadSentencesForStudyWords(this.studyWords);
@@ -1518,6 +1543,7 @@ class JLPTStudyApp {
       this.currentIndex = 0;
       this.revealStep = 0;
       this.canvasImageData = null;
+      this.sentenceCarouselIdx = 0;
       this.sentencePanelExpanded = false;
       this.studyView = 'flashcard';
       this._saveStudySession();
