@@ -555,7 +555,14 @@ export function renderFlashcard(app) {
   const markInfo = app.markingCategories[marking] || app.markingCategories[0];
   const levelColor = LEVEL_COLORS[word.level] || LEVEL_COLORS['ALL'];
   const kanjiEsc = escapeHtml(word.kanji || word.raw);
-  
+
+  // Active study hides the app header (and its gear), so surface a compact
+  // gear in the position row instead. Same admin gate as renderHeader; the
+  // ADMIN_ID constant is duplicated locally per the existing renderHeader
+  // pattern (consolidation into config.js is tracked tech debt, not in scope).
+  const ADMIN_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
+  const isAdmin = app.user?.id === ADMIN_ID || app.isGuestMode;
+
   // Phase 2 — Sentence carousel. When the word has ≥1 linked sentence, the
   // yellow box pages through them via app.sentenceCarouselIdx. This re-derives
   // context from kanjiSentenceMap and intentionally OVERRIDES any pre-baked
@@ -624,8 +631,18 @@ export function renderFlashcard(app) {
           </div>
           <span class="text-slate-400 text-sm">${app.currentIndex + 1} / ${app.studyWords.length}</span>
         </div>
-        <div class="w-10 h-10 ${markInfo.color} rounded-lg flex items-center justify-center">
-          <span class="text-white text-lg">${markInfo.icon}</span>
+        <!-- Mark indicator removed in active study (the Change Rating panel
+             below the card shows the same state via its highlighted button).
+             A w-10 slot is kept so the position counter stays centered. -->
+        <div class="w-10 flex justify-end">
+          ${isAdmin ? `
+            <a href="data-manager.html" class="text-amber-400 hover:text-amber-300 w-8 h-8 flex items-center justify-center rounded-lg transition-colors" title="Data Manager (Admin)" aria-label="Admin">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </a>
+          ` : ''}
         </div>
       </div>
       

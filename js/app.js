@@ -1719,6 +1719,19 @@ class JLPTStudyApp {
     return stats;
   }
 
+  // True when the user is inside an active flashcard/test session, across all
+  // four study paths. Used to hide the upper nav chrome (app header, main tab
+  // bar, sub-tab pills) so the study UI reclaims vertical space. Self Study
+  // overloads studyView and additionally requires a selectedTopic.
+  isInActiveStudy() {
+    return !!(
+      (this.currentTab === 'study' && this.studySubTab === 'goi' && this.studyView === 'flashcard') ||
+      (this.currentTab === 'study' && this.studySubTab === 'kanji' && this.kanjiView === 'flashcard') ||
+      (this.currentTab === 'study' && this.studySubTab === 'self_study' && this.studyView === 'flashcard' && this.selectedTopic) ||
+      (this.currentTab === 'srs' && this.srsView === 'test')
+    );
+  }
+
   render() {
     const app = document.getElementById('app');
 
@@ -1754,8 +1767,8 @@ class JLPTStudyApp {
     this._lastViewKey = newKey;
 
     app.innerHTML = `
-      ${renderHeader(this)}
-      ${renderTabs(this.currentTab)}
+      ${this.isInActiveStudy() ? '' : renderHeader(this)}
+      ${this.isInActiveStudy() ? '' : renderTabs(this.currentTab)}
       <main class="flex-1 flex flex-col overflow-hidden">${content}</main>
       ${this.renderModals()}
       ${renderStoryOverlay(this)}
@@ -1853,7 +1866,7 @@ class JLPTStudyApp {
       else content = renderSelfStudyTopics(this);
     }
 
-    return subTabs + content;
+    return (this.isInActiveStudy() ? '' : subTabs) + content;
   }
 
   renderModals() {
