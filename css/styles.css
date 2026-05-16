@@ -88,8 +88,13 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }
+
+/* Center content when it fits, scroll from top when it overflows.
+   margin: auto on first/last collapses to 0 when content exceeds container —
+   fix for the "justify-content: center clips overflow" browser quirk. */
+.sentence-box-scroll > *:first-child { margin-top: auto; }
+.sentence-box-scroll > *:last-child { margin-bottom: auto; }
 
 .sentence-box .badge-row {
   position: absolute;
