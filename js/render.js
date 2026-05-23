@@ -204,13 +204,14 @@ export function renderHeader(app) {
 }
 
 export function renderTabs(currentTab) {
+  // Tabs are top-frequency shortcuts only \u2014 the full mode list (Relations,
+  // Anime, Scripts, Stories, etc.) lives in the Home grid. When the user is
+  // inside one of those removed destinations, no strip tab is active and
+  // they navigate back via the Home tab.
   const tabs = [
+    { id: 'home', label: 'Home', icon: TAB_ICONS.home },
     { id: 'study', label: 'Study', icon: TAB_ICONS.study },
-    { id: 'srs', label: 'SRS', icon: TAB_ICONS.srs },
-    { id: 'stories', label: 'Stories', icon: TAB_ICONS.stories },
-    { id: 'similar', label: 'Relations', icon: '\uD83D\uDD17' },
-    { id: 'anime', label: 'Anime', icon: TAB_ICONS.anime, href: 'anime-reader.html' },
-    { id: 'script', label: 'Scripts', icon: '\uD83D\uDCDD', href: 'script-reader.html' }
+    { id: 'srs', label: 'SRS', icon: TAB_ICONS.srs }
   ];
   
   return `

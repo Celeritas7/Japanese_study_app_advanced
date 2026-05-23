@@ -27,6 +27,7 @@ import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderRelationsTab, getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, findWordInSentence, getCurrentStudyWord } from './render-kanji.js';
+import { renderHome, renderHomeHeader } from './render-home.js';
 import { attachEventListeners } from './events.js';
 import * as storyOverlay from './handlers/story-overlay.js';
 import * as storyAlert from './handlers/story-alert.js';
@@ -99,7 +100,9 @@ class JLPTStudyApp {
     this.reviewSourceFilter = 'all';
     this.reviewPage = 0;
 
-    this.currentTab = 'study';
+    this.currentTab = 'home';
+    this.homeView = 'main';          // 'main' | 'groups'
+    this.homeGroupFilter = 'all';    // group-picker filter chip
     this.studySubTab = 'goi';
     this.studyView = 'level';
     this.selectedLevel = null;
@@ -337,6 +340,10 @@ class JLPTStudyApp {
 
   selectTab(tab) {
     this.currentTab = tab;
+    if (tab === 'home') {
+      // Always land on the main grid, never inside a drilled-down picker.
+      this.homeView = 'main';
+    }
     if (tab === 'study') {
       // Don't reset if there's an active study session
       const hasSession = localStorage.getItem('study_session');
@@ -349,6 +356,89 @@ class JLPTStudyApp {
     this.selectedSimilarGroup = null;
     this.selectedWordGroup = null;
     this.relationsCategory = null;
+    this.render();
+  }
+
+  // ===== HOME TAB =====
+  //
+  // Routes a Home mode-card tap to the right destination. Pure navigation
+  // helper — does not touch session state. Anime/Script paths use full page
+  // navigation since those features live in standalone HTML files.
+  navigateFromHome(modeKey) {
+    switch (modeKey) {
+      case 'goi':
+        this.currentTab = 'study';
+        this.studySubTab = 'goi';
+        this.studyView = 'level';
+        this.selectedLevel = null;
+        this.render();
+        break;
+      case 'kanji':
+        this.currentTab = 'study';
+        this.studySubTab = 'kanji';
+        this.kanjiView = 'books';
+        this.selectedBook = null;
+        this.selectedChapter = null;
+        this.render();
+        break;
+      case 'srs':
+        this.currentTab = 'srs';
+        this.render();
+        break;
+      case 'self':
+        this.currentTab = 'study';
+        this.studySubTab = 'self_study';
+        this.studyView = 'level';
+        this.selectedTopic = null;
+        this.render();
+        break;
+      case 'group':
+        this.homeView = 'groups';
+        this.homeGroupFilter = 'all';
+        this.render();
+        break;
+      case 'anime':
+        window.location.href = 'anime-reader.html';
+        break;
+      case 'script':
+        window.location.href = 'script-reader.html';
+        break;
+    }
+  }
+
+  setHomeGroupFilter(filter) {
+    this.homeGroupFilter = filter;
+    this.render();
+  }
+
+  backToHome() {
+    this.homeView = 'main';
+    this.homeGroupFilter = 'all';
+    this.render();
+  }
+
+  // Resume hero tap — restore the saved Goi study session and jump straight
+  // to the flashcard view. Mirrors _restoreStudySession but is triggered by
+  // the user rather than during app boot.
+  resumeFromHome() {
+    if (this._restoreStudySession()) {
+      this.currentTab = 'study';
+      this.studySubTab = 'goi';
+      this.render();
+    } else {
+      // Stale session — fall back to the Goi level picker.
+      this.navigateFromHome('goi');
+    }
+  }
+
+  selectHomeGroup(groupId) {
+    // Hand off to the existing Relations selection path, which already knows
+    // how to render a single group's detail view.
+    this.currentTab = 'similar';
+    const g = this.wordGroups.find(w => w.id === groupId);
+    if (g) this.relationsCategory = g.group_type;
+    this.selectedWordGroup = g || null;
+    this.homeView = 'main';
     this.render();
   }
 
@@ -1740,6 +1830,7 @@ class JLPTStudyApp {
 
     // Build a view key that captures the exact "page" we're on
     const getViewKey = () => {
+      if (this.currentTab === 'home') return this.homeView === 'groups' ? 'home-groups' : 'home-main';
       if (this.currentTab === 'stories') return this.selectedStoryGroup ? 'stories-detail' : 'stories-list';
       if (this.currentTab === 'similar') return this.selectedWordGroup ? 'relations-detail' : this.relationsCategory ? `relations-${this.relationsCategory}` : 'relations-folders';
       if (this.currentTab === 'study') return `study-${this.studySubTab}-${this.studyView}-${this.kanjiView}`;
@@ -1756,19 +1847,22 @@ class JLPTStudyApp {
 
     let content;
     switch (this.currentTab) {
+      case 'home': content = renderHome(this); break;
       case 'study': content = this.renderStudyTab(); break;
       case 'srs': content = renderSRSTab(this); break;
       case 'stories': content = renderStoriesTab(this); break;
       case 'similar': content = renderRelationsTab(this); break;
-      default: content = this.renderStudyTab();
+      default: content = renderHome(this);
     }
 
     const newKey = getViewKey();
     this._lastViewKey = newKey;
 
+    const hideChrome = this.isInActiveStudy();
+    const isHome = this.currentTab === 'home';
     app.innerHTML = `
-      ${this.isInActiveStudy() ? '' : renderHeader(this)}
-      ${this.isInActiveStudy() ? '' : renderTabs(this.currentTab)}
+      ${hideChrome ? '' : (isHome ? renderHomeHeader(this) : renderHeader(this))}
+      ${hideChrome ? '' : renderTabs(this.currentTab)}
       <main class="flex-1 flex flex-col overflow-hidden">${content}</main>
       ${this.renderModals()}
       ${renderStoryOverlay(this)}

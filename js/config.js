@@ -42,6 +42,7 @@ export const TEST_TYPES = {
 
 // Tab Icons
 export const TAB_ICONS = {
+  home: '🏠',     // 🏠
   study: '\uD83D\uDCDA',    // 📚
   srs: '\uD83D\uDD04',      // 🔄
   stories: '\uD83D\uDCD6', // 📖

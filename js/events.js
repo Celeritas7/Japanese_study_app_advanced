@@ -54,6 +54,24 @@ export function attachEventListeners(app) {
     btn.addEventListener('click', () => app.selectTab(btn.dataset.tab));
   });
 
+  // ===== HOME TAB =====
+  document.querySelectorAll('[data-home-mode]').forEach(btn => {
+    btn.addEventListener('click', () => app.navigateFromHome(btn.dataset.homeMode));
+  });
+  document.querySelectorAll('[data-home-resume]').forEach(btn => {
+    btn.addEventListener('click', () => app.resumeFromHome());
+  });
+  document.querySelectorAll('[data-home-group-filter]').forEach(btn => {
+    btn.addEventListener('click', () => app.setHomeGroupFilter(btn.dataset.homeGroupFilter));
+  });
+  document.querySelectorAll('[data-home-group-id]').forEach(btn => {
+    btn.addEventListener('click', () => app.selectHomeGroup(parseInt(btn.dataset.homeGroupId, 10)));
+  });
+  document.querySelectorAll('[data-home-back]').forEach(btn => {
+    btn.addEventListener('click', () => app.backToHome());
+  });
+  // Stats pill — deferred per project decision; render only, no handler.
+
   // ===== STUDY SUB-TABS =====
   document.querySelectorAll('[data-study-subtab]').forEach(btn => {
     btn.addEventListener('click', () => app.selectStudySubTab(btn.dataset.studySubtab));
