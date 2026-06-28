@@ -1,16 +1,12 @@
-// JLPT Vocabulary Master - Home Tab  (v2 — full-bleed rotating Focus hero)
+// JLPT Vocabulary Master - Home Tab
 //
-// Drop-in replacement for js/render-home.js. The mode-card GRID is replaced by
-// a single full-bleed "Today's Focus" hero that rotates by calendar day, so the
-// Home screen reshapes itself over time. Reaching the OTHER study modes now
-// happens through the bottom nav + "More" sheet (see render-nav.js).
-//
-// Everything else (header, group picker, all data-* hooks) is unchanged, so
-// events.js keeps working without edits to the existing handlers.
+// Entry-point landing surface. Renders the "Continue" resume hero (if a
+// study session is in flight) plus a 2-column grid of study modes, so that
+// modes other than Goi flashcards are not buried behind a tab strip.
 //
 // Two views live in this module:
 //   - renderHome(app)        — the main Home screen (currentTab === 'home')
-//   - renderGroupPicker(app) — drill-down from the bottom-nav "Groups" entry
+//   - renderGroupPicker(app) — drill-down from the "Study by Group" card
 //                              (currentTab === 'home' && homeView === 'groups')
 
 import { escapeHtml, getMarking } from './utils.js';
@@ -26,33 +22,28 @@ const MODE_COLORS = {
   script:  '#14b8a6', // teal
 };
 
-// Day-rotating focus order. modeKey matches app.navigateFromHome(), so the
-// hero reuses the existing [data-home-mode] dispatch with no new handler.
-const FOCUS_ROTATION = [
-  { key: 'goi',    icon: 'あ',  glyph: true,  name: 'Goi Vocabulary', sub: 'Vocabulary flashcards',     cta: 'Tap to start a flashcard set' },
-  { key: 'kanji',  icon: '漢',  glyph: true,  name: 'Kanji Practice', sub: 'Textbook kanji by chapter', cta: 'Tap to open a kanji chapter' },
-  { key: 'srs',    icon: '🔁', glyph: false, name: 'SRS Review',     sub: 'Spaced-repetition quiz',    cta: 'Tap to review what is due' },
-  { key: 'group',  icon: '🏷️', glyph: false, name: 'Study by Group', sub: 'Curated word sets',         cta: 'Tap to pick a group' },
-  { key: 'self',   icon: '📝', glyph: false, name: 'Self Study',     sub: 'Your saved words',          cta: 'Tap to review your words' },
-  { key: 'anime',  icon: '🎬', glyph: false, name: 'Anime Reader',   sub: 'Subtitle dictionary',       cta: 'Tap to open the reader' },
-  { key: 'script', icon: '📜', glyph: false, name: 'Script Reader',  sub: 'Your imports',              cta: 'Tap to open a script' },
-];
-
-// Compute mode meta counts for the live badge on the focus hero.
+// Compute the 6 (or 7, when no resume hero) mode card meta counts. The hero
+// owns the Goi card when a session is in flight; otherwise Goi appears as
+// the first grid card.
 function computeMeta(app) {
   const markings = app.markings || {};
   const kanjiWords = app.kanjiWords || [];
 
+  // Kanji "new" = unmarked unified words
   const kanjiNew = kanjiWords.filter(w => !getMarking(markings, w)).length;
 
+  // SRS "due now" = sum across marking categories 1..6 using the existing
+  // isWordDue helper (handles per-marking intervals).
   let srsDue = 0;
   if (typeof app.getDueStats === 'function') {
     const stats = app.getDueStats();
     for (let k = 1; k <= 6; k++) srsDue += stats[k]?.due || 0;
   }
 
+  // Self study = total saved self-study words across all user topics
   const selfSaved = (app.selfStudyWords || []).length;
 
+  // Goi "due" (used only when no resume hero exists)
   let goiDue = 0;
   if (typeof app.getDueStats === 'function') {
     const stats = app.getDueStats();
@@ -69,30 +60,18 @@ function computeMeta(app) {
   };
 }
 
-// Live count badge text for a given mode.
-function metaForMode(meta, key) {
-  switch (key) {
-    case 'goi':    return `${meta.goiDue} due`;
-    case 'kanji':  return `${meta.kanjiNew} new`;
-    case 'srs':    return `${meta.srsDue} due now`;
-    case 'self':   return `${meta.selfSaved} saved`;
-    case 'group':  return `${meta.groupCount} groups`;
-    case 'script': return meta.scriptCount > 0 ? `${meta.scriptCount} scripts` : 'open';
-    default:       return 'open';
-  }
-}
-
 // Read & validate the resume hero data from localStorage.study_session.
-// Returns null when no live session is available so the hero falls back to
-// the day's focus.
+// Returns null when no live session is available so the hero can be hidden.
 function getResumeData() {
   try {
     const raw = localStorage.getItem('study_session');
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s.words?.length) return null;
+    // Only resume sessions saved today; older state is stale.
     const today = new Date().toISOString().slice(0, 10);
     if (s.savedAt?.slice(0, 10) !== today) return null;
+    // Only show when there's still work left in the session.
     if (s.view !== 'flashcard') return null;
     const idx = s.currentIndex || 0;
     return {
@@ -106,87 +85,69 @@ function getResumeData() {
   }
 }
 
-const PLAY_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>';
-
-// The full-bleed hero. When a live session exists it becomes a RESUME card
-// (routes via [data-home-resume]); otherwise it spotlights the day's focus
-// (routes via [data-home-mode]).
-function focusHero({ mode, resume, upNext, practicedToday, metaLabel }) {
-  const c = MODE_COLORS[mode.key] || '#10b981';
-  const isResume = !!resume;
-
-  const kicker = isResume ? 'RESUME SESSION' : 'TODAY’S FOCUS';
-  const title = isResume
-    ? `${escapeHtml(resume.level || 'Goi')}${resume.weekDay ? ' · ' + escapeHtml(resume.weekDay) : ''}`
-    : escapeHtml(mode.name);
-  const sub = isResume
-    ? `${resume.currentIndex + 1} of ${resume.total} words · vocabulary flashcards`
-    : escapeHtml(mode.sub);
-  const ctaLine = isResume ? '' : escapeHtml(mode.cta);
-  const actionLabel = isResume ? 'Resume' : 'Start practice';
-  const dispatchAttr = isResume ? 'data-home-resume="1"' : `data-home-mode="${mode.key}"`;
-  const iconFont = mode.glyph
-    ? 'font-family:\'Noto Sans JP\', sans-serif; font-weight:700;'
-    : '';
-
-  const ribbon = practicedToday > 0
-    ? `<div class="home-focus__ribbon"><span style="color:#34d399;">✓</span> ${practicedToday} word${practicedToday === 1 ? '' : 's'} practiced today</div>`
-    : '';
-
-  const badge = (!isResume && metaLabel)
-    ? `<span class="home-focus__badge" style="background:${c}22; color:${c}; border-color:${c}55;">${escapeHtml(metaLabel)}</span>`
-    : '';
-
-  const upNextHtml = (upNext && upNext.length)
-    ? `<div class="home-focus__upnext">
-         <span class="home-focus__upnext-label">Up next</span>
-         ${upNext.map(u => {
-           const uc = MODE_COLORS[u.key] || '#64748b';
-           const uf = u.glyph ? 'font-family:\'Noto Sans JP\',sans-serif;font-weight:700;' : '';
-           return `<span class="home-focus__chip"><span style="color:${uc};${uf}">${u.icon}</span>${escapeHtml(u.name.split(' ')[0])}</span>`;
-         }).join('')}
-       </div>`
-    : '';
-
+// One mode card. Position 1 (top-left) gets a fade-in delay of 0, etc., so the
+// grid staggers in. modeKey is used as the data-home-mode dispatch handle.
+function modeCard({ modeKey, color, icon, iconIsKanji, name, subtitle, meta, idx }) {
+  const delay = (idx * 40) + 'ms';
+  const iconFont = iconIsKanji
+    ? 'font-family:"Noto Sans JP", sans-serif; font-weight:700; font-size:20px;'
+    : 'font-size:20px;';
   return `
-    <div class="home-focus-wrap">
-      <button type="button" class="home-focus tap" ${dispatchAttr}
-        style="--accent:${c};
-               background:
-                 radial-gradient(130% 90% at 82% 4%, ${c}33, transparent 60%),
-                 linear-gradient(180deg, ${c}1f, #0f172a 72%);">
-        <div class="home-focus__marks" aria-hidden="true">
-          <span style="color:${c};" class="home-focus__mark home-focus__mark--xl">${mode.icon}</span>
-          <span style="color:${c};" class="home-focus__mark home-focus__mark--md">学</span>
-          <span style="color:${c};" class="home-focus__mark home-focus__mark--sm">語</span>
-        </div>
-
-        ${ribbon}
-
-        <div class="home-focus__inner">
-          <div class="home-focus__tile" style="${iconFont} color:${c};
-            background:linear-gradient(135deg, ${c}40, ${c}1f);
-            border-color:${c}66;">${mode.icon}</div>
-
-          <div class="home-focus__kicker" style="color:${c};">${kicker}${badge}</div>
-          <div class="home-focus__title">${title}</div>
-          <div class="home-focus__sub">${sub}</div>
-          ${ctaLine ? `<div class="home-focus__cta">${ctaLine}</div>` : ''}
-
-          <div class="home-focus__action">
-            <span class="home-focus__play" style="background:${c}; box-shadow:0 8px 24px ${c}55;">${PLAY_SVG}</span>
-            <span class="home-focus__action-label">${actionLabel}</span>
-          </div>
-        </div>
-      </button>
-
-      ${upNextHtml}
-    </div>
+    <button
+      type="button"
+      class="home-mode-card tap"
+      data-home-mode="${modeKey}"
+      style="animation-delay:${delay};"
+    >
+      <div class="home-mode-card__wash" style="background:radial-gradient(circle, ${color}25, transparent 70%);"></div>
+      <div
+        class="home-mode-card__icon"
+        style="background:linear-gradient(135deg, ${color}30, ${color}15); border-color:${color}50;"
+      >
+        <span style="${iconFont} color:${color}; line-height:1;">${icon}</span>
+      </div>
+      <div class="home-mode-card__body">
+        <div class="home-mode-card__name">${escapeHtml(name)}</div>
+        <div class="home-mode-card__sub">${escapeHtml(subtitle)}</div>
+      </div>
+      <div class="home-mode-card__meta" style="background:${color}20; color:${color};">${escapeHtml(meta)}</div>
+    </button>
   `;
 }
 
-// Header bar (top of the Home screen). Unchanged from the original file — keeps
-// the existing sign-out id and admin gear so events.js works as-is.
+// "Continue" hero — full-width resume card. Hidden when getResumeData() returns
+// null; in that case Goi shows up as the first grid card instead.
+function resumeHero(app, resume) {
+  // Format the session description.
+  const lvl = resume.level || '';
+  const sessionLine = lvl
+    ? `${escapeHtml(lvl)}${resume.weekDay ? ' · ' + escapeHtml(resume.weekDay) : ''}`
+    : (resume.weekDay ? escapeHtml(resume.weekDay) : 'Goi session');
+  const progressLine = `${resume.currentIndex + 1} of ${resume.total} words · vocabulary flashcards`;
+
+  return `
+    <button
+      type="button"
+      class="home-hero tap"
+      data-home-resume="1"
+    >
+      <div class="home-hero__glyph">あ</div>
+      <div class="home-hero__avatar">あ</div>
+      <div class="home-hero__body">
+        <div class="home-hero__kicker">RESUME GOI</div>
+        <div class="home-hero__title">${sessionLine}</div>
+        <div class="home-hero__sub">${escapeHtml(progressLine)}</div>
+      </div>
+      <div class="home-hero__play">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </button>
+  `;
+}
+
+// Header bar (top of the Home screen). Reuses the app's existing sign-out
+// button id so events.js keeps working unchanged. The stats pill is rendered
+// but currently a no-op (deferred per project decision).
 export function renderHomeHeader(app) {
   if (app.homeView === 'groups') return renderGroupPickerHeader(app);
   return _homeMainHeader(app);
@@ -246,39 +207,100 @@ export function renderHome(app) {
 
   const meta = computeMeta(app);
   const resume = getResumeData();
-
-  // Day-based focus rotation: the spotlight advances each calendar day.
-  const i = Math.floor(Date.now() / 86400000) % FOCUS_ROTATION.length;
-  const focus = FOCUS_ROTATION[i];
-  const upNext = [
-    FOCUS_ROTATION[(i + 1) % FOCUS_ROTATION.length],
-    FOCUS_ROTATION[(i + 2) % FOCUS_ROTATION.length],
-  ];
-
-  // "Practiced today" ribbon from real practice history.
-  let practicedToday = 0;
-  try {
-    const data = typeof app.getTodayPractice === 'function' ? app.getTodayPractice() : null;
-    practicedToday = data ? Object.keys(data.words || {}).length : 0;
-  } catch { /* leave at 0 */ }
-
-  const hero = focusHero({
-    mode: focus,
-    resume,
-    upNext,
-    practicedToday,
-    metaLabel: metaForMode(meta, focus.key),
-  });
-
   // NOTE: outer <main> + headers are emitted by app.js render(); this
   // function returns only the content that lives inside <main>.
-  return `<div class="home-focus-screen">${hero}</div>`;
+
+  // 6 mode cards. When no resume hero exists, Goi gets inserted as the first
+  // card and the grid becomes 7 cards.
+  const cards = [];
+  let idx = 0;
+
+  if (!resume) {
+    cards.push(modeCard({
+      modeKey: 'goi',
+      color: MODE_COLORS.goi,
+      icon: 'あ',
+      iconIsKanji: true,
+      name: 'Goi',
+      subtitle: 'Vocabulary flashcards',
+      meta: `${meta.goiDue} due`,
+      idx: idx++,
+    }));
+  }
+
+  cards.push(modeCard({
+    modeKey: 'kanji',
+    color: MODE_COLORS.kanji,
+    icon: '漢',
+    iconIsKanji: true,
+    name: 'Kanji',
+    subtitle: 'Textbook kanji',
+    meta: `${meta.kanjiNew} new`,
+    idx: idx++,
+  }));
+  cards.push(modeCard({
+    modeKey: 'srs',
+    color: MODE_COLORS.srs,
+    icon: '🔁',
+    iconIsKanji: false,
+    name: 'SRS Review',
+    subtitle: 'Spaced repetition',
+    meta: `${meta.srsDue} due now`,
+    idx: idx++,
+  }));
+  cards.push(modeCard({
+    modeKey: 'self',
+    color: MODE_COLORS.self,
+    icon: '📝',
+    iconIsKanji: false,
+    name: 'Self Study',
+    subtitle: 'Your saved words',
+    meta: `${meta.selfSaved} saved`,
+    idx: idx++,
+  }));
+  cards.push(modeCard({
+    modeKey: 'group',
+    color: MODE_COLORS.group,
+    icon: '🏷️',
+    iconIsKanji: false,
+    name: 'Study by Group',
+    subtitle: 'Curated word sets',
+    meta: `${meta.groupCount} groups`,
+    idx: idx++,
+  }));
+  cards.push(modeCard({
+    modeKey: 'anime',
+    color: MODE_COLORS.anime,
+    icon: '🎬',
+    iconIsKanji: false,
+    name: 'Anime Reader',
+    subtitle: 'Subtitle dictionary',
+    meta: 'open',
+    idx: idx++,
+  }));
+  cards.push(modeCard({
+    modeKey: 'script',
+    color: MODE_COLORS.script,
+    icon: '📜',
+    iconIsKanji: false,
+    name: 'Script Reader',
+    subtitle: 'Your imports',
+    meta: meta.scriptCount > 0 ? `${meta.scriptCount} scripts` : 'open',
+    idx: idx++,
+  }));
+
+  return `
+    <div class="flex-1 overflow-auto hide-scrollbar home-main">
+      ${resume ? resumeHero(app, resume) : ''}
+      <div class="home-section-label">All study modes</div>
+      <div class="home-grid">
+        ${cards.join('')}
+      </div>
+    </div>
+  `;
 }
 
-// ===================================================================
-// Group picker — unchanged from the original file.
-// ===================================================================
-
+// Group-picker types — sync with render-relations.js GROUP_TYPE_INFO.
 const GROUP_PICKER_TYPES = [
   { key: 'alt_kanji',       label: 'Alt Kanji',     icon: '漢', color: '#6366f1' },
   { key: 'alt_reading',     label: 'Alt Reading',   icon: 'あ', color: '#a855f7' },
@@ -292,6 +314,8 @@ function groupRow(app, group, idx) {
     || { icon: '漢', color: '#dc2626', label: 'Group' };
   const memberCount = app._groupMemberCount?.[group.id] || 0;
   const studied = (app.relationsStudiedGroups || new Set()).has(group.id) ? 1 : 0;
+  // Per-row progress is just studied/total at the group level (binary, since
+  // the existing "studied" log is per group, not per member).
   const pct = studied ? 100 : 0;
   const isComplete = studied === 1;
   const delay = (idx * 25) + 'ms';
@@ -345,6 +369,7 @@ export function renderGroupPicker(app) {
   const allGroups = app.wordGroups || [];
   const filter = app.homeGroupFilter || 'all';
 
+  // Count per filter chip
   const counts = { all: allGroups.length };
   GROUP_PICKER_TYPES.forEach(t => {
     counts[t.key] = allGroups.filter(g => g.group_type === t.key).length;

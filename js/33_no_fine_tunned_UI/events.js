@@ -72,17 +72,6 @@ export function attachEventListeners(app) {
   });
   // Stats pill — deferred per project decision; render only, no handler.
 
-  // ===== BOTTOM NAV + MORE SHEET =====
-  document.querySelectorAll('[data-nav]').forEach(btn => {
-    btn.addEventListener('click', () => app.navFromBottomNav(btn.dataset.nav));
-  });
-  document.querySelectorAll('[data-more-mode]').forEach(btn => {
-    btn.addEventListener('click', () => app.navigateFromMore(btn.dataset.moreMode));
-  });
-  document.querySelectorAll('[data-more-close]').forEach(el => {
-    el.addEventListener('click', () => app.closeMore());
-  });
-
   // ===== STUDY SUB-TABS =====
   document.querySelectorAll('[data-study-subtab]').forEach(btn => {
     btn.addEventListener('click', () => app.selectStudySubTab(btn.dataset.studySubtab));

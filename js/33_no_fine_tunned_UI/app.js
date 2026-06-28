@@ -28,7 +28,6 @@ import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './re
 import { renderRelationsTab, getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, findWordInSentence, getCurrentStudyWord } from './render-kanji.js';
 import { renderHome, renderHomeHeader } from './render-home.js';
-import { renderBottomNav, renderMoreSheet } from './render-nav.js';
 import { attachEventListeners } from './events.js';
 import * as storyOverlay from './handlers/story-overlay.js';
 import * as storyAlert from './handlers/story-alert.js';
@@ -103,7 +102,6 @@ class JLPTStudyApp {
 
     this.currentTab = 'home';
     this.homeView = 'main';          // 'main' | 'groups'
-    this.moreOpen = false;   // "More" sheet visibility
     this.homeGroupFilter = 'all';    // group-picker filter chip
     this.studySubTab = 'goi';
     this.studyView = 'level';
@@ -418,26 +416,6 @@ class JLPTStudyApp {
     this.homeGroupFilter = 'all';
     this.render();
   }
-
-    // ===== BOTTOM NAV =====
-  navFromBottomNav(key) {
-    if (key === 'more') { this.toggleMore(); return; }
-    this.moreOpen = false;
-    switch (key) {
-      case 'home':  this.selectTab('home'); break;
-      case 'study': this.navigateFromHome('goi'); break;
-      case 'srs':   this.selectTab('srs'); break;
-      case 'group': this.navigateFromHome('group'); break;
-    }
-  }
-  navigateFromMore(key) {
-    this.moreOpen = false;
-    // Real tabs vs. home-routed modes:
-    if (key === 'similar' || key === 'stories') this.selectTab(key);
-    else this.navigateFromHome(key);   // self / kanji / anime / script
-  }
-  toggleMore() { this.moreOpen = !this.moreOpen; this.render(); }
-  closeMore()  { if (this.moreOpen) { this.moreOpen = false; this.render(); } }
 
   // Resume hero tap — restore the saved Goi study session and jump straight
   // to the flashcard view. Mirrors _restoreStudySession but is triggered by
@@ -1884,11 +1862,10 @@ class JLPTStudyApp {
     const isHome = this.currentTab === 'home';
     app.innerHTML = `
       ${hideChrome ? '' : (isHome ? renderHomeHeader(this) : renderHeader(this))}
+      ${hideChrome ? '' : renderTabs(this.currentTab)}
       <main class="flex-1 flex flex-col overflow-hidden">${content}</main>
-      ${hideChrome ? '' : renderBottomNav(this)}
-      ${renderMoreSheet(this)}
-      ${renderStoryOverlay(this)}
       ${this.renderModals()}
+      ${renderStoryOverlay(this)}
       ${renderStoryAlertForm(this)}
       ${renderWordAlertForm(this)}
       ${renderAddSentenceSheet(this)}

@@ -16,7 +16,9 @@
       "PowerShell(Get-Process | Where-Object {$_.ProcessName -match \"node|watchman|sync|git\"} | Select-Object Id, ProcessName, Path | Format-Table -AutoSize)",
       "PowerShell(Get-CimInstance *)",
       "PowerShell(Test-Path *)",
-      "Bash(echo \"---exit:$?---\")"
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(node -e ' *)",
+      "Bash(node --check js/utils.js)"
     ]
   }
 }
