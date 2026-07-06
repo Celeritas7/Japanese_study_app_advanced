@@ -275,15 +275,7 @@ export function attachEventListeners(app) {
     app.render();
   });
 
-  document.getElementById('startSelfStudyBtn')?.addEventListener('click', () => {
-    const words = app.selfStudyWords.filter(w => w.topic_id === app.selectedTopic.id);
-    app.studyWords = words.map(w => ({ ...w, meaning: w.meaning_en, level: 'Self' }));
-    app.currentIndex = 0;
-    app.revealStep = 0;
-    app.canvasImageData = null;
-    app.studyView = 'flashcard';
-    app.render();
-  });
+  document.getElementById('startSelfStudyBtn')?.addEventListener('click', () => app.startSelfStudy());
 
   // ===== KANJI SUB-TAB =====
   // Book selection

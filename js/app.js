@@ -333,7 +333,6 @@ class JLPTStudyApp {
       console.log('Resumed SRS session');
     } else if (this._restoreStudySession()) {
       this.currentTab = 'study';
-      this.studySubTab = 'goi';
       console.log('Resumed study session');
     }
 
@@ -439,13 +438,12 @@ class JLPTStudyApp {
   toggleMore() { this.moreOpen = !this.moreOpen; this.render(); }
   closeMore()  { if (this.moreOpen) { this.moreOpen = false; this.render(); } }
 
-  // Resume hero tap — restore the saved Goi study session and jump straight
-  // to the flashcard view. Mirrors _restoreStudySession but is triggered by
-  // the user rather than during app boot.
+  // Resume hero tap — restore the saved study session (Goi or Self Study;
+  // _restoreStudySession sets the right sub-tab) and jump straight to the
+  // flashcard view. Triggered by the user rather than during app boot.
   resumeFromHome() {
     if (this._restoreStudySession()) {
       this.currentTab = 'study';
-      this.studySubTab = 'goi';
       this.render();
     } else {
       // Stale session — fall back to the Goi level picker.
@@ -608,6 +606,10 @@ class JLPTStudyApp {
       // From kanji flashcard → back to word list (or chapters if no chapter selected)
       this.kanjiView = this.selectedChapter ? 'wordlist' : 'chapters';
       this.selectedCategory = null;
+    } else if (this.studySubTab === 'self_study' && this.selectedTopic) {
+      // From self-study flashcard → back to the topic's word list
+      this.studyView = 'wordlist';
+      this._clearStudySession();
     } else {
       this.studyView = 'weekday';
       this.selectedCategory = null;
@@ -1144,6 +1146,29 @@ class JLPTStudyApp {
     this.loadSentencesForStudyWords(this.studyWords);
   }
 
+  // Self Study: run the selected topic's words through the same flashcard
+  // pipeline as Goi. Words are mapped to the vocabulary shape (meaning,
+  // level) so renderFlashcard and session persistence work unchanged.
+  // Order is kept as-entered (no shuffle) — these are small user-curated lists.
+  startSelfStudy() {
+    if (!this.selectedTopic) return;
+    const words = this.selfStudyWords.filter(w => w.topic_id === this.selectedTopic.id);
+    if (words.length === 0) return;
+    this.studyWords = words.map(w => ({ ...w, meaning: w.meaning_en, level: 'Self' }));
+    this.currentIndex = 0;
+    this.revealStep = 0;
+    this.canvasImageData = null;
+    this.sentenceCarouselIdx = 0;
+    this.sentencePanelExpanded = false;
+    this.studyView = 'flashcard';
+    this.render();
+
+    this._saveStudySession();
+
+    // Load sentences in background (non-blocking)
+    this.loadSentencesForStudyWords(this.studyWords);
+  }
+
   nextWord() {
     if (this.currentIndex < this.studyWords.length - 1) {
       this.currentIndex++;
@@ -1553,6 +1578,8 @@ class JLPTStudyApp {
         currentIndex: this.currentIndex,
         revealStep: this.revealStep,
         view: this.studyView,
+        subTab: this.studySubTab,
+        topicId: this.selectedTopic?.id ?? null,
         testType: this.selectedTestType,
         selectedLevel: this.selectedLevel,
         savedAt: new Date().toISOString(),
@@ -1579,6 +1606,15 @@ class JLPTStudyApp {
       this.sentenceCarouselIdx = 0;
       this.sentencePanelExpanded = false;
       this.studyView = session.view || 'flashcard';
+      // Resume under the sub-tab the session came from. Only Goi and Self
+      // Study sessions are ever saved (kanji study never sets
+      // studyView='flashcard', so its saves are skipped by the guard above).
+      if (session.subTab === 'self_study') {
+        this.studySubTab = 'self_study';
+        this.selectedTopic = this.selfStudyTopics.find(t => t.id === session.topicId) || null;
+      } else {
+        this.studySubTab = 'goi';
+      }
       if (this.studyView === 'flashcard') this.loadSentencesForStudyWords(this.studyWords);
       console.log(`Restored study session: ${this.studyView} ${this.currentIndex + 1}/${this.studyWords.length}`);
       return true;
