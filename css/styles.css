@@ -979,3 +979,103 @@ ruby rt {
 .moresheet__name { font-size: 14px; font-weight: 700; color: #f1f5f9; }
 .moresheet__sub { font-size: 11px; color: #94a3b8; }
 .moresheet__chev { color: #475569; font-size: 22px; line-height: 1; }
+
+/* ===== Daily streak ===== */
+.home-streak-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px 6px 8px;
+  background: linear-gradient(135deg, #f59e0b22, #ef444422);
+  border: 1px solid #f59e0b66;
+  border-radius: 11px;
+  color: #fbbf24; font-size: 12px; font-weight: 700;
+  cursor: pointer;
+}
+.home-streak-pill.cold {
+  background: #1e293b; border-color: #334155; color: #64748b;
+}
+.home-streak-pill__icon { font-size: 13px; }
+
+.streaksheet {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,0.6);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  animation: home-fade-in 160ms ease-out both;
+}
+.streaksheet__panel {
+  background: #1e293b;
+  border-top: 1px solid #334155;
+  border-top-left-radius: 24px; border-top-right-radius: 24px;
+  padding: 10px 16px calc(80px + env(safe-area-inset-bottom, 0px));
+  animation: moresheet-up 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.streaksheet__grip { width: 40px; height: 4px; border-radius: 2px; background: #334155; margin: 4px auto 14px; }
+
+.streak-hero { text-align: center; padding: 10px 0 18px; }
+.streak-hero__flame {
+  font-size: 56px; line-height: 1;
+  filter: drop-shadow(0 6px 18px #f59e0b66);
+  animation: streak-flame 2.4s ease-in-out infinite;
+}
+.streak-hero--cold .streak-hero__flame { filter: none; animation: none; opacity: 0.85; }
+@keyframes streak-flame {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.06); }
+}
+.streak-hero__count {
+  margin-top: 8px; font-size: 22px; font-weight: 800;
+  color: #f8fafc; letter-spacing: -0.02em;
+}
+
+.streak-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin-bottom: 16px;
+}
+.streak-stat {
+  background: #0f172a; border: 1px solid #334155; border-radius: 14px;
+  padding: 12px 8px; text-align: center;
+}
+.streak-stat__value { font-size: 22px; font-weight: 800; color: #fbbf24; }
+.streak-stat__label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+.cal {
+  background: #0f172a; border: 1px solid #334155; border-radius: 16px;
+  padding: 12px;
+}
+.cal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cal__month { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+.cal__nav {
+  width: 30px; height: 30px; border-radius: 9px;
+  background: #1e293b; border: 1px solid #334155; color: #cbd5e1;
+  font-size: 18px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal__nav:disabled { opacity: 0.35; cursor: default; }
+.cal__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal__dow {
+  text-align: center; font-size: 10px; font-weight: 600;
+  color: #475569; padding-bottom: 4px;
+}
+.cal__day {
+  aspect-ratio: 1 / 1;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #94a3b8;
+  border-radius: 9px; border: 1px solid transparent;
+}
+.cal__day--pad { border: none; }
+.cal__day.future { color: #475569; }
+.cal__day.done { background: #10b98126; color: #6ee7b7; border-color: #10b98155; }
+.cal__day.streakday { background: #f59e0b30; color: #fcd34d; border-color: #f59e0b66; font-weight: 700; }
+.cal__day.today { border-color: #60a5fa; color: #bfdbfe; }
+.cal__day.today.streakday { border-color: #fcd34d; }
+
+.cal__legend {
+  display: flex; justify-content: center; gap: 14px;
+  margin-top: 12px; font-size: 10px; color: #94a3b8;
+}
+.cal__legend span { display: inline-flex; align-items: center; gap: 4px; }
+.cal__swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.cal__swatch--streak { background: #f59e0b30; border: 1px solid #f59e0b66; }
+.cal__swatch--done { background: #10b98126; border: 1px solid #10b98155; }
+.cal__swatch--today { background: transparent; border: 1px solid #60a5fa; }
+
+.sync-note { text-align: center; font-size: 10px; color: #475569; margin-top: 14px; }

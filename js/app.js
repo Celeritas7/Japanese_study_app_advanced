@@ -14,7 +14,8 @@ import {
   updateSentenceVerified, addSentenceTag, removeSentenceTag,
   loadWordGroups, loadWordGroupMembers,
   loadGroupStudyLog, setGroupStudied,
-  insertUnknownWord
+  insertUnknownWord,
+  upsertDailyActivity, fetchDailyActivity
 } from './data.js';
 import { saveCanvasData, restoreCanvasData } from './canvas.js';
 import {
@@ -27,7 +28,7 @@ import { renderSRSTab } from './render-srs.js';
 import { renderStoriesTab, renderStoryOverlay, renderStoryAlertForm } from './render-stories.js';
 import { renderRelationsTab, getWordGroupBadges, renderGroupBadges } from './render-relations.js';
 import { renderKanjiTab, renderSentencePanel, renderAddSentenceSheet, renderReviewQueue, extractKanjiStem, findWordInSentence, getCurrentStudyWord } from './render-kanji.js';
-import { renderHome, renderHomeHeader } from './render-home.js';
+import { renderHome, renderHomeHeader, renderStreakSheet } from './render-home.js';
 import { renderBottomNav, renderMoreSheet } from './render-nav.js';
 import { attachEventListeners } from './events.js';
 import * as storyOverlay from './handlers/story-overlay.js';
@@ -52,6 +53,10 @@ class JLPTStudyApp {
 
     this.vocabulary = [];
     this.markings = {};
+    this.dailyActivity = [];       // [{ activity_date, words_practiced }] — powers the Home 🔥 streak
+    this._lastActivitySync = 0;    // debounce guard for _syncDailyActivity
+    this.showStreakSheet = false;  // Home streak bottom sheet open state
+    this.streakCalMonth = 0;       // calendar month offset from current month (0 = this month)
     this.markingTimestamps = {}; // kanji → Date when marking was last set
     this.srsIntervals = JSON.parse(localStorage.getItem('srs_intervals') || 'null') || { ...DEFAULT_SRS_INTERVALS };
     this.markingCategories = { ...DEFAULT_MARKING_CATEGORIES };
@@ -228,7 +233,7 @@ class JLPTStudyApp {
     const userId = this.user?.id;
     console.log('loadAllData: userId:', userId);
 
-    const [markingsResult, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences, wordGroups, wordGroupMembers, relationsStudiedRemote] = await Promise.all([
+    const [markingsResult, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences, wordGroups, wordGroupMembers, relationsStudiedRemote, dailyActivity] = await Promise.all([
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
       loadStoryGroups(this.supabase),
@@ -241,8 +246,11 @@ class JLPTStudyApp {
       loadAllUnifiedSentences(this.supabase),
       loadWordGroups(this.supabase),
       loadWordGroupMembers(this.supabase),
-      loadGroupStudyLog(this.supabase, userId)
+      loadGroupStudyLog(this.supabase, userId),
+      fetchDailyActivity(this.supabase, userId)
     ]);
+
+    this.dailyActivity = dailyActivity || [];
 
     this.markings = markingsResult.markings || markingsResult;
     this.markingTimestamps = markingsResult.timestamps || {};
@@ -1626,8 +1634,26 @@ class JLPTStudyApp {
   }
 
   // ===== DAILY PRACTICE HISTORY =====
+  // Local calendar date (YYYY-MM-DD). toISOString() is UTC and flips the day in
+  // the evening for UTC+ timezones, so build the key from local getters instead.
+  _localDateKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+         + '-' + String(d.getDate()).padStart(2, '0');
+  }
   _todayKey() {
-    return 'practice_' + new Date().toISOString().slice(0, 10);
+    return 'practice_' + this._localDateKey();
+  }
+
+  // Best-effort mirror of today's localStorage practice row to Supabase, which
+  // is the source of truth for the streak history. Debounced to one write / 60s.
+  _syncDailyActivity(todayData) {
+    if (this._lastActivitySync && Date.now() - this._lastActivitySync < 60000) return;
+    this._lastActivitySync = Date.now();
+    if (!this.user?.id) return;
+    const words = Object.keys(todayData.words || {}).length;
+    const sessions = (todayData.sessions || []).length + (todayData.studySessions || []).length;
+    upsertDailyActivity(this.supabase, this.user.id, this._localDateKey(), words, sessions);
   }
 
   _saveTodayPractice(words) {
@@ -1644,6 +1670,7 @@ class JLPTStudyApp {
       });
       localStorage.setItem(key, JSON.stringify(existing));
       this._cleanOldPracticeData();
+      this._syncDailyActivity(existing);
     } catch(e) { console.warn('_saveTodayPractice:', e); }
   }
 
@@ -1663,6 +1690,9 @@ class JLPTStudyApp {
       };
       existing.studySessions.push(sessionEntry);
       localStorage.setItem(key, JSON.stringify(existing));
+      // Force a sync — a finished session should always land in the streak history.
+      this._lastActivitySync = 0;
+      this._syncDailyActivity(existing);
     } catch(e) { console.warn('_saveStudySessionToHistory:', e); }
   }
 
@@ -1722,6 +1752,7 @@ class JLPTStudyApp {
         }
       });
       localStorage.setItem(key, JSON.stringify(existing));
+      this._syncDailyActivity(existing);
     } catch(e) { console.warn('_saveTodayResults:', e); }
   }
 
@@ -1923,6 +1954,7 @@ class JLPTStudyApp {
       <main class="flex-1 flex flex-col overflow-hidden">${content}</main>
       ${hideChrome ? '' : renderBottomNav(this)}
       ${renderMoreSheet(this)}
+      ${renderStreakSheet(this)}
       ${renderStoryOverlay(this)}
       ${this.renderModals()}
       ${renderStoryAlertForm(this)}

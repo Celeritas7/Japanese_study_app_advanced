@@ -72,6 +72,26 @@ export function attachEventListeners(app) {
   });
   // Stats pill — deferred per project decision; render only, no handler.
 
+  // Streak pill → open the streak bottom sheet.
+  document.querySelector('[data-home-streak]')?.addEventListener('click', () => {
+    app.showStreakSheet = true;
+    app.streakCalMonth = 0; // always open on the current month
+    app.render();
+  });
+  // Close on overlay tap (panel stops propagation inline).
+  document.querySelector('[data-streak-close]')?.addEventListener('click', () => {
+    app.showStreakSheet = false;
+    app.render();
+  });
+  // Month navigation inside the streak calendar.
+  document.querySelectorAll('[data-streak-month]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      app.streakCalMonth = (app.streakCalMonth || 0) + parseInt(btn.dataset.streakMonth, 10);
+      if (app.streakCalMonth > 0) app.streakCalMonth = 0; // never navigate into the future
+      app.render();
+    });
+  });
+
   // ===== BOTTOM NAV + MORE SHEET =====
   document.querySelectorAll('[data-nav]').forEach(btn => {
     btn.addEventListener('click', () => app.navFromBottomNav(btn.dataset.nav));

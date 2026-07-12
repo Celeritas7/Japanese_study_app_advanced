@@ -10,3 +10,4 @@ export * from './similar.js';
 export * from './relations.js';
 export * from './self-study.js';
 export * from './srs.js';
+export * from './activity.js';

@@ -15,6 +15,57 @@
 
 import { escapeHtml, getMarking } from './utils.js';
 
+// ===================================================================
+// Daily streak helpers. Activity rows are [{ activity_date: 'YYYY-MM-DD', ... }].
+// All date math is LOCAL (matches app._localDateKey()) so the streak lines up
+// with the user's calendar, not UTC.
+// ===================================================================
+function _dateKeyLocal(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+       + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Current streak length: consecutive practiced days ending today (or yesterday,
+// which keeps the streak alive until end of today).
+export function computeStreak(activityRows) {
+  const days = new Set((activityRows || []).map(r => r.activity_date));
+  let n = 0, d = new Date();
+  if (!days.has(_dateKeyLocal(d))) d.setDate(d.getDate() - 1); // grace: yesterday keeps it alive
+  while (days.has(_dateKeyLocal(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+// The exact set of date keys that make up the current streak (for calendar tint).
+function _currentStreakDays(activityRows) {
+  const days = new Set((activityRows || []).map(r => r.activity_date));
+  const out = new Set();
+  let d = new Date();
+  if (!days.has(_dateKeyLocal(d))) d.setDate(d.getDate() - 1);
+  while (days.has(_dateKeyLocal(d))) { out.add(_dateKeyLocal(d)); d.setDate(d.getDate() - 1); }
+  return out;
+}
+
+// Longest consecutive run anywhere in the fetched history.
+function _bestStreak(activityRows) {
+  const keys = [...new Set((activityRows || []).map(r => r.activity_date))].sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of keys) {
+    if (prev) {
+      const p = new Date(prev + 'T00:00:00');
+      p.setDate(p.getDate() + 1);
+      run = (_dateKeyLocal(p) === k) ? run + 1 : 1;
+    } else {
+      run = 1;
+    }
+    if (run > best) best = run;
+    prev = k;
+  }
+  return best;
+}
+
+const _MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                 'July', 'August', 'September', 'October', 'November', 'December'];
+
 // Mode color palette — keep in sync with README design tokens.
 const MODE_COLORS = {
   goi:     '#10b981', // emerald
@@ -195,7 +246,9 @@ export function renderHomeHeader(app) {
 function _homeMainHeader(app) {
   const wordCount = (app.vocabulary || []).length;
   const syncing = app.syncing ? ' · syncing' : ' · synced';
-  const todayKey = 'practice_' + new Date().toISOString().slice(0, 10);
+  const todayKey = typeof app._todayKey === 'function'
+    ? app._todayKey()
+    : 'practice_' + new Date().toISOString().slice(0, 10);
   let todayCount = 0;
   try {
     const raw = localStorage.getItem(todayKey);
@@ -208,6 +261,8 @@ function _homeMainHeader(app) {
   const ADMIN_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
   const isAdmin = app.user?.id === ADMIN_ID || app.isGuestMode;
 
+  const streak = computeStreak(app.dailyActivity);
+
   return `
     <header class="home-header">
       <div class="home-header__brand">
@@ -218,6 +273,9 @@ function _homeMainHeader(app) {
         </div>
       </div>
       <div class="home-header__right">
+        <button type="button" class="home-streak-pill${streak ? '' : ' cold'} tap" data-home-streak="1" title="Daily streak">
+          <span class="home-streak-pill__icon">🔥</span><span>${streak}</span>
+        </button>
         <button type="button" class="home-stats-pill tap" data-home-stats="1" title="Stats">
           <span class="home-stats-pill__icon">📊</span>
           <span class="home-stats-pill__label">Stats</span>
@@ -375,6 +433,101 @@ export function renderGroupPicker(app) {
         ${filteredGroups.length === 0
           ? `<div class="home-group-empty">No groups in this category yet.</div>`
           : filteredGroups.map((g, i) => groupRow(app, g, i)).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ===================================================================
+// Streak bottom sheet — hero flame + Current/Best/Total tiles + month calendar.
+// Opened from the Home 🔥 pill (app.showStreakSheet). Fed by app.dailyActivity;
+// month navigation uses app.streakCalMonth (offset from the current month).
+// ===================================================================
+export function renderStreakSheet(app) {
+  if (!app.showStreakSheet) return '';
+
+  const rows = app.dailyActivity || [];
+  const doneDays = new Set(rows.map(r => r.activity_date));
+  const streakDays = _currentStreakDays(rows);
+  const current = computeStreak(rows);
+  const best = _bestStreak(rows);
+  const total = doneDays.size;
+
+  // Displayed month = current month shifted by the nav offset.
+  const now = new Date();
+  const offset = app.streakCalMonth || 0;
+  const view = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const year = view.getFullYear();
+  const month = view.getMonth();
+  const todayKey = _dateKeyLocal(now);
+
+  const firstDow = new Date(year, month, 1).getDay();        // 0 = Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const isCurrentMonth = offset === 0;
+
+  const dow = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+    .map(d => `<div class="cal__dow">${d}</div>`).join('');
+
+  let cells = '';
+  for (let i = 0; i < firstDow; i++) cells += `<div class="cal__day cal__day--pad"></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = _dateKeyLocal(new Date(year, month, day));
+    const cls = ['cal__day'];
+    if (key > todayKey) cls.push('future');
+    else if (streakDays.has(key)) cls.push('streakday');
+    else if (doneDays.has(key)) cls.push('done');
+    if (key === todayKey) cls.push('today');
+    cells += `<div class="${cls.join(' ')}">${day}</div>`;
+  }
+
+  const flame = current > 0 ? '🔥' : '❄️';
+  const heroLabel = current > 0
+    ? `${current}-day streak`
+    : 'Start your streak today';
+
+  return `
+    <div class="streaksheet" data-streak-close="1">
+      <div class="streaksheet__panel" onclick="event.stopPropagation()">
+        <div class="streaksheet__grip"></div>
+
+        <div class="streak-hero${current > 0 ? '' : ' streak-hero--cold'}">
+          <div class="streak-hero__flame">${flame}</div>
+          <div class="streak-hero__count">${heroLabel}</div>
+        </div>
+
+        <div class="streak-stats">
+          <div class="streak-stat">
+            <div class="streak-stat__value">${current}</div>
+            <div class="streak-stat__label">Current</div>
+          </div>
+          <div class="streak-stat">
+            <div class="streak-stat__value">${best}</div>
+            <div class="streak-stat__label">Best</div>
+          </div>
+          <div class="streak-stat">
+            <div class="streak-stat__value">${total}</div>
+            <div class="streak-stat__label">Total days</div>
+          </div>
+        </div>
+
+        <div class="cal">
+          <div class="cal__head">
+            <button type="button" class="cal__nav" data-streak-month="-1" title="Previous month">‹</button>
+            <div class="cal__month">${_MONTHS[month]} ${year}</div>
+            <button type="button" class="cal__nav" data-streak-month="1" ${isCurrentMonth ? 'disabled' : ''} title="Next month">›</button>
+          </div>
+          <div class="cal__grid">
+            ${dow}
+            ${cells}
+          </div>
+          <div class="cal__legend">
+            <span><i class="cal__swatch cal__swatch--streak"></i>Streak</span>
+            <span><i class="cal__swatch cal__swatch--done"></i>Practiced</span>
+            <span><i class="cal__swatch cal__swatch--today"></i>Today</span>
+          </div>
+        </div>
+
+        <div class="sync-note">Synced across your devices · practice any day to keep the flame alive</div>
       </div>
     </div>
   `;
