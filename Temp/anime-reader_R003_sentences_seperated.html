@@ -20,7 +20,6 @@
     .header-actions{display:flex;gap:8px;align-items:center}
     .btn-icon{width:36px;height:36px;border:1px solid var(--border-dim);background:var(--bg-card);border-radius:8px;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:16px;text-decoration:none}
     .btn-icon:hover{border-color:var(--accent-cyan);color:var(--accent-cyan)}
-    .btn-icon.active{border-color:var(--accent-amber);color:var(--accent-amber);background:rgba(245,158,11,.1);box-shadow:0 0 0 1px rgba(245,158,11,.3)}
     .view{padding:16px;max-width:580px;margin:0 auto}
     .card{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:14px;padding:20px;margin-bottom:16px}
     .form-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:block}
@@ -43,7 +42,6 @@
     .reading-meta{flex:1;min-width:0}
     .reading-anime-name{font-size:15px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .reading-episode{font-size:11px;color:var(--text-muted)}
-    .reading-episode b{color:var(--accent-amber);font-weight:600}
     .reading-stats{display:flex;gap:12px;font-size:11px;font-family:'IBM Plex Mono',monospace}
     .dialogue-container{padding:16px;max-width:680px;margin:0 auto}
     .dialogue-line{margin-bottom:14px;padding:16px 18px;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:16px;animation:fadeUp .3s ease-out both}
@@ -79,6 +77,8 @@
     .word-token:not(.punct):hover{background:rgba(255,255,255,.08)}
     .word-token:not(.punct):active{background:rgba(255,255,255,.2)}
     .word-token.saved{background:rgba(168,85,247,.14);border-radius:4px}
+    .dialogue-line{transition:border-color .2s,box-shadow .2s,transform .2s}
+    .dialogue-line.active{border-color:var(--accent-purple);box-shadow:0 0 0 1px var(--accent-purple),0 10px 34px rgba(168,85,247,.18);transform:translateY(-2px)}
     .btn-save-word:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(168,85,247,.4)}
     .btn-save-word:not(:disabled):active{transform:scale(.98)}
     .btn-save-word.saved{animation:savePop .45s cubic-bezier(.22,1,.36,1)}
@@ -95,9 +95,13 @@
     .dl-main{flex:1;min-width:0}
     .dl-meta{display:flex;align-items:baseline;gap:8px;margin-bottom:5px;padding-left:3px;min-height:16px}
     .dl-name{font-size:12.5px;font-weight:700}
-    .dl-linecount{font-size:10px;color:var(--text-muted)}
-    .dl-bubble{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:4px 15px 15px 15px;overflow:hidden;transition:border-color .2s,box-shadow .2s,transform .2s}
+    .dl-bubble{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:4px 15px 15px 15px;padding:11px 15px;transition:border-color .2s,box-shadow .2s,transform .2s}
+    .dl-bubble .dl-timestamp{margin-bottom:7px}
+    .dialogue-line.active{transform:none;box-shadow:none;border:none}
     .dialogue-line.active .dl-bubble{border-color:var(--accent-purple);box-shadow:0 0 0 1px var(--accent-purple),0 10px 30px rgba(168,85,247,.2);transform:translateY(-2px)}
+    .dialogue-line.grouped{margin-top:-7px}
+    .dl-avatar-spacer{width:40px;flex-shrink:0}
+    .dialogue-line.grouped .dl-bubble{border-radius:15px}
     .btn-save-word.saved{background:linear-gradient(135deg,#475569,#334155)}
     .btn-remove-word{width:100%;padding:10px;border:1px solid var(--border-dim);border-radius:10px;font-size:12px;background:transparent;color:var(--text-muted);cursor:pointer;margin-top:8px}
     .summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -110,58 +114,6 @@
     .btn-google{padding:12px 32px;border:1px solid var(--border-glow);border-radius:12px;background:var(--bg-card);color:var(--text-primary);font-size:14px;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:10px}
     .btn-google:hover{border-color:var(--accent-cyan);background:var(--bg-elevated)}
     .reading-footer-hint{text-align:center;font-size:12px;color:var(--text-muted);padding:8px 0 4px}
-    /* --- [NEW] scenes + segments --- */
-    .scene-header{display:flex;align-items:center;gap:12px;margin:26px 0 18px;animation:fadeUp .3s ease-out both}
-    .scene-header:first-child{margin-top:4px}
-    .scene-header::before,.scene-header::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--border-dim))}
-    .scene-header::after{background:linear-gradient(90deg,var(--border-dim),transparent)}
-    .scene-chip{display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 16px;background:var(--bg-elevated);border:1px solid var(--border-dim);border-radius:12px;cursor:default;font-family:'Noto Sans JP',sans-serif}
-    .scene-chip__title{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--text-secondary);text-transform:uppercase}
-    .scene-chip__time{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted)}
-    .edit-on .scene-chip{cursor:pointer;transition:all .15s}
-    .edit-on .scene-chip:hover{border-color:var(--accent-amber)}
-    .edit-on .scene-chip:hover .scene-chip__title{color:var(--accent-amber)}
-    .dl-seg{padding:11px 15px;position:relative;transition:background .15s,box-shadow .15s}
-    .dl-seg + .dl-seg{border-top:1px dashed rgba(51,65,85,.7)}
-    .dl-seg .dl-timestamp{margin-bottom:7px}
-    /* --- [NEW] edit mode --- */
-    .edit-on .dl-seg{cursor:pointer}
-    .edit-on .dl-seg:hover{background:rgba(245,158,11,.05)}
-    .edit-on .word-token{pointer-events:none}
-    .dl-seg .seg-check{position:absolute;top:10px;right:12px;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border-glow);display:none;align-items:center;justify-content:center;font-size:12px;color:#0a0e1a;background:transparent}
-    .edit-on .dl-seg .seg-check{display:flex}
-    .dl-seg.selected{background:rgba(245,158,11,.09);box-shadow:inset 3px 0 0 var(--accent-amber)}
-    .dl-seg.selected .seg-check{background:var(--accent-amber);border-color:var(--accent-amber)}
-    .action-bar{position:fixed;left:0;right:0;bottom:0;z-index:150;background:rgba(15,23,42,.97);border-top:1px solid var(--border-glow);backdrop-filter:blur(12px);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0));display:flex;align-items:center;gap:8px;max-width:680px;margin:0 auto;animation:slideUpBar .2s ease-out}
-    @keyframes slideUpBar{from{transform:translateY(100%)}to{transform:translateY(0)}}
-    .action-bar__count{font-size:12px;color:var(--text-secondary);flex:1;min-width:0}
-    .action-bar__count b{color:var(--accent-amber)}
-    .ab-btn{padding:9px 14px;border-radius:10px;border:1px solid var(--border-dim);background:var(--bg-card);color:var(--text-primary);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans JP',sans-serif;display:flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap}
-    .ab-btn:hover:not(:disabled){border-color:var(--accent-amber);color:var(--accent-amber)}
-    .ab-btn:disabled{opacity:.35;cursor:not-allowed}
-    .ab-btn.primary{background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#0a0e1a}
-    .ab-btn.primary:hover:not(:disabled){color:#0a0e1a;transform:translateY(-1px)}
-    /* --- [NEW] edit sheets (reuse popup overlay pattern) --- */
-    .edit-sheet .sheet-title{font-family:'M PLUS Rounded 1c',sans-serif;font-size:16px;font-weight:700;margin-bottom:2px}
-    .edit-sheet .sheet-sub{font-size:12px;color:var(--text-muted);margin-bottom:16px;font-family:'IBM Plex Mono',monospace}
-    .edit-sheet textarea{width:100%;min-height:76px;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:10px;padding:12px;font-size:19px;color:var(--text-primary);font-family:'Noto Sans JP',sans-serif;outline:none;resize:vertical;line-height:1.7;margin-bottom:16px}
-    .edit-sheet textarea:focus{border-color:var(--accent-amber)}
-    .edit-sheet input[type=text]{width:100%;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:10px;padding:10px 12px;font-size:15px;color:var(--text-primary);font-family:'Noto Sans JP',sans-serif;outline:none;margin-bottom:16px}
-    .edit-sheet input[type=text]:focus{border-color:var(--accent-amber)}
-    .speaker-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-    .spk-chip{padding:7px 14px;border-radius:999px;border:1px solid var(--border-dim);background:var(--bg-card);color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all .15s;display:flex;align-items:center;gap:6px}
-    .spk-chip:hover{border-color:var(--border-glow);color:var(--text-primary)}
-    .spk-chip.on{border-color:var(--accent-amber);color:var(--accent-amber);background:rgba(245,158,11,.1)}
-    .spk-chip .dot{width:8px;height:8px;border-radius:50%}
-    .merge-preview{background:var(--bg-card);border:1px solid var(--border-dim);border-radius:10px;padding:12px 14px;margin-bottom:16px}
-    .merge-preview__row{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted);padding:4px 0;display:flex;gap:10px}
-    .merge-preview__row.del{text-decoration:line-through;opacity:.5}
-    .merge-preview__row b{color:var(--accent-amber);font-family:'Noto Sans JP',sans-serif}
-    .sheet-actions{display:flex;gap:10px}
-    .btn-amber{flex:1;padding:13px;border:none;border-radius:11px;font-size:14px;font-weight:700;font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#0a0e1a;transition:all .2s}
-    .btn-amber:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(245,158,11,.3)}
-    .btn-ghost{padding:13px 18px;border:1px solid var(--border-dim);border-radius:11px;font-size:14px;background:transparent;color:var(--text-secondary);cursor:pointer;font-family:'Noto Sans JP',sans-serif}
-    .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#0f172a;border:1px solid var(--accent-green);color:var(--accent-green);padding:10px 20px;border-radius:11px;font-size:13px;font-weight:600;z-index:300;animation:fadeUp .25s ease-out;box-shadow:0 10px 34px rgba(0,0,0,.5);white-space:nowrap}
     @media(min-width:640px){.dl-text{font-size:24px}.word-popup{border-radius:20px;margin:auto;max-height:80vh}.word-popup-overlay{align-items:center}}
   </style>
 </head>
@@ -171,31 +123,12 @@
 const SUPABASE_URL='https://ulgrfumbwjovbjzjiems.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsZ3JmdW1id2pvdmJqemppZW1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjczNzIyNjcsImV4cCI6MjA4Mjk0ODI2N30.ix5Vh4Y3GXNbQbzVtTD_WSko0L3cr5q_eCnTuDEMh7M';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-const ADMIN_ID='d469efb7-f9e1-4b49-8b14-75a42b4d22e0'; // [NEW] same gate as render-home.js
 const segmenter=new Intl.Segmenter('ja',{granularity:'word'});
 const isKanji=c=>c>='\u4E00'&&c<='\u9FFF';
 const isHiragana=c=>c>='\u3040'&&c<='\u309F';
 const isKatakana=c=>c>='\u30A0'&&c<='\u30FF';
 const isJP=s=>[...s].some(c=>isKanji(c)||isHiragana(c)||isKatakana(c));
 const isPunct=s=>/^[\s\p{P}\p{S}\uFF01\uFF1F\u3002\u3001\u300C\u300D\u300E\u300F\uFF08\uFF09\u2026\u2015\uFF5E\u30FB]+$/u.test(s);
-
-// [NEW] Colloquial contractions Intl.Segmenter splits wrongly
-// (いねえ → い+ねえ, 知らねえ → 知ら+ねえ, ってんだよ → って+ん+だ+よ).
-// Longest-match first, checked BEFORE the segmenter. Grow this list as
-// you notice bad splits while reading.
-const COLLOQUIAL=['だってばよ','ってんだよ','じゃねえか','知らねえ','じゃねえ','いねえ','ねえよ','てめえ','すげえ','うるせえ','やべえ','でけえ','はええ'].sort((a,b)=>b.length-a.length);
-const LEX_RE=new RegExp('('+COLLOQUIAL.join('|')+')','g');
-
-// [NEW] compound words Intl.Segmenter splits (断ち切る → 断ち+切る). Checked after
-// segmentation together with the vocab DB — grow this as you spot bad splits.
-const WHOLE_WORDS=new Set(['断ち切る','受け止める','追いかける','引き受ける','乗り越える','繰り返す','取り戻す','立ち上がる','飛び出す','見つめる',
-// Naruto jargon the segmenter splits
-'影分身','分身','螺旋丸','写輪眼','万華鏡写輪眼','白眼','人柱力','尾獣','九尾','一尾','八尾','口寄せ','千鳥','仙人モード','木ノ葉隠れ','砂隠れ','霧隠れ','岩隠れ','雲隠れ','火影','風影','水影','土影','雷影','忍術','幻術','体術','血継限界','チャクラ','手裏剣','苦無','忍界大戦','里抜け','抜け忍','暗部','根']);
-
-// [NEW] scene detection: a gap ≥ this many seconds starts a new scene
-const SCENE_GAP_S=10;
-const t2s=t=>{const m=String(t||'').match(/(\d+):(\d+):(\d+)[.,]?(\d*)/);return m?(+m[1]*3600)+(+m[2]*60)+(+m[3])+(+('0.'+(m[4]||'0'))):null};
-const shortT=t=>String(t||'').slice(3,8);
 
 function parseSRT(t){const b=t.trim().replace(/\r\n/g,'\n').split(/\n\n+/),L=[];for(const k of b){const p=k.split('\n');if(p.length<3)continue;const m=p[1].match(/(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]?\d{0,3})/);if(!m)continue;const d=p.slice(2).join(' ').replace(/<[^>]+>/g,'').replace(/\{[^}]+\}/g,'').trim();if(!d)continue;L.push({start:m[1].replace(',','.'),end:m[2].replace(',','.'),text:d})}return L}
 function parseASS(t){const L=[],re=/^Dialogue:\s*\d+,(\d+:\d{2}:\d{2}\.\d{2}),(\d+:\d{2}:\d{2}\.\d{2}),[^,]*,[^,]*,\d+,\d+,\d+,[^,]*,(.*)/;for(const l of t.split('\n')){const m=l.match(re);if(!m)continue;const d=m[3].replace(/\{[^}]*\}/g,'').replace(/\\[Nn]/g,' ').trim();if(!d)continue;L.push({start:m[1],end:m[2],text:d})}return L}
@@ -210,8 +143,6 @@ class AnimeReader{
     this.importMode='srt';this.srtFile=null;this.rawText='';
     this.dialogueLines=[];this.allTokens=[];this.wordPopup=null;
     this.sessions=[];this.loading=false;
-    // [NEW] correction state
-    this.editMode=false;this.selected=new Set();this.sheet=null;this.sceneTitles={};
     this.init();
   }
 
@@ -226,10 +157,7 @@ class AnimeReader{
     });
     if(this.user)await Promise.all([this.loadVocabulary(),this.loadSavedAnimeWords(),this.loadAnimeList()]);
     this.render();
-    // [NEW] bookmark: save position as you scroll (debounced)
-    window.addEventListener('scroll',()=>{clearTimeout(this._bmTimer);this._bmTimer=setTimeout(()=>this._saveBookmark(),250)},{passive:true});
   }
-  isAdmin(){return this.user?.id===ADMIN_ID} // [NEW]
 
   // === DATA ===
   async loadVocabulary(){
@@ -242,18 +170,21 @@ class AnimeReader{
   }
   async loadAnimeList(){
     try{
+      // Just fetch a small sample to get unique anime names
       const{data,error}=await sb.from('japanese_anime_subtitles').select('anime_name').limit(100);
       if(error){console.log('Subtitles table error:',error.message);this.animeList=[];return}
       if(!data||data.length===0){this.animeList=[];return}
       this.animeList=[...new Set(data.map(r=>r.anime_name))];
+      console.log('Anime found:',this.animeList);
     }catch(e){console.error('loadAnimeList:',e);this.animeList=[]}
   }
   async loadEpisodes(animeName){
     this.loading=true;this.render();
     try{
+      // Only fetch first line of each episode — ~457 rows instead of 109K
       const{data,error}=await sb.from('japanese_anime_subtitles').select('episode').eq('anime_name',animeName).eq('line_number',1).order('episode');
-      if(error){console.error(error);this.episodeList=[];}
-      else{this.episodeList=(data||[]).map(r=>r.episode)}
+      if(error){console.error(error);this.episodeList=[];} 
+      else{this.episodeList=(data||[]).map(r=>r.episode);console.log(`Found ${this.episodeList.length} episodes`)}
     }catch(e){console.error(e);this.episodeList=[]}
     this.loading=false;this.render();
   }
@@ -261,120 +192,21 @@ class AnimeReader{
     this.loading=true;this.render();
     try{const{data}=await sb.from('japanese_anime_subtitles').select('*').eq('anime_name',animeName).eq('episode',episode).order('line_number');
     if(!data?.length){alert('No dialogue found');this.loading=false;this.render();return}
-    // [CHANGED] keep id + line_number so corrections can write back
-    const rawLines=data.map(r=>({id:r.id,ln:r.line_number,start:r.start_time,end:r.end_time,text:r.dialogue,speaker:r.speaker||'',tokens:r.tokens||null}));
-
+    const rawLines=data.map(r=>({start:r.start_time,end:r.end_time,text:r.dialogue,speaker:r.speaker||''}));
     this.processDialogue(rawLines,true);
     this.selectedAnime=animeName;this.selectedEpisode=episode;
-    this.currentView='reading';
-    this.editMode=false;this.selected.clear();this.sheet=null;
-    await this.loadSceneTitles(animeName,episode); // [NEW]
-    }catch(e){console.error(e)}
+    this.currentView='reading'}catch(e){console.error(e)}
     this.loading=false;this.render();
-    this._restoreBookmark(); // [NEW] jump back to where you left off
-  }
-  // [NEW] custom scene titles (japanese_anime_scenes); table may not exist yet — fail soft
-  async loadSceneTitles(animeName,episode){
-    this.sceneTitles={};
-    try{const{data}=await sb.from('japanese_anime_scenes').select('start_line,title').eq('anime_name',animeName).eq('episode',episode);
-    for(const r of(data||[]))this.sceneTitles[r.start_line]=r.title}catch(e){}
   }
 
   // === TOKENIZATION ===
-  // [CHANGED] colloquial lexicon runs before the segmenter (longest match)
-  _classify(s){
-    if(isPunct(s))return{surface:s,type:'punct'};
-    const v=this.vocabLookup[s],sv=this.savedAnimeWords[s];
-    let type='unknown';if(v)type='known';else if(sv)type='saved';else if(!isJP(s))type='punct';
-    return{surface:s,type,vocabEntry:v||null,savedEntry:sv||null};
-  }
   tokenizeLine(text){
-    const out=[];
-    for(const part of String(text||'').split(LEX_RE)){
-      if(!part)continue;
-      if(COLLOQUIAL.includes(part)){out.push(this._classify(part));continue}
-      for(const seg of segmenter.segment(part)){
-        const s=seg.segment;
-        if(!seg.isWordLike||isPunct(s)){out.push({surface:s,type:'punct'});continue}
-        out.push(this._classify(s));
-      }
-    }
-    return this._mergeCompounds(this._mergeRenyokei(this._mergeOkurigana(out)));
-  }
-  // [NEW] okurigana rule: kanji + hiragana conjugation split by the segmenter
-  // (変/わって → 変わって) — merged when its dictionary base (変わる) is a known word.
-  _deinflect(s){
-    const M=[[/って$/,'る'],[/って$/,'う'],[/って$/,'つ'],[/った$/,'る'],[/った$/,'う'],[/った$/,'つ'],[/んで$/,'む'],[/んで$/,'ぶ'],[/んだ$/,'む'],[/んだ$/,'ぶ'],[/いて$/,'く'],[/いた$/,'く'],[/いで$/,'ぐ'],[/いだ$/,'ぐ'],[/して$/,'す'],[/した$/,'す'],[/れば$/,'る'],[/えば$/,'う'],[/けば$/,'く'],[/せば$/,'す'],[/てば$/,'つ'],[/めば$/,'む'],[/べば$/,'ぶ'],[/げば$/,'ぐ'],[/ねば$/,'ぬ'],[/ければ$/,'い'],[/かった$/,'い'],[/くて$/,'い'],[/くない$/,'い'],[/く$/,'い'],[/て$/,'る'],[/た$/,'る'],[/わない$/,'う'],[/らない$/,'る'],[/かない$/,'く'],[/さない$/,'す'],[/まない$/,'む'],[/たない$/,'つ'],[/ばない$/,'ぶ'],[/れない$/,'る'],[/えない$/,'う'],[/けない$/,'く'],[/せない$/,'す'],[/めない$/,'む'],[/べない$/,'ぶ'],[/げない$/,'ぐ'],[/ない$/,'る'],[/り$/,'る'],[/き$/,'く'],[/し$/,'す'],[/ち$/,'つ'],[/み$/,'む'],[/れる$/,'る'],[/える$/,'う'],[/ける$/,'く'],[/せる$/,'す'],[/てる$/,'つ'],[/める$/,'む'],[/べる$/,'ぶ'],[/げる$/,'ぐ'],[/ねる$/,'ぬ']];
-    const c=[];for(const[re,rep]of M)if(re.test(s))c.push(s.replace(re,rep));return c;
-  }
-  _mergeOkurigana(toks){
-    const known=s=>WHOLE_WORDS.has(s)||!!this.vocabLookup[s]||!!this.savedAnimeWords[s];
-    const out=[];
-    for(let i=0;i<toks.length;i++){
-      const a=toks[i],b=toks[i+1];
-      if(b&&a.type!=='punct'&&b.type!=='punct'&&/^[\u4e00-\u9fff]{1,2}$/.test(a.surface)&&/^[\u3041-\u3096]{2,}$/.test(b.surface)){
-        const cand=a.surface+b.surface;
-        let base=known(cand)?cand:null;
-        if(!base)for(const d of this._deinflect(cand))if(known(d)){base=d;break}
-        if(base){
-          const t=this._classify(cand);
-          if(t.type==='unknown'){const v=this.vocabLookup[base],sv=this.savedAnimeWords[base];
-            if(v){t.type='known';t.vocabEntry=v}else if(sv){t.type='saved';t.savedEntry=sv}}
-          out.push(t);i++;continue}
-      }
-      out.push(a);
-    }
-    return out;
-  }
-  // [NEW] grammar rule for compound verbs (複合動詞): kanji-stem + い + kanji verb
-  // 追/い/詰めた → 追い詰めた, 立ち/上がる → 立ち上がる — no dictionary needed.
-  _mergeRenyokei(toks){
-    const K=/^[\u4e00-\u9fff]/,STEM=/^[\u4e00-\u9fff]{1,2}[\u3044\u3061\u304d\u3057\u308a\u3073\u307f]$/;
-    const out=[];
-    for(let i=0;i<toks.length;i++){
-      const a=toks[i],b=toks[i+1],c=toks[i+2];
-      const w=t=>t&&t.type!=='punct';
-      if(w(a)&&w(b)&&w(c)&&/^[\u4e00-\u9fff]{1,2}$/.test(a.surface)&&b.surface==='\u3044'&&K.test(c.surface)){
-        out.push(this._classify(a.surface+b.surface+c.surface));i+=2;continue}
-      if(w(a)&&w(b)&&STEM.test(a.surface)&&K.test(b.surface)){
-        out.push(this._classify(a.surface+b.surface));i+=1;continue}
-      out.push(a);
-    }
-    return out;
-  }
-  // [NEW] merge adjacent segments whose concatenation is a real word
-  // (vocab DB, saved anime words, or WHOLE_WORDS): 断ち + 切る → 断ち切る.
-  _mergeCompounds(toks){
-    const inDict=s=>WHOLE_WORDS.has(s)||!!this.vocabLookup[s]||!!this.savedAnimeWords[s];
-    const out=[];
-    for(let i=0;i<toks.length;i++){
-      let hit=0;
-      for(let k=Math.min(4,toks.length-i);k>=2;k--){
-        const grp=toks.slice(i,i+k);
-        if(grp.some(t=>t.type==='punct'))continue;
-        if(inDict(grp.map(t=>t.surface).join(''))){hit=k;break}
-      }
-      if(hit){out.push(this._classify(toks.slice(i,i+hit).map(t=>t.surface).join('')));i+=hit-1}
-      else out.push(toks[i]);
-    }
-    return out;
-  }
-  // [NEW] pre-tokenized lines from the DB (tokens column, | separated) skip the
-  // browser segmenter; tokens may carry MeCab's dictionary form as surface=dictform
-  // (戻れば=戻る) — exact linking for any verb/adj form; deinflect stays as fallback
-  _tokensFromStored(str){
-    return String(str).split('|').filter(s=>s!=='').map(pair=>{
-      const eq=pair.indexOf('='),s=eq>0?pair.slice(0,eq):pair,base=eq>0?pair.slice(eq+1):null;
-      if(isPunct(s)||!isJP(s))return{surface:s,type:'punct'};
-      const t=this._classify(s);if(base)t.base=base;
-      if(t.type==='unknown'){
-        // chain: surface -> MeCab base (取れない->取れる) -> further deinflection (取れる->取る)
-        const cands=base?[base,...this._deinflect(base),...this._deinflect(s)]:this._deinflect(s);
-        for(const d of cands){
-          const v=this.vocabLookup[d],sv=this.savedAnimeWords[d];
-          if(v){t.type='known';t.vocabEntry=v;break}
-          if(sv){t.type='saved';t.savedEntry=sv;break}}}
-      return t;
+    return[...segmenter.segment(text)].map(seg=>{
+      const s=seg.segment;
+      if(!seg.isWordLike||isPunct(s))return{surface:s,type:'punct'};
+      const v=this.vocabLookup[s],sv=this.savedAnimeWords[s];
+      let type='unknown';if(v)type='known';else if(sv)type='saved';else if(!isJP(s))type='punct';
+      return{surface:s,type,vocabEntry:v||null,savedEntry:sv||null};
     });
   }
   processDialogue(rawLines,hasSpeaker=false){
@@ -383,116 +215,10 @@ class AnimeReader{
       let speaker=line.speaker||'';
       let dialogue=line.text||'';
       if(!hasSpeaker){const sp=splitSpeaker(dialogue);speaker=sp.speaker;dialogue=sp.dialogue;if(speaker)lastSpeaker=speaker;else speaker=lastSpeaker}
-      return{...line,index:i,speaker,dialogue,tokens:line.tokens?this._tokensFromStored(line.tokens):this.tokenizeLine(dialogue)};
+      return{...line,index:i,speaker,dialogue,tokens:this.tokenizeLine(dialogue)};
     });
-    this._rebuildAllTokens();
-  }
-  _rebuildAllTokens(){ // [NEW] factored out so corrections can refresh stats
     const seen=new Set();this.allTokens=[];
     for(const l of this.dialogueLines)for(const t of l.tokens){if(t.type==='punct')continue;if(seen.has(t.surface))continue;seen.add(t.surface);this.allTokens.push(t)}
-  }
-  _reindex(){this.dialogueLines.forEach((l,i)=>l.index=i)} // [NEW]
-
-  // === [NEW] SCENES & GROUPING ===
-  sceneList(){
-    const out=[];let cur=null;
-    this.dialogueLines.forEach((l,i)=>{
-      let split=i===0;
-      if(!split){
-        const a=t2s(this.dialogueLines[i-1].end),b=t2s(l.start);
-        split=(a!=null&&b!=null&&b-a>=SCENE_GAP_S);
-      }
-      if(split){cur={startLn:l.ln??l.index,lines:[]};out.push(cur)}
-      cur.lines.push(l);
-    });
-    return out.map((sc,i)=>({...sc,n:i+1,
-      title:this.sceneTitles[sc.startLn]||('Scene '+(i+1)),
-      from:sc.lines[0].start,to:sc.lines[sc.lines.length-1].end}));
-  }
-  sceneGroups(scene){
-    const gs=[];let g=null;
-    for(const l of scene.lines){
-      if(!g||g.speaker!==l.speaker){g={speaker:l.speaker,lines:[]};gs.push(g)}
-      g.lines.push(l);
-    }
-    return gs;
-  }
-  selectedContiguous(){
-    if(this.selected.size<2)return false;
-    const idxs=[...this.selected].sort((a,b)=>a-b);
-    return idxs.every((v,i)=>i===0||v===idxs[i-1]+1);
-  }
-  canEdit(){return this.isAdmin()&&!!this.selectedEpisode} // DB rows only, not file imports
-  // === [NEW] BOOKMARK: remembers reading position per anime+episode (localStorage) ===
-  _bmKey(){return `animeBM_${this.selectedAnime}_${this.selectedEpisode}`}
-  _saveBookmark(){
-    if(this.currentView!=='reading'||!this.selectedEpisode)return;
-    let best=null;
-    for(const el of document.querySelectorAll('[data-gl]')){if(el.getBoundingClientRect().top>=110){best=el;break}}
-    if(best)try{localStorage.setItem(this._bmKey(),best.dataset.gl)}catch(e){}
-  }
-  _restoreBookmark(){
-    const v=localStorage.getItem(this._bmKey());if(v==null)return;
-    const el=document.querySelector(`[data-gl="${v}"]`);if(!el)return;
-    const y=el.getBoundingClientRect().top+window.scrollY-110;
-    if(y>50){window.scrollTo(0,y);this.toast('\uD83D\uDD16 Resumed where you left off')}
-  }
-  toast(msg){
-    document.querySelectorAll('.toast').forEach(t=>t.remove());
-    const el=document.createElement('div');el.className='toast';el.textContent=msg;
-    document.body.appendChild(el);setTimeout(()=>el.remove(),2200);
-  }
-
-  // === [NEW] CORRECTION WRITES ===
-  async saveLineEdit(idx,text,speaker){
-    const l=this.dialogueLines[idx];if(!l)return;
-    const patch={dialogue:text};if(speaker)patch.speaker=speaker;
-    const{error}=await sb.from('japanese_anime_subtitles').update(patch).eq('id',l.id);
-    if(error){alert('Update failed: '+error.message);return}
-    l.dialogue=text;l.text=text;if(speaker)l.speaker=speaker;
-    l.tokens=this.tokenizeLine(text);
-    this._rebuildAllTokens();
-    this.sheet=null;this.selected.clear();this.render();
-    this.toast('✓ Line updated');
-  }
-  async applySpeaker(speaker){
-    const idxs=[...this.selected];
-    const ids=idxs.map(i=>this.dialogueLines[i].id);
-    const{error}=await sb.from('japanese_anime_subtitles').update({speaker}).in('id',ids);
-    if(error){alert('Update failed: '+error.message);return}
-    idxs.forEach(i=>this.dialogueLines[i].speaker=speaker);
-    this.sheet=null;this.selected.clear();this.render();
-    this.toast(`✓ Speaker set on ${ids.length} line(s)`);
-  }
-  async mergeSelected(text,speaker){
-    const idxs=[...this.selected].sort((a,b)=>a-b);
-    const first=this.dialogueLines[idxs[0]],last=this.dialogueLines[idxs[idxs.length-1]];
-    const rest=idxs.slice(1).map(i=>this.dialogueLines[i]);
-    const patch={dialogue:text,end_time:last.end};if(speaker)patch.speaker=speaker;
-    const{error:e1}=await sb.from('japanese_anime_subtitles').update(patch).eq('id',first.id);
-    if(e1){alert('Merge failed: '+e1.message);return}
-    const{error:e2}=await sb.from('japanese_anime_subtitles').delete().in('id',rest.map(r=>r.id));
-    if(e2){alert('Merged text saved but delete failed: '+e2.message)}
-    first.dialogue=text;first.text=text;first.end=last.end;if(speaker)first.speaker=speaker;
-    first.tokens=this.tokenizeLine(text);
-    const removeIdx=new Set(idxs.slice(1));
-    this.dialogueLines=this.dialogueLines.filter((_,i)=>!removeIdx.has(i));
-    this._reindex();this._rebuildAllTokens();
-    this.sheet=null;this.selected.clear();this.render();
-    this.toast(`✓ Merged · ${rest.length} row(s) deleted`);
-  }
-  async saveSceneTitle(startLn,title){
-    if(title){
-      const{error}=await sb.from('japanese_anime_scenes').upsert(
-        {anime_name:this.selectedAnime,episode:this.selectedEpisode,start_line:startLn,title},
-        {onConflict:'anime_name,episode,start_line'});
-      if(error){alert('Save failed (did you run setup.sql?): '+error.message);return}
-      this.sceneTitles[startLn]=title;
-    }else{
-      await sb.from('japanese_anime_scenes').delete().eq('anime_name',this.selectedAnime).eq('episode',this.selectedEpisode).eq('start_line',startLn);
-      delete this.sceneTitles[startLn];
-    }
-    this.sheet=null;this.render();this.toast('✓ Scene title saved');
   }
 
   // === ACTIONS ===
@@ -504,26 +230,23 @@ class AnimeReader{
     if(!rawLines.length){alert('No lines found');return}
     this.processDialogue(rawLines,false);
     this.selectedAnime='File Import';this.selectedEpisode=null;
-    this.editMode=false;this.selected.clear();this.sheet=null;this.sceneTitles={};
     this.currentView='reading';this.render();
   }
   async saveWord(token){
     if(!this.user||!token)return;
-    const base=token.base||token.surface;const hit=t=>t.surface===token.surface||(t.base&&t.base===base);
-    try{const{data,error}=await sb.from('japanese_anime_words').upsert({user_id:this.user.id,surface_form:token.surface,base_form:base,reading:token.vocabEntry?.hiragana||'',pos:'',pos_detail:'',anime_source:this.selectedAnime||'Unknown',episode:this.selectedEpisode?String(this.selectedEpisode):null,created_at:new Date().toISOString()},{onConflict:'user_id,base_form'}).select();
+    try{const{data,error}=await sb.from('japanese_anime_words').upsert({user_id:this.user.id,surface_form:token.surface,base_form:token.surface,reading:token.vocabEntry?.hiragana||'',pos:'',pos_detail:'',anime_source:this.selectedAnime||'Unknown',episode:this.selectedEpisode?String(this.selectedEpisode):null,created_at:new Date().toISOString()},{onConflict:'user_id,base_form'}).select();
     if(error){alert('Save failed');return}
-    this.savedAnimeWords[base]=data?.[0]||{};
-    for(const l of this.dialogueLines)for(const t of l.tokens)if(hit(t)&&t.type==='unknown'){t.type='saved';t.savedEntry=this.savedAnimeWords[base]}
-    for(const t of this.allTokens)if(hit(t)){t.type='saved';t.savedEntry=this.savedAnimeWords[base]}
+    this.savedAnimeWords[token.surface]=data?.[0]||{};
+    for(const l of this.dialogueLines)for(const t of l.tokens)if(t.surface===token.surface&&t.type==='unknown'){t.type='saved';t.savedEntry=this.savedAnimeWords[token.surface]}
+    for(const t of this.allTokens)if(t.surface===token.surface){t.type='saved';t.savedEntry=this.savedAnimeWords[token.surface]}
     this.render();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
   }
   async removeWord(token){
     if(!this.user||!token)return;
-    const base=token.base||token.surface;const hit=t=>t.surface===token.surface||(t.base&&t.base===base);
-    try{await sb.from('japanese_anime_words').delete().eq('user_id',this.user.id).eq('base_form',base);
-    delete this.savedAnimeWords[base];delete this.savedAnimeWords[token.surface];
-    for(const l of this.dialogueLines)for(const t of l.tokens)if(hit(t)&&t.type==='saved'){t.type='unknown';t.savedEntry=null}
-    for(const t of this.allTokens)if(hit(t)){t.type='unknown';t.savedEntry=null}
+    try{await sb.from('japanese_anime_words').delete().eq('user_id',this.user.id).eq('base_form',token.surface);
+    delete this.savedAnimeWords[token.surface];
+    for(const l of this.dialogueLines)for(const t of l.tokens)if(t.surface===token.surface&&t.type==='saved'){t.type='unknown';t.savedEntry=null}
+    for(const t of this.allTokens)if(t.surface===token.surface){t.type='unknown';t.savedEntry=null}
     this.render();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
   }
   showWordPopup(t){if(!t||t.type==='punct')return;this.wordPopup=t;this.render()}
@@ -544,8 +267,7 @@ class AnimeReader{
       case'import':body=this.renderImport();break;
       default:body=this.renderBrowse();
     }
-    const actionBar=(this.currentView==='reading'&&this.editMode&&this.selected.size&&!this.sheet)?this.renderActionBar():'';
-    app.innerHTML=`${this.renderHeader()}${body}${actionBar}${this.sheet?this.renderEditSheet():''}${this.wordPopup?this.renderPopup():''}`;
+    app.innerHTML=`${this.renderHeader()}${body}${this.wordPopup?this.renderPopup():''}`;
     this.bindAll();
   }
 
@@ -557,11 +279,9 @@ class AnimeReader{
   }
 
   renderHeader(){
-    // [CHANGED] ✏️ edit-mode toggle for admin on DB-loaded episodes
-    const editBtn=(this.currentView==='reading'&&this.canEdit())?`<button class="btn-icon ${this.editMode?'active':''}" id="editModeBtn" title="Edit subtitles">\u270F\uFE0F</button>`:'';
     const backBtn=this.currentView==='browse'?''
       :this.currentView==='episodes'?`<button class="btn-icon" id="navBackBtn" title="Back">\u2190</button>`
-      :this.currentView==='reading'?`<button class="btn-icon" id="navBackBtn" title="Episodes">\u2190</button>${editBtn}<button class="btn-icon" id="summaryBtn" title="Summary">\uD83D\uDCCA</button>`
+      :this.currentView==='reading'?`<button class="btn-icon" id="navBackBtn" title="Episodes">\u2190</button><button class="btn-icon" id="summaryBtn" title="Summary">\uD83D\uDCCA</button>`
       :this.currentView==='summary'?`<button class="btn-icon" id="backToReadingBtn" title="Reading">\u2190</button>`
       :`<button class="btn-icon" id="navBackBtn" title="Back">\u2190</button>`;
     return`<header class="app-header"><div class="app-title">\uD83D\uDCFA \u30A2\u30CB\u30E1 Reader</div>
@@ -602,115 +322,42 @@ class AnimeReader{
       <button class="btn-primary" id="startFileBtn" ${canStart?'':'disabled'}>\uD83C\uDFAC Start Reading</button></div>`;
   }
 
-  // === READING === [CHANGED] scenes + same-speaker groups read as one statement
+  // === READING ===
   renderReading(){
     const stats=this.getStats();
     const pct=stats.total?Math.round((stats.known+stats.saved)/stats.total*100):0;
+    // Assign colors per speaker
     const speakerColors=['#a855f7','#34d399','#60a5fa','#f59e0b','#f87171','#22d3ee','#fb923c','#a3e635','#f472b6','#38bdf8'];
     const speakers=[...new Set(this.dialogueLines.map(l=>l.speaker).filter(Boolean))];
     const colorMap={};speakers.forEach((s,i)=>colorMap[s]=speakerColors[i%speakerColors.length]);
 
-    const hint=this.editMode?`<b>Edit mode</b> — tap lines to select, tap a scene chip to rename`:`JP subtitles · tap a word to save`;
-    let html=`<div class="reading-header"><div class="reading-meta">
+    return`<div class="reading-header"><div class="reading-meta">
         <div class="reading-anime-name">${this.esc(this.selectedAnime)}</div>
-        <div class="reading-episode">${this.selectedEpisode?'Ep '+this.selectedEpisode:'File import'} \u00B7 ${hint}</div></div>
+        <div class="reading-episode">${this.selectedEpisode?'Ep '+this.selectedEpisode:'File import'} \u00B7 JP subtitles · tap a word to save</div></div>
       <div class="reading-stats"><span style="color:var(--word-known)">${stats.known}\u2713</span><span style="color:var(--word-saved)">${stats.saved}\u2605</span><span style="color:var(--word-unknown)">${stats.unknown}?</span></div><div class="reading-progress"><div class="reading-progress__fill" style="width:${pct}%"></div></div></div>
-    <div class="dialogue-container hide-sb${this.editMode?' edit-on':''}" style="padding-bottom:${this.editMode?'120px':'16px'}">`;
-
-    let gi=0;
-    for(const sc of this.sceneList()){
-      const showChip=sc.from&&t2s(sc.from)!=null; // no headers for timestamp-less text imports
-      if(showChip)html+=`<div class="scene-header"><button class="scene-chip" data-scene="${sc.startLn}">
-        <span class="scene-chip__title">${this.esc(sc.title)}</span>
-        <span class="scene-chip__time">${shortT(sc.from)} – ${shortT(sc.to)}</span></button></div>`;
-      for(const g of this.sceneGroups(sc)){
-        const c=colorMap[g.speaker]||'#64748b';
-        const isActive=this.wordPopup&&g.lines.some(l=>l.tokens.includes(this.wordPopup));
-        const tok=(l)=>l.tokens.map((t,j)=>t.type==='punct'?`<span class="word-token punct">${this.esc(t.surface)}</span>`:`<span class="word-token ${t.type}" data-line="${l.index}" data-token="${j}">${this.esc(t.surface)}</span>`).join('');
-        html+=`<div class="dialogue-line${isActive?' active':''}" data-gl="${g.lines[0].index}" style="animation-delay:${Math.min(gi*20,300)}ms">
-          <div class="dl-avatar" style="background:linear-gradient(135deg,${c},${c}aa);box-shadow:0 4px 14px ${c}55">${this.esc(g.speaker?[...g.speaker][0]:'\u2022')}</div>
-          <div class="dl-main">
-            ${g.speaker?`<div class="dl-meta"><span class="dl-name" style="color:${c}">${this.esc(g.speaker)}</span>${g.lines.length>1?`<span class="dl-linecount">${g.lines.length} lines</span>`:''}</div>`:''}
-            <div class="dl-bubble">${this.editMode
-              // edit mode: one selectable segment per DB row
-              ?g.lines.map(l=>`<div class="dl-seg${this.selected.has(l.index)?' selected':''}" data-seg="${l.index}">
-                  ${l.start?`<div class="dl-timestamp">${l.start}${l.end?' \u2192 '+l.end:''}</div>`:''}
-                  <div class="dl-text">${tok(l)}</div><span class="seg-check">\u2713</span></div>`).join('')
-              // read mode: one continuous statement per speaker run
-              :`<div class="dl-seg">
-                  ${g.lines[0].start?`<div class="dl-timestamp">${g.lines[0].start}${g.lines[g.lines.length-1].end?' \u2192 '+g.lines[g.lines.length-1].end:''}</div>`:''}
-                  <div class="dl-text">${g.lines.map(tok).join(' ')}</div></div>`}</div>
-          </div></div>`;
-        gi++;
-      }
-    }
-    html+=`<div class="reading-footer-hint">${this.editMode?'Corrections write directly to the database':'Tap any word to save it to Self Study'}</div><div style="height:40px"></div></div>`;
-    return html;
-  }
-
-  // === [NEW] edit-mode chrome ===
-  renderActionBar(){
-    const n=this.selected.size;
-    return`<div class="action-bar">
-      <div class="action-bar__count"><b>${n}</b> line${n>1?'s':''} selected</div>
-      <button class="ab-btn" id="abEdit" ${n===1?'':'disabled'}>\u270F\uFE0F Edit</button>
-      <button class="ab-btn" id="abSpeaker">\uD83C\uDFAD Speaker</button>
-      <button class="ab-btn primary" id="abMerge" ${this.selectedContiguous()?'':'disabled'}>\u26D9 Merge</button>
-      <button class="ab-btn" id="abClear">\u2715</button></div>`;
-  }
-  _speakerChips(current){
-    const speakerColors=['#a855f7','#34d399','#60a5fa','#f59e0b','#f87171','#22d3ee','#fb923c','#a3e635','#f472b6','#38bdf8'];
-    const speakers=[...new Set(this.dialogueLines.map(l=>l.speaker).filter(Boolean))];
-    return`<div class="speaker-chips">${speakers.map((s,i)=>`<button class="spk-chip${s===current?' on':''}" data-spk="${this.esc(s)}"><span class="dot" style="background:${speakerColors[i%speakerColors.length]}"></span>${this.esc(s)}</button>`).join('')}</div>`;
-  }
-  renderEditSheet(){
-    const S=this.sheet;let body='';
-    if(S.type==='edit'){
-      const l=this.dialogueLines[S.idx];
-      body=`<div class="sheet-title">Edit line</div>
-        <div class="sheet-sub">line ${l.ln??''} \u00B7 ${l.start||''}${l.end?' \u2192 '+l.end:''}</div>
-        <label class="form-label">Dialogue text</label>
-        <textarea id="editText">${this.esc(S.text??l.dialogue)}</textarea>
-        <label class="form-label">Speaker</label>${this._speakerChips(S.speaker??l.speaker)}
-        <div class="sheet-actions"><button class="btn-ghost" data-close>Cancel</button><button class="btn-amber" id="saveEditBtn">Save correction</button></div>`;
-    }else if(S.type==='speaker'){
-      body=`<div class="sheet-title">Reassign speaker</div>
-        <div class="sheet-sub">${this.selected.size} line(s)</div>
-        ${this._speakerChips(S.speaker)}
-        <label class="form-label">Or add a new speaker</label>
-        <input type="text" id="newSpkInput" placeholder="e.g. \u30CA\u30EC\u30FC\u30BF\u30FC" value="${this.esc(S.newSpk||'')}">
-        <div class="sheet-actions"><button class="btn-ghost" data-close>Cancel</button><button class="btn-amber" id="saveSpkBtn">Apply to ${this.selected.size} line(s)</button></div>`;
-    }else if(S.type==='merge'){
-      const idxs=[...this.selected].sort((a,b)=>a-b);
-      const rows=idxs.map(i=>this.dialogueLines[i]);
-      const first=rows[0],last=rows[rows.length-1];
-      body=`<div class="sheet-title">Merge ${rows.length} lines</div>
-        <div class="sheet-sub">keeps line ${first.ln??''} \u00B7 ${first.start||''} \u2192 ${last.end||''} \u00B7 other rows deleted</div>
-        <div class="merge-preview">${rows.map((r,i)=>`<div class="merge-preview__row${i>0?' del':''}"><span>#${r.ln??r.index}</span><b>${this.esc(r.dialogue)}</b></div>`).join('')}</div>
-        <label class="form-label">Merged text (editable)</label>
-        <textarea id="mergeText">${this.esc(S.text??rows.map(r=>r.dialogue).join(''))}</textarea>
-        <label class="form-label">Speaker</label>${this._speakerChips(S.speaker??first.speaker)}
-        <div class="sheet-actions"><button class="btn-ghost" data-close>Cancel</button><button class="btn-amber" id="saveMergeBtn">Merge lines</button></div>`;
-    }else if(S.type==='scene'){
-      const sc=this.sceneList().find(x=>x.startLn===S.startLn);
-      body=`<div class="sheet-title">Rename scene</div>
-        <div class="sheet-sub">${shortT(sc.from)} – ${shortT(sc.to)}</div>
-        <label class="form-label">Scene title (empty = reset)</label>
-        <input type="text" id="sceneTitleInput" value="${this.esc(this.sceneTitles[S.startLn]||'')}" placeholder="Scene ${sc.n} — e.g. \u8A13\u7DF4\u5834\u3067\u306E\u5BFE\u7ACB">
-        <div class="sheet-actions"><button class="btn-ghost" data-close>Cancel</button><button class="btn-amber" id="saveSceneBtn">Save title</button></div>`;
-    }
-    return`<div class="word-popup-overlay" id="editSheetOverlay"><div class="word-popup edit-sheet"><div class="popup-handle"></div>${body}</div></div>`;
+    <div class="dialogue-container hide-sb">
+      ${this.dialogueLines.map((line,i)=>{
+        const sc=colorMap[line.speaker]||'#64748b';
+        const isActive=this.wordPopup&&line.tokens.includes(this.wordPopup);
+        const grp=i>0&&line.speaker&&this.dialogueLines[i-1].speaker===line.speaker;
+        return`<div class="dialogue-line${isActive?' active':''}${grp?' grouped':''}" style="animation-delay:${Math.min(i*20,300)}ms">${grp?'<div class="dl-avatar-spacer"></div>':`<div class="dl-avatar" style="background:linear-gradient(135deg,${sc},${sc}aa);box-shadow:0 4px 14px ${sc}55">${this.esc(line.speaker?[...line.speaker][0]:'\u2022')}</div>`}<div class="dl-main">${(!grp&&line.speaker)?`<div class="dl-meta"><span class="dl-name" style="color:${sc}">${this.esc(line.speaker)}</span></div>`:''}<div class="dl-bubble">
+          ${line.start?`<div class="dl-timestamp">${line.start}${line.end?' \u2192 '+line.end:''}</div>`:''}
+          ${line.speaker?``:''}
+          <div class="dl-text">${line.tokens.map((t,j)=>t.type==='punct'?`<span class="word-token punct">${this.esc(t.surface)}</span>`:`<span class="word-token ${t.type}" data-line="${i}" data-token="${j}">${this.esc(t.surface)}</span>`).join('')}</div>
+          ${line.english?`<div class="dl-english">${this.esc(line.english)}</div>`:''}
+        </div></div></div>`;
+      }).join('')}
+      <div class="reading-footer-hint">Tap any word to save it to Self Study</div><div style="height:40px"></div></div>`;
   }
 
   // === POPUP ===
   renderPopup(){
     const t=this.wordPopup;if(!t)return'';
-    const v=t.vocabEntry||this.vocabLookup[t.surface]||(t.base?this.vocabLookup[t.base]:null),sv=t.savedEntry||this.savedAnimeWords[t.surface]||(t.base?this.savedAnimeWords[t.base]:null);
+    const v=t.vocabEntry||this.vocabLookup[t.surface],sv=t.savedEntry||this.savedAnimeWords[t.surface];
     const isK=!!v,isS=!!sv;
     let ctx='';for(const l of this.dialogueLines){if(l.tokens.some(lt=>lt.surface===t.surface)){ctx=l.tokens.map(lt=>lt.surface===t.surface?`<em>${this.esc(lt.surface)}</em>`:this.esc(lt.surface)).join('');break}}
     return`<div class="word-popup-overlay" id="popupOverlay"><div class="word-popup"><div class="popup-handle"></div>
       <div class="popup-surface">${this.esc(t.surface)}</div>
-      ${t.base&&t.base!==t.surface?`<div style="text-align:center;font-size:13px;color:var(--text-muted)">dictionary form: <b style="color:var(--text-secondary)">${this.esc(t.base)}</b></div>`:''}
       ${v?.hiragana?`<div class="popup-reading">${this.esc(v.hiragana)}</div>`:''}
       <div style="text-align:center;margin:12px 0">
         ${isK?`<span class="popup-tag known">\u2713 JLPT vocabulary</span>`:isS?`<span class="popup-tag saved">\u2605 Saved from ${this.esc(sv.anime_source||'anime')}</span>`:`<span class="popup-tag unknown">? New word</span>`}
@@ -749,69 +396,30 @@ class AnimeReader{
     document.getElementById('signOutBtn')?.addEventListener('click',()=>this.signOut());
     document.getElementById('navBackBtn')?.addEventListener('click',()=>{
       if(this.currentView==='episodes'){this.currentView='browse'}
-      else if(this.currentView==='reading'){this.currentView=this.selectedEpisode?'episodes':'browse';this.dialogueLines=[];this.allTokens=[];this.wordPopup=null;this.editMode=false;this.selected.clear();this.sheet=null}
+      else if(this.currentView==='reading'){this.currentView=this.selectedEpisode?'episodes':'browse';this.dialogueLines=[];this.allTokens=[];this.wordPopup=null}
       else if(this.currentView==='import'){this.currentView='browse'}
       this.render();
     });
-    document.getElementById('summaryBtn')?.addEventListener('click',()=>{this.currentView='summary';this.wordPopup=null;this.editMode=false;this.selected.clear();this.sheet=null;this.render()});
+    document.getElementById('summaryBtn')?.addEventListener('click',()=>{this.currentView='summary';this.wordPopup=null;this.render()});
     document.getElementById('backToReadingBtn')?.addEventListener('click',()=>{this.currentView='reading';this.render()});
     document.getElementById('goImportBtn')?.addEventListener('click',()=>{this.currentView='import';this.render()});
+    // Anime selection
     document.querySelectorAll('[data-anime]').forEach(b=>b.addEventListener('click',()=>{this.selectedAnime=b.dataset.anime;this.currentView='episodes';this.loadEpisodes(this.selectedAnime)}));
+    // Episode selection
     document.querySelectorAll('[data-ep]').forEach(b=>b.addEventListener('click',()=>this.loadEpisodeDialogue(this.selectedAnime,parseInt(b.dataset.ep))));
+    // Import
     document.querySelectorAll('[data-import-mode]').forEach(b=>b.addEventListener('click',()=>{this.importMode=b.dataset.importMode;this.render()}));
     const ta=document.getElementById('textImportArea');if(ta)ta.addEventListener('input',()=>this.rawText=ta.value);
     const dz=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
     if(dz&&fi){dz.addEventListener('click',()=>fi.click());dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer?.files?.[0]){this.srtFile=e.dataTransfer.files[0];this.render()}});fi.addEventListener('change',()=>{if(fi.files?.[0]){this.srtFile=fi.files[0];this.render()}})}
     document.getElementById('startFileBtn')?.addEventListener('click',()=>this.startFromFile());
-    // Word tokens (read mode only)
-    if(!this.editMode)document.querySelectorAll('.word-token[data-line]').forEach(el=>el.addEventListener('click',()=>{const t=this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];if(t)this.showWordPopup(t)}));
+    // Word tokens
+    document.querySelectorAll('.word-token[data-line]').forEach(el=>el.addEventListener('click',()=>{const t=this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];if(t)this.showWordPopup(t)}));
     // Popup
     document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay')this.closePopup()});
     document.getElementById('saveWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.saveWord(this.wordPopup)});
     document.getElementById('removeWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.removeWord(this.wordPopup)});
     document.querySelectorAll('[data-save-base]').forEach(b=>b.addEventListener('click',()=>{const t=this.allTokens.find(x=>x.surface===b.dataset.saveBase);if(t)this.saveWord(t)}));
-
-    // === [NEW] edit mode wiring ===
-    document.getElementById('editModeBtn')?.addEventListener('click',()=>{
-      this.editMode=!this.editMode;this.selected.clear();this.sheet=null;this.wordPopup=null;this.render();
-    });
-    if(this.editMode){
-      document.querySelectorAll('[data-seg]').forEach(el=>el.addEventListener('click',()=>{
-        const i=+el.dataset.seg;
-        this.selected.has(i)?this.selected.delete(i):this.selected.add(i);
-        this.render();
-      }));
-      document.querySelectorAll('[data-scene]').forEach(el=>el.addEventListener('click',()=>{
-        this.sheet={type:'scene',startLn:+el.dataset.scene};this.render();
-      }));
-    }
-    document.getElementById('abEdit')?.addEventListener('click',()=>{this.sheet={type:'edit',idx:[...this.selected][0]};this.render()});
-    document.getElementById('abSpeaker')?.addEventListener('click',()=>{this.sheet={type:'speaker'};this.render()});
-    document.getElementById('abMerge')?.addEventListener('click',()=>{this.sheet={type:'merge'};this.render()});
-    document.getElementById('abClear')?.addEventListener('click',()=>{this.selected.clear();this.render()});
-    document.getElementById('editSheetOverlay')?.addEventListener('click',e=>{if(e.target.id==='editSheetOverlay'){this.sheet=null;this.render()}});
-    document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{this.sheet=null;this.render()}));
-    document.querySelectorAll('.spk-chip').forEach(b=>b.addEventListener('click',()=>{
-      // keep typed text when re-rendering the sheet
-      const t=document.getElementById(this.sheet?.type==='merge'?'mergeText':'editText');if(t)this.sheet.text=t.value;
-      const ns=document.getElementById('newSpkInput');if(ns)this.sheet.newSpk=ns.value;
-      this.sheet.speaker=b.dataset.spk;this.render();
-    }));
-    document.getElementById('saveEditBtn')?.addEventListener('click',()=>{
-      const text=document.getElementById('editText').value.trim();if(!text)return;
-      this.saveLineEdit(this.sheet.idx,text,this.sheet.speaker);
-    });
-    document.getElementById('saveSpkBtn')?.addEventListener('click',()=>{
-      const spk=(document.getElementById('newSpkInput').value.trim())||this.sheet.speaker;
-      if(spk)this.applySpeaker(spk);
-    });
-    document.getElementById('saveMergeBtn')?.addEventListener('click',()=>{
-      const text=document.getElementById('mergeText').value.trim();if(!text)return;
-      this.mergeSelected(text,this.sheet.speaker);
-    });
-    document.getElementById('saveSceneBtn')?.addEventListener('click',()=>{
-      this.saveSceneTitle(this.sheet.startLn,document.getElementById('sceneTitleInput').value.trim());
-    });
   }
   esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
 }
