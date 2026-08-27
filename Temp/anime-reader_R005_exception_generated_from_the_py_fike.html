@@ -499,47 +499,6 @@ class AnimeReader{
     };
     navigator.clipboard.writeText(JSON.stringify(payload,null,1)).then(()=>this.toast(`\uD83D\uDCCB ${rows.length} flagged line(s) copied \u2014 paste to Claude`)).catch(()=>alert(JSON.stringify(payload,null,1)));
   }
-  // [NEW] kana exception: registers the word AND rewrites the whole DB from the browser (no Python)
-  async addKanaException(t){
-    const w=t.base||t.surface;
-    const kana=prompt(`Hiragana form of ${w}?\n(used to rewrite all subtitles right now)`,'');
-    if(!kana)return;
-    if(!/^[ぁ-ゖー]+$/.test(kana)){alert('Hiragana only, please');return}
-    const{error}=await sb.from('japanese_kana_exceptions').upsert({word:w,kana});
-    if(error){alert('Failed — did you run kana_exceptions.sql? '+error.message);return}
-    // stem map by stripping the shared ending: 有り難い/ありがたい -> 有り難/ありがた
-    let ci=0;while(ci<Math.min(w.length,kana.length)&&w[w.length-1-ci]===kana[kana.length-1-ci])ci++;
-    const kStem=w.slice(0,w.length-ci),hStem=kana.slice(0,kana.length-ci);
-    if(!kStem){this.toast('Saved to exceptions');return}
-    this.closePopup();this.toast('⏳ Rewriting database…');
-    let fixed=0;
-    while(true){
-      const{data,error:e}=await sb.from('japanese_anime_subtitles').select('id,dialogue,tokens').like('tokens','%'+kStem+'%').limit(1000);
-      if(e){alert('Fetch failed: '+e.message);return}
-      let round=0;
-      for(const r of(data||[])){
-        let changed=false;
-        const parts=String(r.tokens||'').split('|').map(p=>{
-          const eq=p.indexOf('=');const s=eq>0?p.slice(0,eq):p;const b=eq>0?p.slice(eq+1):null;
-          if((b||s)===w&&s.startsWith(kStem)){
-            const ns=hStem+s.slice(kStem.length);
-            r.dialogue=r.dialogue.split(s).join(ns);
-            changed=true;
-            return ns===kana?ns:ns+'='+kana;
-          }
-          return p;
-        });
-        if(changed){
-          const{error:ue}=await sb.from('japanese_anime_subtitles').update({dialogue:r.dialogue,tokens:parts.join('|')}).eq('id',r.id);
-          if(ue){alert('Update failed: '+ue.message);return}
-          fixed++;round++;
-        }
-      }
-      if(!round)break;
-    }
-    this.toast(`あ ${w}→${kana} · ${fixed} line(s) rewritten`);
-    if(this.currentView==='reading'&&this.selectedEpisode)await this.loadEpisodeDialogue(this.selectedAnime,this.selectedEpisode);
-  }
   async saveSceneTitle(startLn,title){
     if(title){
       const{error}=await sb.from('japanese_anime_scenes').upsert(
@@ -792,7 +751,6 @@ class AnimeReader{
         ${v.hint?`<div style="font-size:12px;color:var(--accent-amber);margin-top:6px">\uD83D\uDCA1 ${this.esc(v.hint)}</div>`:''}
         ${v.level?`<div style="font-size:11px;color:var(--text-muted);margin-top:6px">JLPT ${v.level}</div>`:''}</div>`:''}
       ${ctx?`<div class="popup-context">${ctx}</div>`:''}
-      ${this.isAdmin()&&/[\u4e00-\u9fff]/.test(t.base||t.surface)?`<button class="btn-remove-word" id="kanaExcBtn" style="margin-top:8px">あ Keep this word in kana (next rebuild)</button>`:''}
       ${!isK?(isS?`<button class="btn-save-word saved" disabled>\u2605 Already Saved</button><button class="btn-remove-word" id="removeWordBtn">Remove</button>`
         :`<button class="btn-save-word" id="saveWordBtn">\u2605 Save Word</button>`):''}</div></div>`;
   }
@@ -842,7 +800,6 @@ class AnimeReader{
     document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay')this.closePopup()});
     document.getElementById('saveWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.saveWord(this.wordPopup)});
     document.getElementById('removeWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.removeWord(this.wordPopup)});
-    document.getElementById('kanaExcBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.addKanaException(this.wordPopup)});
     document.querySelectorAll('[data-save-base]').forEach(b=>b.addEventListener('click',()=>{const t=this.allTokens.find(x=>x.surface===b.dataset.saveBase);if(t)this.saveWord(t)}));
 
     // === [NEW] edit mode wiring ===

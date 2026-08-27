@@ -262,7 +262,8 @@ class AnimeReader{
     try{const{data}=await sb.from('japanese_anime_subtitles').select('*').eq('anime_name',animeName).eq('episode',episode).order('line_number');
     if(!data?.length){alert('No dialogue found');this.loading=false;this.render();return}
     // [CHANGED] keep id + line_number so corrections can write back
-    const rawLines=data.map(r=>({id:r.id,ln:r.line_number,start:r.start_time,end:r.end_time,text:r.dialogue,speaker:r.speaker||'',tokens:r.tokens||null,flag:r.flag??null}));
+    const rawLines=data.map(r=>({id:r.id,ln:r.line_number,start:r.start_time,end:r.end_time,text:r.dialogue,speaker:r.speaker||'',tokens:r.tokens||null}));
+
     this.processDialogue(rawLines,true);
     this.selectedAnime=animeName;this.selectedEpisode=episode;
     this.currentView='reading';
@@ -445,10 +446,10 @@ class AnimeReader{
   // === [NEW] CORRECTION WRITES ===
   async saveLineEdit(idx,text,speaker){
     const l=this.dialogueLines[idx];if(!l)return;
-    const patch={dialogue:text};if(speaker)patch.speaker=speaker;if(l.flag)patch.flag=null; // fixing a line clears its flag
+    const patch={dialogue:text};if(speaker)patch.speaker=speaker;
     const{error}=await sb.from('japanese_anime_subtitles').update(patch).eq('id',l.id);
     if(error){alert('Update failed: '+error.message);return}
-    l.dialogue=text;l.text=text;if(speaker)l.speaker=speaker;l.flag=null;
+    l.dialogue=text;l.text=text;if(speaker)l.speaker=speaker;
     l.tokens=this.tokenizeLine(text);
     this._rebuildAllTokens();
     this.sheet=null;this.selected.clear();this.render();
@@ -479,66 +480,6 @@ class AnimeReader{
     this._reindex();this._rebuildAllTokens();
     this.sheet=null;this.selected.clear();this.render();
     this.toast(`✓ Merged · ${rest.length} row(s) deleted`);
-  }
-  // [NEW] flag faulty sentences for later batch-correction with Claude
-  async applyFlag(reason){
-    const idxs=[...this.selected];const ids=idxs.map(i=>this.dialogueLines[i].id);
-    const{error}=await sb.from('japanese_anime_subtitles').update({flag:reason}).in('id',ids);
-    if(error){alert('Flag failed — does the flag column exist? Run:\nalter table japanese_anime_subtitles add column flag text;\n\n'+error.message);return}
-    idxs.forEach(i=>this.dialogueLines[i].flag=reason);
-    this.sheet=null;this.selected.clear();this.render();
-    this.toast(reason?`\uD83D\uDEA9 Flagged ${ids.length} line(s)`:'\u2713 Flag removed');
-  }
-  copyFlagged(){
-    const rows=this.dialogueLines.filter(l=>l.flag);
-    if(!rows.length){this.toast('No flagged lines');return}
-    const payload={
-      task:'Fix these flagged Japanese anime subtitle lines. For each, return corrected dialogue and corrected tokens (|-separated; conjugated words as surface=dictionary_form, e.g. \u623B\u3063\u3066\u304D\u305F=\u623B\u3063\u3066\u304F\u308B). Reply ONLY with a JSON array: [{"id":...,"dialogue":"...","tokens":"..."}]',
-      anime:this.selectedAnime,episode:this.selectedEpisode,
-      lines:rows.map(l=>({id:l.id,line:l.ln,speaker:l.speaker||'',dialogue:l.dialogue,tokens:l.tokens.map(t=>t.base&&t.base!==t.surface?t.surface+'='+t.base:t.surface).join('|'),flag:l.flag}))
-    };
-    navigator.clipboard.writeText(JSON.stringify(payload,null,1)).then(()=>this.toast(`\uD83D\uDCCB ${rows.length} flagged line(s) copied \u2014 paste to Claude`)).catch(()=>alert(JSON.stringify(payload,null,1)));
-  }
-  // [NEW] kana exception: registers the word AND rewrites the whole DB from the browser (no Python)
-  async addKanaException(t){
-    const w=t.base||t.surface;
-    const kana=prompt(`Hiragana form of ${w}?\n(used to rewrite all subtitles right now)`,'');
-    if(!kana)return;
-    if(!/^[ぁ-ゖー]+$/.test(kana)){alert('Hiragana only, please');return}
-    const{error}=await sb.from('japanese_kana_exceptions').upsert({word:w,kana});
-    if(error){alert('Failed — did you run kana_exceptions.sql? '+error.message);return}
-    // stem map by stripping the shared ending: 有り難い/ありがたい -> 有り難/ありがた
-    let ci=0;while(ci<Math.min(w.length,kana.length)&&w[w.length-1-ci]===kana[kana.length-1-ci])ci++;
-    const kStem=w.slice(0,w.length-ci),hStem=kana.slice(0,kana.length-ci);
-    if(!kStem){this.toast('Saved to exceptions');return}
-    this.closePopup();this.toast('⏳ Rewriting database…');
-    let fixed=0;
-    while(true){
-      const{data,error:e}=await sb.from('japanese_anime_subtitles').select('id,dialogue,tokens').like('tokens','%'+kStem+'%').limit(1000);
-      if(e){alert('Fetch failed: '+e.message);return}
-      let round=0;
-      for(const r of(data||[])){
-        let changed=false;
-        const parts=String(r.tokens||'').split('|').map(p=>{
-          const eq=p.indexOf('=');const s=eq>0?p.slice(0,eq):p;const b=eq>0?p.slice(eq+1):null;
-          if((b||s)===w&&s.startsWith(kStem)){
-            const ns=hStem+s.slice(kStem.length);
-            r.dialogue=r.dialogue.split(s).join(ns);
-            changed=true;
-            return ns===kana?ns:ns+'='+kana;
-          }
-          return p;
-        });
-        if(changed){
-          const{error:ue}=await sb.from('japanese_anime_subtitles').update({dialogue:r.dialogue,tokens:parts.join('|')}).eq('id',r.id);
-          if(ue){alert('Update failed: '+ue.message);return}
-          fixed++;round++;
-        }
-      }
-      if(!round)break;
-    }
-    this.toast(`あ ${w}→${kana} · ${fixed} line(s) rewritten`);
-    if(this.currentView==='reading'&&this.selectedEpisode)await this.loadEpisodeDialogue(this.selectedAnime,this.selectedEpisode);
   }
   async saveSceneTitle(startLn,title){
     if(title){
@@ -670,11 +611,10 @@ class AnimeReader{
     const colorMap={};speakers.forEach((s,i)=>colorMap[s]=speakerColors[i%speakerColors.length]);
 
     const hint=this.editMode?`<b>Edit mode</b> — tap lines to select, tap a scene chip to rename`:`JP subtitles · tap a word to save`;
-    const nFlag=this.dialogueLines.filter(l=>l.flag).length;
     let html=`<div class="reading-header"><div class="reading-meta">
         <div class="reading-anime-name">${this.esc(this.selectedAnime)}</div>
         <div class="reading-episode">${this.selectedEpisode?'Ep '+this.selectedEpisode:'File import'} \u00B7 ${hint}</div></div>
-      <div class="reading-stats">${nFlag?`<button id="copyFlagsBtn" title="Copy flagged lines for Claude" style="background:none;border:1px solid #f8717155;border-radius:8px;color:#f87171;font:inherit;cursor:pointer;padding:1px 7px">\uD83D\uDEA9${nFlag}</button>`:''}<span style="color:var(--word-known)">${stats.known}\u2713</span><span style="color:var(--word-saved)">${stats.saved}\u2605</span><span style="color:var(--word-unknown)">${stats.unknown}?</span></div><div class="reading-progress"><div class="reading-progress__fill" style="width:${pct}%"></div></div></div>
+      <div class="reading-stats"><span style="color:var(--word-known)">${stats.known}\u2713</span><span style="color:var(--word-saved)">${stats.saved}\u2605</span><span style="color:var(--word-unknown)">${stats.unknown}?</span></div><div class="reading-progress"><div class="reading-progress__fill" style="width:${pct}%"></div></div></div>
     <div class="dialogue-container hide-sb${this.editMode?' edit-on':''}" style="padding-bottom:${this.editMode?'120px':'16px'}">`;
 
     let gi=0;
@@ -694,12 +634,10 @@ class AnimeReader{
             <div class="dl-bubble">${this.editMode
               // edit mode: one selectable segment per DB row
               ?g.lines.map(l=>`<div class="dl-seg${this.selected.has(l.index)?' selected':''}" data-seg="${l.index}">
-                  ${l.flag?`<div style="font-size:10px;color:#f87171;margin-bottom:2px">\uD83D\uDEA9 ${this.esc(l.flag)}</div>`:''}
                   ${l.start?`<div class="dl-timestamp">${l.start}${l.end?' \u2192 '+l.end:''}</div>`:''}
                   <div class="dl-text">${tok(l)}</div><span class="seg-check">\u2713</span></div>`).join('')
               // read mode: one continuous statement per speaker run
               :`<div class="dl-seg">
-                  ${g.lines.some(l=>l.flag)?`<div style="font-size:10px;color:#f87171;margin-bottom:2px">\uD83D\uDEA9 ${this.esc([...new Set(g.lines.filter(l=>l.flag).map(l=>l.flag))].join(' \u00B7 '))}</div>`:''}
                   ${g.lines[0].start?`<div class="dl-timestamp">${g.lines[0].start}${g.lines[g.lines.length-1].end?' \u2192 '+g.lines[g.lines.length-1].end:''}</div>`:''}
                   <div class="dl-text">${g.lines.map(tok).join(' ')}</div></div>`}</div>
           </div></div>`;
@@ -717,7 +655,6 @@ class AnimeReader{
       <div class="action-bar__count"><b>${n}</b> line${n>1?'s':''} selected</div>
       <button class="ab-btn" id="abEdit" ${n===1?'':'disabled'}>\u270F\uFE0F Edit</button>
       <button class="ab-btn" id="abSpeaker">\uD83C\uDFAD Speaker</button>
-      <button class="ab-btn" id="abFlag">\uD83D\uDEA9 Flag</button>
       <button class="ab-btn primary" id="abMerge" ${this.selectedContiguous()?'':'disabled'}>\u26D9 Merge</button>
       <button class="ab-btn" id="abClear">\u2715</button></div>`;
   }
@@ -754,15 +691,6 @@ class AnimeReader{
         <textarea id="mergeText">${this.esc(S.text??rows.map(r=>r.dialogue).join(''))}</textarea>
         <label class="form-label">Speaker</label>${this._speakerChips(S.speaker??first.speaker)}
         <div class="sheet-actions"><button class="btn-ghost" data-close>Cancel</button><button class="btn-amber" id="saveMergeBtn">Merge lines</button></div>`;
-    }else if(S.type==='flag'){
-      const reasons=['Wrong word split','Bad line break','Garbled text','Wrong dictionary form','Other'];
-      const anyFlagged=[...this.selected].some(i=>this.dialogueLines[i]?.flag);
-      body=`<div class="sheet-title">\uD83D\uDEA9 Flag ${this.selected.size} line(s)</div>
-        <div class="sheet-sub">flagged lines can be batch-corrected with Claude later</div>
-        <div class="speaker-chips">${reasons.map(r=>`<button class="spk-chip${S.reason===r?' on':''}" data-flag-reason="${r}">${r}</button>`).join('')}</div>
-        <label class="form-label">Note (optional)</label>
-        <input type="text" id="flagNote" placeholder="what's wrong with it?" value="${this.esc(S.note||'')}">
-        <div class="sheet-actions">${anyFlagged?`<button class="btn-ghost" id="unflagBtn">Remove flag</button>`:`<button class="btn-ghost" data-close>Cancel</button>`}<button class="btn-amber" id="saveFlagBtn">Flag lines</button></div>`;
     }else if(S.type==='scene'){
       const sc=this.sceneList().find(x=>x.startLn===S.startLn);
       body=`<div class="sheet-title">Rename scene</div>
@@ -792,7 +720,6 @@ class AnimeReader{
         ${v.hint?`<div style="font-size:12px;color:var(--accent-amber);margin-top:6px">\uD83D\uDCA1 ${this.esc(v.hint)}</div>`:''}
         ${v.level?`<div style="font-size:11px;color:var(--text-muted);margin-top:6px">JLPT ${v.level}</div>`:''}</div>`:''}
       ${ctx?`<div class="popup-context">${ctx}</div>`:''}
-      ${this.isAdmin()&&/[\u4e00-\u9fff]/.test(t.base||t.surface)?`<button class="btn-remove-word" id="kanaExcBtn" style="margin-top:8px">あ Keep this word in kana (next rebuild)</button>`:''}
       ${!isK?(isS?`<button class="btn-save-word saved" disabled>\u2605 Already Saved</button><button class="btn-remove-word" id="removeWordBtn">Remove</button>`
         :`<button class="btn-save-word" id="saveWordBtn">\u2605 Save Word</button>`):''}</div></div>`;
   }
@@ -842,7 +769,6 @@ class AnimeReader{
     document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay')this.closePopup()});
     document.getElementById('saveWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.saveWord(this.wordPopup)});
     document.getElementById('removeWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.removeWord(this.wordPopup)});
-    document.getElementById('kanaExcBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.addKanaException(this.wordPopup)});
     document.querySelectorAll('[data-save-base]').forEach(b=>b.addEventListener('click',()=>{const t=this.allTokens.find(x=>x.surface===b.dataset.saveBase);if(t)this.saveWord(t)}));
 
     // === [NEW] edit mode wiring ===
@@ -861,11 +787,6 @@ class AnimeReader{
     }
     document.getElementById('abEdit')?.addEventListener('click',()=>{this.sheet={type:'edit',idx:[...this.selected][0]};this.render()});
     document.getElementById('abSpeaker')?.addEventListener('click',()=>{this.sheet={type:'speaker'};this.render()});
-    document.getElementById('abFlag')?.addEventListener('click',()=>{this.sheet={type:'flag'};this.render()});
-    document.getElementById('copyFlagsBtn')?.addEventListener('click',()=>this.copyFlagged());
-    document.querySelectorAll('[data-flag-reason]').forEach(b=>b.addEventListener('click',()=>{const n=document.getElementById('flagNote');if(n)this.sheet.note=n.value;this.sheet.reason=b.dataset.flagReason;this.render()}));
-    document.getElementById('saveFlagBtn')?.addEventListener('click',()=>{const note=document.getElementById('flagNote').value.trim();this.applyFlag([this.sheet.reason,note].filter(Boolean).join(': ')||'Faulty')});
-    document.getElementById('unflagBtn')?.addEventListener('click',()=>this.applyFlag(null));
     document.getElementById('abMerge')?.addEventListener('click',()=>{this.sheet={type:'merge'};this.render()});
     document.getElementById('abClear')?.addEventListener('click',()=>{this.selected.clear();this.render()});
     document.getElementById('editSheetOverlay')?.addEventListener('click',e=>{if(e.target.id==='editSheetOverlay'){this.sheet=null;this.render()}});
