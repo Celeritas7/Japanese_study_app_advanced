@@ -41,7 +41,8 @@ export function selectPart(app, kanjiChar) {
 }
 
 export function findStoryForKanji(app, kanjiChar) {
-  return app.stories.find(s => s.kanji === kanjiChar) || null;
+  const rows = app.stories.filter(s => s.kanji === kanjiChar);
+  return rows.find(s => s.role !== 'primitive') || rows[0] || null;
 }
 
 export function findGroupForKanji(app, kanjiChar) {
@@ -51,5 +52,9 @@ export function findGroupForKanji(app, kanjiChar) {
 }
 
 export function getGroupMembersForKanji(app, groupKanji) {
-  return app.stories.filter(s => s.group_kanji === groupKanji);
+  const group = app.storyGroups.find(g => g.group_kanji === groupKanji);
+  if (!group) return app.stories.filter(s => s.group_kanji === groupKanji);
+  return app.stories.filter(s =>
+    (group.id != null && s.group_id === group.id) ||
+    (s.group_id == null && s.group_kanji === group.group_kanji));
 }

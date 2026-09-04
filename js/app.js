@@ -37,6 +37,7 @@ import * as wordAlert from './handlers/word-alert.js';
 import * as addSentence from './handlers/add-sentence.js';
 import * as bulkLinker from './handlers/bulk-linker.js';
 import * as reviewQueue from './handlers/review-queue.js';
+import { rmInit, rmComplete } from './rmSession.js';
 
 // Guest user ID for testing (matches your Google OAuth user ID)
 const GUEST_USER_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
@@ -176,6 +177,7 @@ class JLPTStudyApp {
   }
 
   async init() {
+    rmInit();   // capture ?rm_task= before any navigation strips it
     this.render();
     const { data: { session } } = await this.supabase.auth.getSession();
     if (session) this.user = session.user;
@@ -1216,6 +1218,11 @@ class JLPTStudyApp {
     this._saveTodayPractice(this.studyWords);
     this._saveStudySessionToHistory(this.studyWords);
     this._saveStudySession();
+    rmComplete({ feedback: {
+      words: this.studyWords.length,
+      mode: this.studySubTab,          // 'goi' | 'kanji' | 'self_study'
+      level: this.selectedLevel || null,
+    }});
     this.render();
   }
 
@@ -1488,6 +1495,12 @@ class JLPTStudyApp {
       this.srsView = 'results';
       this._saveTodayResults(this.srsAnswers);
       this._saveSRSSession(); // Keep session with results for the day
+      rmComplete({ feedback: {
+      words: this.srsWords.length,
+      correct: this.srsAnswers.filter(a => a.correct).length,
+      mode: 'srs',
+      testType: this.srsConfig.testType,
+    }});
       this.render();
     }
   }

@@ -46,8 +46,7 @@
     .reading-episode b{color:var(--accent-amber);font-weight:600}
     .reading-stats{display:flex;gap:12px;font-size:11px;font-family:'IBM Plex Mono',monospace}
     .dialogue-container{padding:16px;max-width:680px;margin:0 auto}
-    .dialogue-line{margin-bottom:14px;padding:16px 18px;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:16px}
-    .animate-in .dialogue-line{animation:fadeUp .3s ease-out both}
+    .dialogue-line{margin-bottom:14px;padding:16px 18px;background:var(--bg-card);border:1px solid var(--border-dim);border-radius:16px;animation:fadeUp .3s ease-out both}
     .dl-english{font-size:14px;color:var(--text-secondary);margin-top:8px;line-height:1.5}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     .dl-timestamp{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-muted);margin-bottom:6px}
@@ -131,10 +130,6 @@
     .edit-on .word-token{pointer-events:none}
     .dl-seg .seg-check{position:absolute;top:10px;right:12px;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border-glow);display:none;align-items:center;justify-content:center;font-size:12px;color:#0a0e1a;background:transparent}
     .edit-on .dl-seg .seg-check{display:flex}
-    /* both markup variants live in the DOM; the pencil just flips a class — no rebuild, no flash */
-    .dl-edit{display:none}
-    .edit-on .dl-edit{display:block}
-    .edit-on .dl-read{display:none}
     .dl-seg.selected{background:rgba(245,158,11,.09);box-shadow:inset 3px 0 0 var(--accent-amber)}
     .dl-seg.selected .seg-check{background:var(--accent-amber);border-color:var(--accent-amber)}
     .action-bar{position:fixed;left:0;right:0;bottom:0;z-index:150;background:rgba(15,23,42,.97);border-top:1px solid var(--border-glow);backdrop-filter:blur(12px);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0));display:flex;align-items:center;gap:8px;max-width:680px;margin:0 auto;animation:slideUpBar .2s ease-out}
@@ -274,7 +269,7 @@ class AnimeReader{
     this.editMode=false;this.selected.clear();this.sheet=null;
     await this.loadSceneTitles(animeName,episode); // [NEW]
     }catch(e){console.error(e)}
-    this.loading=false;this._animateIn=true;this.render();
+    this.loading=false;this.render();
     this._restoreBookmark(); // [NEW] jump back to where you left off
   }
   // [NEW] custom scene titles (japanese_anime_scenes); table may not exist yet — fail soft
@@ -590,7 +585,7 @@ class AnimeReader{
     this.processDialogue(rawLines,false);
     this.selectedAnime='File Import';this.selectedEpisode=null;
     this.editMode=false;this.selected.clear();this.sheet=null;this.sceneTitles={};
-    this.currentView='reading';this._animateIn=true;this.render();
+    this.currentView='reading';this.render();
   }
   async saveWord(token){
     if(!this.user||!token)return;
@@ -600,7 +595,7 @@ class AnimeReader{
     this.savedAnimeWords[base]=data?.[0]||{};
     for(const l of this.dialogueLines)for(const t of l.tokens)if(hit(t)&&t.type==='unknown'){t.type='saved';t.savedEntry=this.savedAnimeWords[base]}
     for(const t of this.allTokens)if(hit(t)){t.type='saved';t.savedEntry=this.savedAnimeWords[base]}
-    this._syncTokenClasses();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
+    this.render();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
   }
   async removeWord(token){
     if(!this.user||!token)return;
@@ -609,27 +604,10 @@ class AnimeReader{
     delete this.savedAnimeWords[base];delete this.savedAnimeWords[token.surface];
     for(const l of this.dialogueLines)for(const t of l.tokens)if(hit(t)&&t.type==='saved'){t.type='unknown';t.savedEntry=null}
     for(const t of this.allTokens)if(hit(t)){t.type='unknown';t.savedEntry=null}
-    this._syncTokenClasses();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
+    this.render();if(this.wordPopup?.surface===token.surface)this.showWordPopup(token)}catch(e){console.error(e)}
   }
-  // repaint token colours + the stats row in place (no page rebuild)
-  _syncTokenClasses(){
-    document.querySelectorAll('.word-token[data-line]').forEach(el=>{
-      const t=this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];if(!t)return;
-      el.classList.remove('known','unknown','saved');el.classList.add(t.type);
-    });
-    const s=this.getStats(),row=document.querySelector('.reading-stats');
-    if(row){const sp=row.querySelectorAll('span');if(sp.length>=3){sp[sp.length-3].textContent=s.known+'\u2713';sp[sp.length-2].textContent=s.saved+'\u2605';sp[sp.length-1].textContent=s.unknown+'?'}}
-    const f=document.querySelector('.reading-progress__fill');
-    if(f)f.style.width=(s.total?Math.round((s.known+s.saved)/s.total*100):0)+'%';
-  }
-  _syncPopup(){
-    const host=document.getElementById('popupHost');
-    if(!host){this.render();return}
-    host.innerHTML=this.wordPopup?this.renderPopup():'';
-    this.bindPopup();
-  }
-  showWordPopup(t){if(!t||t.type==='punct')return;this.wordPopup=t;this._syncPopup()}
-  closePopup(){this.wordPopup=null;this._syncPopup()}
+  showWordPopup(t){if(!t||t.type==='punct')return;this.wordPopup=t;this.render()}
+  closePopup(){this.wordPopup=null;this.render()}
   getStats(){const k=this.allTokens.filter(t=>t.type==='known').length,u=this.allTokens.filter(t=>t.type==='unknown').length,s=this.allTokens.filter(t=>t.type==='saved').length;return{known:k,unknown:u,saved:s,total:this.allTokens.length}}
   async signIn(){await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}})}
   async signOut(){await sb.auth.signOut();this.user=null;this.render()}
@@ -647,33 +625,8 @@ class AnimeReader{
       default:body=this.renderBrowse();
     }
     const actionBar=(this.currentView==='reading'&&this.editMode&&this.selected.size&&!this.sheet)?this.renderActionBar():'';
-    // keep the viewport still when we re-render the same view (no more blink/jump)
-    const sameView=this._lastView===this.currentView&&this._lastEp===this.selectedEpisode;
-    const y=window.scrollY||document.documentElement.scrollTop||0;
-    app.innerHTML=`${this.renderHeader()}${body}<div id="abHost">${actionBar}</div>${this.sheet?this.renderEditSheet():''}<div id="popupHost">${this.wordPopup?this.renderPopup():''}</div>`;
-    if(sameView&&y)window.scrollTo(0,y);
-    this._lastView=this.currentView;this._lastEp=this.selectedEpisode;this._animateIn=false;
+    app.innerHTML=`${this.renderHeader()}${body}${actionBar}${this.sheet?this.renderEditSheet():''}${this.wordPopup?this.renderPopup():''}`;
     this.bindAll();
-  }
-  bindPopup(){
-    document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay')this.closePopup()});
-    document.getElementById('saveWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.saveWord(this.wordPopup)});
-    document.getElementById('removeWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.removeWord(this.wordPopup)});
-    document.getElementById('kanaExcBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.addKanaException(this.wordPopup)});
-    document.querySelectorAll('[data-save-base]').forEach(b=>b.addEventListener('click',()=>{const t=this.allTokens.find(x=>x.surface===b.dataset.saveBase);if(t)this.saveWord(t)}));
-  }
-  bindActionBar(){
-    document.getElementById('abEdit')?.addEventListener('click',()=>{this.sheet={type:'edit',idx:[...this.selected][0]};this.render()});
-    document.getElementById('abSpeaker')?.addEventListener('click',()=>{this.sheet={type:'speaker'};this.render()});
-    document.getElementById('abFlag')?.addEventListener('click',()=>{this.sheet={type:'flag'};this.render()});
-    document.getElementById('abMerge')?.addEventListener('click',()=>{this.sheet={type:'merge'};this.render()});
-    document.getElementById('abClear')?.addEventListener('click',()=>{this.selected.clear();this._syncActionBar();document.querySelectorAll('.dl-seg.selected').forEach(e=>e.classList.remove('selected'))});
-  }
-  // patch just the action bar — used by line selection so the page never repaints
-  _syncActionBar(){
-    const host=document.getElementById('abHost');if(!host)return;
-    host.innerHTML=(this.currentView==='reading'&&this.editMode&&this.selected.size&&!this.sheet)?this.renderActionBar():'';
-    this.bindActionBar();
   }
 
   renderLogin(){
@@ -743,7 +696,7 @@ class AnimeReader{
         <div class="reading-anime-name">${this.esc(this.selectedAnime)}</div>
         <div class="reading-episode">${this.selectedEpisode?'Ep '+this.selectedEpisode:'File import'} \u00B7 ${hint}</div></div>
       <div class="reading-stats">${nFlag?`<button id="copyFlagsBtn" title="Copy flagged lines for Claude" style="background:none;border:1px solid #f8717155;border-radius:8px;color:#f87171;font:inherit;cursor:pointer;padding:1px 7px">\uD83D\uDEA9${nFlag}</button>`:''}<span style="color:var(--word-known)">${stats.known}\u2713</span><span style="color:var(--word-saved)">${stats.saved}\u2605</span><span style="color:var(--word-unknown)">${stats.unknown}?</span></div><div class="reading-progress"><div class="reading-progress__fill" style="width:${pct}%"></div></div></div>
-    <div class="dialogue-container hide-sb${this.editMode?' edit-on':''}${this._animateIn?' animate-in':''}" id="dlgContainer" style="padding-bottom:${this.editMode?'120px':'16px'}">`;
+    <div class="dialogue-container hide-sb${this.editMode?' edit-on':''}" style="padding-bottom:${this.editMode?'120px':'16px'}">`;
 
     let gi=0;
     for(const sc of this.sceneList()){
@@ -754,20 +707,22 @@ class AnimeReader{
       for(const g of this.sceneGroups(sc)){
         const c=colorMap[g.speaker]||'#64748b';
         const isActive=this.wordPopup&&g.lines.some(l=>l.tokens.includes(this.wordPopup));
-        const tok=(l,noTap)=>l.tokens.map((t,j)=>t.type==='punct'?`<span class="word-token punct">${this.esc(t.surface)}</span>`:`<span class="word-token ${t.type}"${noTap?'':` data-line="${l.index}" data-token="${j}"`}>${this.esc(t.surface)}</span>`).join('');
+        const tok=(l)=>l.tokens.map((t,j)=>t.type==='punct'?`<span class="word-token punct">${this.esc(t.surface)}</span>`:`<span class="word-token ${t.type}" data-line="${l.index}" data-token="${j}">${this.esc(t.surface)}</span>`).join('');
         html+=`<div class="dialogue-line${isActive?' active':''}" data-gl="${g.lines[0].index}" style="animation-delay:${Math.min(gi*20,300)}ms">
           <div class="dl-avatar" style="background:linear-gradient(135deg,${c},${c}aa);box-shadow:0 4px 14px ${c}55">${this.esc(g.speaker?[...g.speaker][0]:'\u2022')}</div>
           <div class="dl-main">
             ${g.speaker?`<div class="dl-meta"><span class="dl-name" style="color:${c}">${this.esc(g.speaker)}</span>${g.lines.length>1?`<span class="dl-linecount">${g.lines.length} lines</span>`:''}</div>`:''}
-            <div class="dl-bubble">
-              <div class="dl-edit">${g.lines.map(l=>`<div class="dl-seg${this.selected.has(l.index)?' selected':''}" data-seg="${l.index}">
+            <div class="dl-bubble">${this.editMode
+              // edit mode: one selectable segment per DB row
+              ?g.lines.map(l=>`<div class="dl-seg${this.selected.has(l.index)?' selected':''}" data-seg="${l.index}">
                   ${l.flag?`<div style="font-size:10px;color:#f87171;margin-bottom:2px">\uD83D\uDEA9 ${this.esc(l.flag)}</div>`:''}
                   ${l.start?`<div class="dl-timestamp">${l.start}${l.end?' \u2192 '+l.end:''}</div>`:''}
-                  <div class="dl-text">${tok(l,true)}</div><span class="seg-check">\u2713</span></div>`).join('')}</div>
-              <div class="dl-read"><div class="dl-seg">
+                  <div class="dl-text">${tok(l)}</div><span class="seg-check">\u2713</span></div>`).join('')
+              // read mode: one continuous statement per speaker run
+              :`<div class="dl-seg">
                   ${g.lines.some(l=>l.flag)?`<div style="font-size:10px;color:#f87171;margin-bottom:2px">\uD83D\uDEA9 ${this.esc([...new Set(g.lines.filter(l=>l.flag).map(l=>l.flag))].join(' \u00B7 '))}</div>`:''}
                   ${g.lines[0].start?`<div class="dl-timestamp">${g.lines[0].start}${g.lines[g.lines.length-1].end?' \u2192 '+g.lines[g.lines.length-1].end:''}</div>`:''}
-                  <div class="dl-text">${g.lines.map(l=>tok(l)).join(' ')}</div></div></div></div>
+                  <div class="dl-text">${g.lines.map(tok).join(' ')}</div></div>`}</div>
           </div></div>`;
         gi++;
       }
@@ -910,37 +865,32 @@ class AnimeReader{
     const dz=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
     if(dz&&fi){dz.addEventListener('click',()=>fi.click());dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer?.files?.[0]){this.srtFile=e.dataTransfer.files[0];this.render()}});fi.addEventListener('change',()=>{if(fi.files?.[0]){this.srtFile=fi.files[0];this.render()}})}
     document.getElementById('startFileBtn')?.addEventListener('click',()=>this.startFromFile());
-    // Word tokens (ignored while in edit mode — checked at click time, not bind time)
-    document.querySelectorAll('.word-token[data-line]').forEach(el=>el.addEventListener('click',()=>{if(this.editMode)return;const t=this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];if(t)this.showWordPopup(t)}));
+    // Word tokens (read mode only)
+    if(!this.editMode)document.querySelectorAll('.word-token[data-line]').forEach(el=>el.addEventListener('click',()=>{const t=this.dialogueLines[+el.dataset.line]?.tokens[+el.dataset.token];if(t)this.showWordPopup(t)}));
     // Popup
-    this.bindPopup();
+    document.getElementById('popupOverlay')?.addEventListener('click',e=>{if(e.target.id==='popupOverlay')this.closePopup()});
+    document.getElementById('saveWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.saveWord(this.wordPopup)});
+    document.getElementById('removeWordBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.removeWord(this.wordPopup)});
+    document.getElementById('kanaExcBtn')?.addEventListener('click',()=>{if(this.wordPopup)this.addKanaException(this.wordPopup)});
+    document.querySelectorAll('[data-save-base]').forEach(b=>b.addEventListener('click',()=>{const t=this.allTokens.find(x=>x.surface===b.dataset.saveBase);if(t)this.saveWord(t)}));
 
-    // === [NEW] edit mode wiring === pencil = pure class flip, no re-render
-    document.getElementById('editModeBtn')?.addEventListener('click',e=>{
-      this.editMode=!this.editMode;this.selected.clear();this.sheet=null;this.wordPopup=null;
-      const c=document.getElementById('dlgContainer');
-      if(c){c.classList.toggle('edit-on',this.editMode);c.classList.remove('animate-in');c.style.paddingBottom=this.editMode?'120px':'16px';
-        c.querySelectorAll('.dl-seg.selected').forEach(s=>s.classList.remove('selected'))}
-      e.currentTarget.classList.toggle('active',this.editMode);
-      const h=document.querySelector('.reading-episode');
-      if(h)h.innerHTML=`${this.selectedEpisode?'Ep '+this.selectedEpisode:'File import'} \u00B7 ${this.editMode?'<b>Edit mode</b> \u2014 tap lines to select, tap a scene chip to rename':'JP subtitles \u00B7 tap a word to save'}`;
-      document.getElementById('popupHost')&&(document.getElementById('popupHost').innerHTML='');
-      this._syncActionBar();
+    // === [NEW] edit mode wiring ===
+    document.getElementById('editModeBtn')?.addEventListener('click',()=>{
+      this.editMode=!this.editMode;this.selected.clear();this.sheet=null;this.wordPopup=null;this.render();
     });
-    {
+    if(this.editMode){
       document.querySelectorAll('[data-seg]').forEach(el=>el.addEventListener('click',()=>{
-        if(!this.editMode)return;
         const i=+el.dataset.seg;
-        if(this.selected.has(i)){this.selected.delete(i);el.classList.remove('selected')}
-        else{this.selected.add(i);el.classList.add('selected')}
-        this._syncActionBar();
+        this.selected.has(i)?this.selected.delete(i):this.selected.add(i);
+        this.render();
       }));
       document.querySelectorAll('[data-scene]').forEach(el=>el.addEventListener('click',()=>{
-        if(!this.editMode)return;
         this.sheet={type:'scene',startLn:+el.dataset.scene};this.render();
       }));
     }
-    this.bindActionBar();
+    document.getElementById('abEdit')?.addEventListener('click',()=>{this.sheet={type:'edit',idx:[...this.selected][0]};this.render()});
+    document.getElementById('abSpeaker')?.addEventListener('click',()=>{this.sheet={type:'speaker'};this.render()});
+    document.getElementById('abFlag')?.addEventListener('click',()=>{this.sheet={type:'flag'};this.render()});
     document.getElementById('copyFlagsBtn')?.addEventListener('click',()=>{this.sheet={type:'flags'};this.render()});
     document.getElementById('copyFlagsPromptBtn')?.addEventListener('click',()=>this.copyFlagged());
     document.getElementById('applyCorrBtn')?.addEventListener('click',()=>{
@@ -954,7 +904,8 @@ class AnimeReader{
     document.querySelectorAll('[data-flag-reason]').forEach(b=>b.addEventListener('click',()=>{const n=document.getElementById('flagNote');if(n)this.sheet.note=n.value;this.sheet.reason=b.dataset.flagReason;this.render()}));
     document.getElementById('saveFlagBtn')?.addEventListener('click',()=>{const note=document.getElementById('flagNote').value.trim();this.applyFlag([this.sheet.reason,note].filter(Boolean).join(': ')||'Faulty')});
     document.getElementById('unflagBtn')?.addEventListener('click',()=>this.applyFlag(null));
-
+    document.getElementById('abMerge')?.addEventListener('click',()=>{this.sheet={type:'merge'};this.render()});
+    document.getElementById('abClear')?.addEventListener('click',()=>{this.selected.clear();this.render()});
     document.getElementById('editSheetOverlay')?.addEventListener('click',e=>{if(e.target.id==='editSheetOverlay'){this.sheet=null;this.render()}});
     document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{this.sheet=null;this.render()}));
     document.querySelectorAll('.spk-chip').forEach(b=>b.addEventListener('click',()=>{
