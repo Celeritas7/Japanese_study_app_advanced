@@ -15,6 +15,35 @@ function kanjiFontSize(text) {
   return 'font-size:2rem;'; // 6+ chars
 }
 
+// Kept local to this file (not utils.js): imports are unversioned, so a
+// warm-cache visitor could pair a fresh render.js with a stale utils.js,
+// and a missing named export would stop the whole app from loading.
+
+/**
+ * Split a meaning with circled sense markers into its senses.
+ * "①to be solved ②to loosen" → ['to be solved', 'to loosen']
+ * Returns [] when there are fewer than two senses.
+ */
+export function splitSenses(meaning) {
+  if (!meaning || !/[①-⑳]/.test(meaning)) return [];
+  const senses = meaning
+    .split(/[①-⑳]/)
+    .map(s => s.replace(/\u200B/g, '').trim())
+    .filter(Boolean);
+  return senses.length >= 2 ? senses : [];
+}
+
+/**
+ * Render a meaning as HTML — a numbered list for polysemous meanings,
+ * escaped plain text otherwise.
+ */
+export function renderMeaning(meaning) {
+  const senses = splitSenses(meaning);
+  if (!senses.length) return escapeHtml(meaning || '');
+  return `<ol class="meaning-senses">${senses.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ol>`;
+}
+
+
 // Hint display (edit via ✏ sheet)
 function renderHintLine(word, revealStep) {
   if (revealStep < 1 || !word.hint) return '';
@@ -873,7 +902,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter, caro
           ${renderHintLine(word, app.revealStep)}
           ${app.revealStep >= 2 && hasContext ? `<p class="text-slate-400 text-sm mb-3 animate-fadeIn">\uD83D\uDCDD Supporting words shown above</p>` : ''}
           ${app.revealStep >= 3 ? `<p class="text-2xl text-blue-600 mb-3 animate-fadeIn">${word.hiragana || ''}</p>` : ''}
-          ${app.revealStep >= 4 ? `<p class="text-xl text-emerald-700 font-medium animate-fadeIn">${word.meaning}</p>` : ''}
+          ${app.revealStep >= 4 ? `<div class="text-xl text-emerald-700 font-medium animate-fadeIn">${renderMeaning(word.meaning)}</div>` : ''}
           ${app.revealStep < 4 ? `
             <p class="text-slate-400 text-sm mt-4">
               \uD83D\uDC46 Tap to reveal ${nextRevealLabel(word, app.revealStep, 'kanji', hasContext)}
@@ -891,7 +920,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter, caro
         ${carouselPillHtml}
         <div class="sentence-box-scroll">
           <p class="reading-display text-blue-700 font-bold mb-2">${word.hiragana || ''}</p>
-          <p class="meaning-display text-amber-800">${word.meaning}</p>
+          <div class="meaning-display text-amber-800">${renderMeaning(word.meaning)}</div>
           ${app.revealStep >= 2 && hasContext ? `
             <div class="mt-3 text-center animate-fadeIn">
               <span class="context-text sentence-tappable">${tappableBefore}</span>
@@ -924,7 +953,7 @@ function renderFlashcardContent(app, word, hasContext, ctxBefore, ctxAfter, caro
         ${badgeHtml}
         ${carouselPillHtml}
         <div class="sentence-box-scroll">
-          <p class="meaning-display text-amber-800 font-bold text-center">${word.meaning}</p>
+          <div class="meaning-display text-amber-800 font-bold text-center">${renderMeaning(word.meaning)}</div>
         </div>
       </div>
       

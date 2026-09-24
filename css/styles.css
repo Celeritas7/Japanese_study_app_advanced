@@ -52,6 +52,35 @@ body {
   font-size: clamp(1.1rem, 4vw, 1.5rem);
 }
 
+/* Polysemous meanings (①②…) rendered as a numbered list */
+.meaning-senses {
+  display: inline-block;
+  text-align: left;
+  margin: 0;
+  padding-left: 1.4em;
+  list-style: none;
+  counter-reset: sense;
+}
+
+.meaning-senses li {
+  counter-increment: sense;
+  position: relative;
+  line-height: 1.35;
+}
+
+.meaning-senses li + li {
+  margin-top: 0.3em;
+}
+
+.meaning-senses li::before {
+  content: counter(sense, decimal) ".";
+  position: absolute;
+  left: -1.4em;
+  opacity: 0.55;
+  font-size: 0.85em;
+  top: 0.1em;
+}
+
 .hint-text {
   font-size: clamp(0.8rem, 3vw, 1rem);
   color: #6b7280;
