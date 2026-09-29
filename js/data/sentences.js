@@ -1,6 +1,11 @@
 // Sentence pool operations: load/link/rate/verify/tag operations on
 // japanese_unified_sentences and japanese_unified_word_sentences.
 
+// Sentence split (Phase 2): a compressed ①② sentence is kept as a parent row
+// with split_status = 'split' (for rollback) and its per-sense children are
+// separate rows. App reads skip the parents so the two never show twice.
+const NOT_SPLIT_PARENT = 'split_status.is.null,split_status.neq.split';
+
 /**
  * Load sentences for a batch of word IDs via the join table
  * Returns { [word_id]: [ { sentence, hiragana, meaning_en, rating, ... } ] }
@@ -36,7 +41,8 @@ export async function loadSentencesForWords(supabase, wordIds) {
       const { data, error } = await supabase
         .from('japanese_unified_sentences')
         .select('*')
-        .in('id', batch);
+        .in('id', batch)
+        .or(NOT_SPLIT_PARENT);
 
       if (error) { console.error('Sentences load error:', error); continue; }
       if (data) allSentences = allSentences.concat(data);
@@ -86,6 +92,7 @@ export async function loadAllUnifiedSentences(supabase) {
       const { data, error } = await supabase
         .from('japanese_unified_sentences')
         .select('*')
+        .or(NOT_SPLIT_PARENT)
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .order('id');
 
