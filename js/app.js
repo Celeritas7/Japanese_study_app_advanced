@@ -85,6 +85,10 @@ class JLPTStudyApp {
     this.selectedChapter = null;  // chapter name
     this.kanjiSentenceMap = {};   // word_id → [{ link_id, sentence_id, sentence, meaning_en, rating, source, jlpt_level }]
     this.allUnifiedSentences = [];  // all sentences for discovery
+    // Phase B (stories / similar / sentence pool) load state — see _loadHeavyData()
+    this._heavyLoaded = false;
+    this._heavyError = null;
+    this._heavyLoadToken = 0;
     this.sentencePanelExpanded = false;
     this.sentenceCarouselIdx = 0;  // which linked sentence the flashcard yellow box shows (resets on word change)
 
@@ -235,36 +239,34 @@ class JLPTStudyApp {
     const userId = this.user?.id;
     console.log('loadAllData: userId:', userId);
 
-    const [markingsResult, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences, wordGroups, wordGroupMembers, relationsStudiedRemote, dailyActivity] = await Promise.all([
+    // PHASE A — everything the home screen actually needs. Paint after this.
+    const [markingsResult, markingCategories, topics, words, kanjiWords, kanjiWordBooks, wordGroups, wordGroupMembers, relationsStudiedRemote, dailyActivity] = await Promise.all([
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
-      loadStoryGroups(this.supabase),
-      loadStories(this.supabase),
-      loadSimilarGroups(this.supabase),
       loadSelfStudyTopics(this.supabase, userId),
       loadSelfStudyWords(this.supabase, userId),
       loadUnifiedWords(this.supabase),
       loadUnifiedWordBooks(this.supabase),
-      loadAllUnifiedSentences(this.supabase),
       loadWordGroups(this.supabase),
       loadWordGroupMembers(this.supabase),
       loadGroupStudyLog(this.supabase, userId),
       fetchDailyActivity(this.supabase, userId)
     ]);
 
+    // PHASE B — Stories / Similar / shared sentence pool. Deliberately not
+    // awaited: the views that read this data show "Loading…" until it lands
+    // (see _loadHeavyData); everything else paints as soon as Phase A is in.
+    this._loadHeavyData();
+
     this.dailyActivity = dailyActivity || [];
 
     this.markings = markingsResult.markings || markingsResult;
     this.markingTimestamps = markingsResult.timestamps || {};
     this.markingCategories = markingCategories;
-    this.storyGroups = storyGroups;
-    this.stories = stories;
-    this.similarGroups = similarGroups;
     this.selfStudyTopics = topics;
     this.selfStudyWords = words;
     this.kanjiWords = kanjiWords;
     this.kanjiWordBooks = kanjiWordBooks;
-    this.allUnifiedSentences = allSentences;
     this.wordGroups = wordGroups;
     this.wordGroupMembers = wordGroupMembers;
 
@@ -334,7 +336,7 @@ class JLPTStudyApp {
       })
       .filter(Boolean);
 
-    console.log(`Loaded: ${this.vocabulary.length} vocab, ${kanjiWords.length} words, ${kanjiWordBooks.length} book-links, ${allSentences.length} sentences, ${wordGroups.length} word groups`);
+    console.log(`Loaded (Phase A): ${this.vocabulary.length} vocab, ${kanjiWords.length} words, ${kanjiWordBooks.length} book-links, ${wordGroups.length} word groups`);
     this.syncing = false;
 
     // Restore active session if one was in progress (SRS takes priority)
@@ -347,6 +349,101 @@ class JLPTStudyApp {
     }
 
     this.render();
+  }
+
+  // ===== PHASE B: background load of Stories / Similar / sentence pool =====
+  //
+  // Runs after Phase A has painted; nothing here blocks the home screen.
+  //   _heavyLoaded  false until the data is in — views that read it show "Loading…"
+  //   _heavyError   set after a failed retry — those views show an error instead
+  // Sentences the user adds while this is in flight (add-sentence sheet, bulk
+  // linker) are kept: the fetched pool is merged by id, never swapped in.
+  async _loadHeavyData() {
+    const token = ++this._heavyLoadToken;   // a later loadAllData() supersedes this run
+    this._heavyError = null;               // _heavyLoaded stays as-is: on a reload, old data keeps showing until replaced
+
+    const fetchAll = () => Promise.all([
+      loadStoryGroups(this.supabase),
+      loadStories(this.supabase),
+      loadSimilarGroups(this.supabase),
+      loadAllUnifiedSentences(this.supabase)
+    ]);
+    // The loaders swallow Supabase errors and return []. Story groups, stories
+    // and the sentence pool are never legitimately empty, so an empty array
+    // from any of them means the fetch failed.
+    const incomplete = ([groups, stories, , sentences]) =>
+      groups.length === 0 || stories.length === 0 || sentences.length === 0;
+
+    let result = null;
+    for (let attempt = 1; attempt <= 2 && !result; attempt++) {
+      try {
+        const r = await fetchAll();
+        if (incomplete(r)) console.warn(`Phase B: attempt ${attempt} returned incomplete data`);
+        else result = r;
+      } catch (err) {
+        console.error(`Phase B: attempt ${attempt} failed:`, err);
+      }
+    }
+    if (token !== this._heavyLoadToken) return;   // superseded by a newer load
+
+    if (!result) {
+      this._heavyError = 'Could not load stories and sentences. Reload the page to try again.';
+      this._renderAfterHeavyLoad();
+      return;
+    }
+
+    const [storyGroups, stories, similarGroups, allSentences] = result;
+    this.storyGroups = storyGroups;
+    this.stories = stories;
+    this.similarGroups = similarGroups;
+    this.allUnifiedSentences = this._mergeSentencesById(allSentences, this.allUnifiedSentences);
+    this._heavyLoaded = true;
+    console.log(`Loaded (Phase B): ${storyGroups.length} story groups, ${stories.length} stories, ${similarGroups.length} similar groups, ${this.allUnifiedSentences.length} sentences`);
+    this._renderAfterHeavyLoad();
+  }
+
+  // Fetched pool wins for rows it has; rows only known locally (inserted while
+  // the fetch was in flight) are appended so they are not lost.
+  _mergeSentencesById(fetched, local) {
+    const seen = new Set(fetched.map(s => s.id));
+    const extra = (local || []).filter(s => s && s.id != null && !seen.has(s.id));
+    return extra.length ? fetched.concat(extra) : fetched;
+  }
+
+  // Re-render after Phase B only where it changes what is on screen, and never
+  // under the user's fingers: not while an input has focus (Japanese IME
+  // composition dies with the element) and not inside a flashcard. Views that
+  // skip the re-render pick the data up on their next normal render.
+  _renderAfterHeavyLoad() {
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+
+    // The story overlay is a modal over whatever is behind it and reads
+    // stories directly; opening it already re-renders over a flashcard.
+    if (this.storyOverlay) { this.render(); return; }
+
+    if (this._isFlashcardView()) {
+      // Only the sentence panel reads Phase B data here. Refresh it in place
+      // (same surgical path render() uses) so the card itself is untouched.
+      const container = document.getElementById('flashcardExtraContent');
+      if (container) {
+        container.innerHTML = renderSentencePanel(this);
+        this.attachSentencePanelListeners();
+      }
+      return;
+    }
+
+    const usesHeavyData =
+      this.currentTab === 'stories' ||
+      (this.currentTab === 'study' && this.studySubTab === 'kanji' &&
+        (this.kanjiView === 'review-queue' || this.kanjiView === 'bulk-linker'));
+    if (usesHeavyData) this.render();
+  }
+
+  _isFlashcardView() {
+    return (this.currentTab === 'study' && this.studySubTab === 'goi' && this.studyView === 'flashcard') ||
+      (this.currentTab === 'study' && this.studySubTab === 'kanji' && this.kanjiView === 'flashcard') ||
+      (this.currentTab === 'srs' && this.srsView === 'test');
   }
 
   selectTab(tab) {
@@ -1985,12 +2082,7 @@ class JLPTStudyApp {
     attachEventListeners(this);
 
     // Inject sentence panel into ANY flashcard view (Goi, Kanji, SRS)
-    const isFlashcard =
-      (this.currentTab === 'study' && this.studySubTab === 'goi' && this.studyView === 'flashcard') ||
-      (this.currentTab === 'study' && this.studySubTab === 'kanji' && this.kanjiView === 'flashcard') ||
-      (this.currentTab === 'srs' && this.srsView === 'test');
-
-    if (isFlashcard) {
+    if (this._isFlashcardView()) {
       const container = document.getElementById('flashcardExtraContent');
       if (container) {
         container.innerHTML = renderSentencePanel(this);

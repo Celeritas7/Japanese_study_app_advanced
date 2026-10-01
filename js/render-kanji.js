@@ -561,6 +561,11 @@ export function renderSentencePanel(app) {
           `}
           
           <!-- Unlinked Sentences Discovery -->
+          ${!app._heavyLoaded && wordKanji ? `
+            <div class="pt-3 border-t border-slate-700/50 text-xs ${app._heavyError ? 'text-red-400' : 'text-slate-500 animate-pulse'}">
+              ${app._heavyError ? '⚠️ Sentence pool unavailable — reload to retry' : '🔍 Loading sentence pool…'}
+            </div>
+          ` : ''}
           ${unlinked.length > 0 ? `
             <div class="pt-3 border-t border-slate-700/50">
               <div class="text-xs text-slate-500 mb-2 font-medium">🔍 UNLINKED SENTENCES CONTAINING「${escapeHtml(wordKanji)}」</div>
@@ -821,7 +826,7 @@ export function renderBulkLinker(app) {
           <button id="backToBooksBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg transition-colors">← Back</button>
           <div>
             <h2 class="text-white font-bold">Bulk Sentence Linker</h2>
-            <p class="text-slate-400 text-sm">${app.kanjiWords.length} words in database · ${app.allUnifiedSentences.length} sentences</p>
+            <p class="text-slate-400 text-sm">${app.kanjiWords.length} words in database · ${app._heavyLoaded ? app.allUnifiedSentences.length : '…'} sentences</p>
           </div>
         </div>
       </div>
@@ -1039,7 +1044,9 @@ export function renderReviewQueue(app) {
           <button id="backToBooksBtn" class="text-white hover:bg-slate-700 p-2 rounded-lg transition-colors">← Back</button>
           <div>
             <h2 class="text-white font-bold">Review Queue</h2>
-            <p class="text-slate-400 text-sm">${stats.unverified} unverified · ${stats.verified} verified · ${stats.rejected} rejected</p>
+            <p class="text-slate-400 text-sm">${app._heavyLoaded
+              ? `${stats.unverified} unverified · ${stats.verified} verified · ${stats.rejected} rejected`
+              : (app._heavyError ? '⚠️ Sentence pool unavailable — reload to retry' : 'Loading sentence pool…')}</p>
           </div>
         </div>
         

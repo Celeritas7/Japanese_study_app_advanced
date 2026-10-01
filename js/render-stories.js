@@ -68,7 +68,21 @@ export function renderStoriesTab(app) {
   return renderStoryList(app);
 }
 
+// Shown while Phase B (stories + groups) is still loading, or if it failed.
+function heavyStateMessage(app, what) {
+  return app._heavyError
+    ? `<p class="text-red-400 text-sm">${escapeHtml(app._heavyError)}</p>`
+    : `<p class="text-slate-400 text-sm animate-pulse">Loading ${what}…</p>`;
+}
+
 function renderStoryList(app) {
+  if (!app._heavyLoaded) {
+    return `
+    <div class="p-4 animate-fadeIn flex-1 overflow-auto">
+      <h2 class="text-lg font-bold text-white mb-1">Kanji Stories</h2>
+      <div class="text-center py-10">${heavyStateMessage(app, 'stories')}</div>
+    </div>`;
+  }
   const nPrim = app.stories.filter(s => s.role === 'primitive').length;
   return `
     <div class="p-4 animate-fadeIn flex-1 overflow-auto">
@@ -232,7 +246,8 @@ export function renderStoryOverlay(app) {
   if (!app.storyOverlay) return '';
   const { word, step } = app.storyOverlay;
   let content = '<div class="text-center text-slate-400 py-8">No kanji found</div>';
-  if (step === 2) content = renderBreakdown(app);
+  if (!app._heavyLoaded) content = `<div class="text-center py-8">${heavyStateMessage(app, 'stories')}</div>`;
+  else if (step === 2) content = renderBreakdown(app);
   else if (step === 3) content = renderGroupView(app);
   return `
     <div class="story-overlay" id="storyOverlayBg">
