@@ -1,19 +1,10 @@
 // rmSession.js — Roadmap session reporter (NO-BUILD variant)
 // Place at: js/rmSession.js in Japanese_study_app_advanced
 //
-// This repo is plain ES modules served as static files — there is no Vite and
-// no import.meta.env, so config is plain constants below. It is also a
-// DIFFERENT Supabase project from Roadmap, so these are Roadmap's URL and key,
-// not this app's.
-//
-// Zero dependencies — one fetch to one RPC. The whole integration surface is
-// rmComplete(). If Roadmap's schema changes, the RPC signature absorbs it and
-// this file stays put.
-
-// ─── config ───────────────────────────────────────────────────────────
-// Roadmap's project (wylxvmkcrexwfpjpbhyy), NOT this app's (ulgrfumbwjovbjzjiems).
-const RM_URL = 'https://wylxvmkcrexwfpjpbhyy.supabase.co';
-const RM_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5bHh2bWtjcmV4d2ZwanBiaHl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzkxMDYsImV4cCI6MjA4NDIxNTEwNn0.6Bxo42hx4jwlJGWnfjiTpiDUsYfc1QLTN3YtrU1efak';
+// Step 1 (Akatsuki R020, Sep 27): completions no longer POST to Roadmap's RPC with the
+// bare anon key. They go through the Akatsuki hub client (window.jlptHub, from
+// js/jlpt-adapter.js), signed in to the hub project with the user's own JWT.
+// The hub key lives in js/hub-config.js (window.AK_HUB_ANON) — no literal here.
 
 // Which app reported the completion. Repo slug.
 const RM_SOURCE = 'japanese-study-app-advanced';
@@ -37,6 +28,7 @@ export function rmDayKey(d = new Date()) {
 // app does for anime-reader.html / script-reader.html.
 
 const KEY = 'rm-handshake';
+const PENDING = 'rm-pending';   // a completion finished before the hub sign-in
 
 function readHandshake() {
   try {
@@ -66,10 +58,104 @@ export function rmInit() {
   return hs;
 }
 
-// True when this page was opened from a Roadmap stop — use it to show a
-// "back to Roadmap" affordance if you ever want one.
+// True when this page was opened from a Roadmap stop.
 export function rmIsLaunched() {
   return !!readHandshake();
+}
+
+// ─── Akatsuki hub (second sign-in) ────────────────────────────────────
+// rmHubInit: once, at the top of init(). Creates window.jlptHub (never window.sb).
+// rmHubCheck: after the own state has loaded, on SIGNED_IN, and on guest entry.
+//   Shows the sign-in bar only when launched from Roadmap, signed in to the own
+//   project, not guest, and not yet signed in to the hub. Sends a pending
+//   completion if the hub session is already there.
+
+let uidFn = () => null;
+const hubKeyOk = () => !!window.AK_HUB_ANON && !String(window.AK_HUB_ANON).startsWith('<paste');
+
+export function rmHubInit({ uid } = {}) {
+  if (uid) uidFn = uid;
+  if (window.jlptHub) return window.jlptHub;
+  if (!window.JlptHub || !window.Akatsuki) { console.warn('[rmSession] jlpt-adapter.js / akatsuki-client.js not loaded'); return null; }
+  if (!hubKeyOk()) { console.warn('[rmSession] AK_HUB_ANON not set — edit js/hub-config.js'); return null; }
+  window.jlptHub = window.JlptHub(window.supabase, {
+    hubAnonKey: window.AK_HUB_ANON,
+    uid: () => uidFn(),
+    log: (...a) => console.debug('[ak]', ...a),
+  });
+  return window.jlptHub;
+}
+
+export async function rmHubCheck() {
+  const hub = window.jlptHub;
+  if (!hub || !uidFn()) return hideHubSignIn();
+  if (await hub.signedIn()) { hideHubSignIn(); return sendPending(); }
+  if (rmIsLaunched() || sessionStorage.getItem(PENDING)) showHubSignIn();
+  else hideHubSignIn();
+}
+
+const BAR_ID = 'akatsuki-hub-bar';
+
+export function showHubSignIn() {
+  if (!window.jlptHub || !uidFn() || document.getElementById(BAR_ID)) return;
+  const bar = document.createElement('div');
+  bar.id = BAR_ID;
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:60;display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;border-radius:14px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;font:14px/1.4 "Noto Sans JP",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:560px;margin:0 auto';
+  const txt = document.createElement('span');
+  txt.style.cssText = 'flex:1;min-width:0';
+  txt.textContent = 'Sign in to Akatsuki so this session reaches Roadmap';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = 'Sign in';
+  btn.style.cssText = 'flex:none;min-height:40px;padding:0 16px;border:0;border-radius:10px;background:#059669;color:#fff;font:inherit;font-weight:600;cursor:pointer';
+  const x = document.createElement('button');
+  x.type = 'button';
+  x.setAttribute('aria-label', 'Dismiss');
+  x.textContent = '×';
+  x.style.cssText = 'flex:none;width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#94a3b8;font:20px/1 system-ui;cursor:pointer';
+  // login() opens the popup synchronously, before any await — keep it the first call here.
+  btn.onclick = () => {
+    btn.disabled = true; btn.textContent = 'Waiting…';
+    window.jlptHub.login().then((ok) => {
+      if (ok) { hideHubSignIn(); sendPending(); }
+      else { btn.disabled = false; btn.textContent = 'Sign in'; }
+    });
+  };
+  x.onclick = hideHubSignIn;
+  bar.append(txt, btn, x);
+  document.body.appendChild(bar);
+}
+
+export function hideHubSignIn() {
+  document.getElementById(BAR_ID)?.remove();
+}
+
+// Send a completion that was finished before the hub sign-in. Once, then clear.
+let sending = false;
+async function sendPending() {
+  if (sending) return;
+  let p;
+  try { p = JSON.parse(sessionStorage.getItem(PENDING) || 'null'); } catch { p = null; }
+  if (!p) return;
+  sending = true;
+  sessionStorage.removeItem(PENDING);
+  try { await report(p.hs, p.mins, p.feedback); }
+  finally { sending = false; }
+}
+
+async function report(h, mins, feedback) {
+  const r = await window.jlptHub.sessionCompleted(h, { duration: mins, ...feedback });
+  if (r.needsLogin) {
+    sessionStorage.setItem(PENDING, JSON.stringify({ hs: h, mins, feedback }));
+    showHubSignIn();
+    return false;
+  }
+  if (r.skipped) { console.log('[rmSession] not reported:', r.skipped); return false; }
+  const ok = !!(r.rpc && r.rpc.ok) || ['pending', 'skipped'].includes(r.published && r.published.status);
+  if (ok) console.log('[rmSession] reported completion for task', h.task, r);
+  else console.warn('[rmSession] report failed', r);
+  return ok;
 }
 
 // ─── the one call ─────────────────────────────────────────────────────
@@ -80,10 +166,7 @@ export function rmIsLaunched() {
 //
 //   rmComplete({ feedback: { words: 12, mode: 'goi' } });
 //
-// durationMin defaults to time since the app was launched from Roadmap, which
-// is a fair proxy for a 5-minute study stop. Pass it explicitly if the app
-// ever tracks real elapsed study time.
-//
+// durationMin defaults to time since the app was launched from Roadmap.
 // Never throws, never blocks, returns false harmlessly when the app was
 // opened directly rather than launched from Roadmap. A missed report is a
 // missing tick in Roadmap, not a broken study app.
@@ -91,42 +174,18 @@ export async function rmComplete({ durationMin = null, feedback = {}, taskId = n
   const hs = readHandshake();
   const task = taskId || hs?.task;
   if (!task) return false;
-  if (!RM_KEY || RM_KEY === 'PASTE_ROADMAP_ANON_KEY_HERE') {
-    console.warn('[rmSession] RM_KEY not set — edit js/rmSession.js');
-    return false;
-  }
+  if (!window.jlptHub && !rmHubInit()) return false;
 
   let mins = durationMin;
   if (mins == null && hs?.t0) {
     mins = Math.max(1, Math.round((Date.now() - hs.t0) / 60000));
   }
+  // The day the LAUNCH happened — a session started 3:50 AM and
+  // finished 4:10 belongs to the day it started.
+  const h = { ...(hs || {}), task, day: hs?.day || rmDayKey() };
 
   try {
-    const res = await fetch(`${RM_URL}/rest/v1/rpc/roadmap_complete_session`, {
-      method: 'POST',
-      headers: {
-        apikey: RM_KEY,
-        Authorization: `Bearer ${RM_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        p_task_id: task,
-        p_source: RM_SOURCE,
-        // The day the LAUNCH happened — a session started 3:50 AM and
-        // finished 4:10 belongs to the day it started.
-        p_day_key: hs?.day || rmDayKey(),
-        p_duration: mins,
-        p_feedback: feedback,
-        p_verification: 'app',
-      }),
-      keepalive: true,
-    });
-    if (!res.ok) {
-      console.warn('[rmSession] report failed', res.status, await res.text());
-      return false;
-    }
-    console.log('[rmSession] reported completion for task', task);
-    return true;
+    return await report(h, mins, feedback);
   } catch (e) {
     console.warn('[rmSession] report error', e);
     return false;

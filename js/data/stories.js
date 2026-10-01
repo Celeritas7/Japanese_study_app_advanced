@@ -1,19 +1,21 @@
 // Kanji story group / story loaders and user-flag (alert) writers.
+// PERF: narrow selects + parallel paging. Stories are ~4k rows; the old version
+// pulled every column across 4 sequential round trips while the app waited.
 
-/**
- * Load story groups
- */
+// Only what render-stories.js and story-overlay.js actually read.
+const STORY_COLS = 'id,kanji,role,variant,group_id,group_kanji,meaning,story,' +
+  'onyomi,kunyomi,components,onyomi_hint,kunyomi_hint,group_link,example_word,origin';
+
+const GROUP_COLS = 'id,group_number,group_kanji,group_meaning,group_story,' +
+  'group_component,group_persona,group_note';
+
 export async function loadStoryGroups(supabase) {
   try {
     const { data, error } = await supabase
       .from('japanese_kanji_story_groups')
-      .select('*')
+      .select(GROUP_COLS)
       .order('group_number');
-
-    if (error) {
-      console.error('Story groups error:', error);
-      return [];
-    }
+    if (error) { console.error('Story groups error:', error); return []; }
     return data || [];
   } catch (err) {
     console.error('loadStoryGroups exception:', err);
@@ -22,45 +24,44 @@ export async function loadStoryGroups(supabase) {
 }
 
 /**
- * Load stories with pagination
+ * Load stories. First page tells us the total via an exact count, then the
+ * remaining pages are fetched in parallel instead of one after another.
  */
 export async function loadStories(supabase) {
+  const pageSize = 1000;
   try {
-    let allData = [];
-    let page = 0;
-    const pageSize = 1000;
+    const first = await supabase
+      .from('japanese_kanji_stories')
+      .select(STORY_COLS, { count: 'exact' })
+      .range(0, pageSize - 1)
+      .order('id');
 
-    while (true) {
-      const { data, error } = await supabase
+    if (first.error) { console.error('Stories load error:', first.error); return []; }
+    const rows = first.data || [];
+    const total = first.count ?? rows.length;
+    if (rows.length >= total || rows.length < pageSize) return rows;
+
+    const pages = [];
+    for (let p = 1; p * pageSize < total; p++) pages.push(p);
+
+    const rest = await Promise.all(pages.map(p =>
+      supabase
         .from('japanese_kanji_stories')
-        .select('*')
-        .range(page * pageSize, (page + 1) * pageSize - 1)
-        .order('id');
+        .select(STORY_COLS)
+        .range(p * pageSize, (p + 1) * pageSize - 1)
+        .order('id')
+        .then(r => r.error ? (console.error('Stories page', p, r.error), []) : (r.data || []))
+    ));
 
-      if (error) {
-        console.error('Stories load error:', error);
-        break;
-      }
-      if (!data || data.length === 0) break;
-
-      allData = allData.concat(data);
-      if (data.length < pageSize) break;
-      page++;
-    }
-
-    return allData;
+    return rows.concat(...rest);
   } catch (err) {
     console.error('loadStories exception:', err);
     return [];
   }
 }
 
-/**
- * Save story alert/flag
- */
 export async function saveStoryAlert(supabase, userId, alertData) {
   if (!userId) return { success: false, error: 'Not logged in' };
-
   try {
     const { error } = await supabase
       .from('japanese_story_alerts')
@@ -73,11 +74,7 @@ export async function saveStoryAlert(supabase, userId, alertData) {
         source: alertData.source || 'overlay',
         created_at: new Date().toISOString()
       });
-
-    if (error) {
-      console.error('Story alert save error:', error);
-      return { success: false, error: error.message };
-    }
+    if (error) { console.error('Story alert save error:', error); return { success: false, error: error.message }; }
     return { success: true };
   } catch (err) {
     console.error('Story alert exception:', err);
@@ -85,12 +82,8 @@ export async function saveStoryAlert(supabase, userId, alertData) {
   }
 }
 
-/**
- * Save word alert/flag (wrong hiragana, bad sentence, etc.)
- */
 export async function saveWordAlert(supabase, userId, alertData) {
   if (!userId) return { success: false, error: 'Not logged in' };
-
   try {
     const { error } = await supabase
       .from('japanese_word_alerts')
@@ -104,11 +97,7 @@ export async function saveWordAlert(supabase, userId, alertData) {
         source: alertData.source || 'flashcard',
         created_at: new Date().toISOString()
       });
-
-    if (error) {
-      console.error('Word alert save error:', error);
-      return { success: false, error: error.message };
-    }
+    if (error) { console.error('Word alert save error:', error); return { success: false, error: error.message }; }
     return { success: true };
   } catch (err) {
     console.error('Word alert exception:', err);

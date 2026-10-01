@@ -37,7 +37,7 @@ import * as wordAlert from './handlers/word-alert.js';
 import * as addSentence from './handlers/add-sentence.js';
 import * as bulkLinker from './handlers/bulk-linker.js';
 import * as reviewQueue from './handlers/review-queue.js';
-import { rmInit, rmComplete } from './rmSession.js';
+import { rmInit, rmComplete, rmHubInit, rmHubCheck } from './rmSession.js?v=36';
 
 // Guest user ID for testing (matches your Google OAuth user ID)
 const GUEST_USER_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
@@ -178,6 +178,7 @@ class JLPTStudyApp {
 
   async init() {
     rmInit();   // capture ?rm_task= before any navigation strips it
+    rmHubInit({ uid: () => this.isGuestMode ? null : this.user?.id });   // Akatsuki hub client (second sign-in)
     this.render();
     const { data: { session } } = await this.supabase.auth.getSession();
     if (session) this.user = session.user;
@@ -189,11 +190,13 @@ class JLPTStudyApp {
       this.isGuestMode = false;
       if (event === 'SIGNED_IN') this.loadAllData();
       this.render();
+      rmHubCheck();
     });
 
     if (this.user) await this.loadAllData();
     this.loading = false;
     this.render();
+    rmHubCheck();   // after own state has loaded — show the hub sign-in bar if needed
   }
 
   // Guest mode - skip login and use hardcoded user ID
@@ -203,6 +206,7 @@ class JLPTStudyApp {
     console.log('Entering guest mode with user ID:', GUEST_USER_ID);
     await this.loadAllData();
     this.render();
+    rmHubCheck();   // hides the bar in guest mode
   }
 
   async signInWithGoogle() {
@@ -235,22 +239,41 @@ class JLPTStudyApp {
     const userId = this.user?.id;
     console.log('loadAllData: userId:', userId);
 
-    const [markingsResult, markingCategories, storyGroups, stories, similarGroups, topics, words, kanjiWords, kanjiWordBooks, allSentences, wordGroups, wordGroupMembers, relationsStudiedRemote, dailyActivity] = await Promise.all([
+    // PHASE A — everything the home screen actually needs. Paint after this.
+    const [markingsResult, markingCategories, topics, words, kanjiWords, kanjiWordBooks, wordGroups, wordGroupMembers, relationsStudiedRemote, dailyActivity] = await Promise.all([
       loadMarkings(this.supabase, userId),
       loadMarkingCategories(this.supabase, userId),
-      loadStoryGroups(this.supabase),
-      loadStories(this.supabase),
-      loadSimilarGroups(this.supabase),
       loadSelfStudyTopics(this.supabase, userId),
       loadSelfStudyWords(this.supabase, userId),
       loadUnifiedWords(this.supabase),
       loadUnifiedWordBooks(this.supabase),
-      loadAllUnifiedSentences(this.supabase),
       loadWordGroups(this.supabase),
       loadWordGroupMembers(this.supabase),
       loadGroupStudyLog(this.supabase, userId),
       fetchDailyActivity(this.supabase, userId)
     ]);
+
+    // PHASE B — Stories + Similar tabs. Fetched in the background; the tabs
+    // fill in when it lands. Start it now so it overlaps Phase A's processing.
+    this.storyGroups = this.storyGroups || [];
+    this.stories = this.stories || [];
+    this.similarGroups = this.similarGroups || [];
+    this.allUnifiedSentences = this.allUnifiedSentences || [];
+    this._heavyLoaded = false;
+
+    Promise.all([
+      loadStoryGroups(this.supabase),
+      loadStories(this.supabase),
+      loadSimilarGroups(this.supabase),
+      loadAllUnifiedSentences(this.supabase)
+    ]).then(([storyGroups, stories, similarGroups, allSentences]) => {
+      this.storyGroups = storyGroups;
+      this.stories = stories;
+      this.similarGroups = similarGroups;
+      this.allUnifiedSentences = allSentences;
+      this._heavyLoaded = true;
+      this.render();
+    }).catch(err => console.error('Background load failed:', err));
 
     this.dailyActivity = dailyActivity || [];
 
