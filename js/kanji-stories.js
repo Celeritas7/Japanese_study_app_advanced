@@ -8,6 +8,7 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const ADMIN_ID='d469efb7-f9e1-4b49-8b14-75a42b4d22e0';
 const STUDY_APP='../../index.html';
 const BATCH=9; // full-length stories: one Claude reply holds ~9 comfortably
+const HUB_BATCH=6; // hub stories are longer and walk through members
 const MASTER_CACHE='kanjiStoriesMaster_v1'; // our key only — never touch others
 const MASTER_VER=1;
 const isKanji=c=>c>='\u4E00'&&c<='\u9FFF';
@@ -254,6 +255,7 @@ class StoryPanel{
       const anchor=id
         ?[`- shared component: ${id.glyph}${id.name?` = "${id.name}"`:''}${id.variantOf?` (variant of ${id.variantOf})`:''}`,
           id.persona?`  its established image: ${id.persona}`:`  NO IMAGE SET YET — propose one in "component_persona" and reuse it for every kanji in this group`,
+          id.group.group_story&&!this.hubNeedsWork(id.group)?`  hub story (build on it, don't repeat it): ${id.group.group_story.trim().replace(/\s+/g,' ').slice(0,600)}`:null,
           `  group siblings: ${[...new Set(this.siblings(gid).filter(x=>x!==k).map(x=>this.charOf(x)))].filter(c=>c!==this.charOf(k)).join(' ')||'none'}`,
           id.meaning&&!id.persona?`  (ignore the group's stored meaning "${id.meaning}" — it was copied from one member kanji and is not the group idea)`:null
         ].filter(Boolean).join('\n')
@@ -457,6 +459,118 @@ ${un.join(' ')}`;
     this.proposals=p.data||[];
     this.sheet=null;this.tab='groups';this.render();
     this.toast(`✓ ${ok} group proposal(s) queued`);
+  }
+
+
+  // ----- hub stories -----
+  // A hub (japanese_kanji_story_groups row) gets its own Claude pass before its members:
+  // the approved persona + story then anchor every member's prompt. Hub drafts live in
+  // japanese_kanji_story_drafts with kind='hub':
+  //   keyword = group_meaning · group_link = persona · story = group_story
+  //   story_previous / keyword_note = the hub's previous story / {meaning,persona} (for rollback)
+  hubNeedsWork(g){
+    const s=(g.group_story||'').trim();
+    return !g.group_persona||!s||s.length<80||bookLike(s,g.group_meaning);
+  }
+  hubDraftFor(gid){return this.drafts.find(d=>d.kind==='hub'&&d.status==='pending'&&d.group_id===gid)||null}
+  hubMembers(gid){return[...new Set(this.siblings(gid).map(k=>this.charOf(k)))]}
+  // Biggest hubs first: one approved hub improves the prompt of every member.
+  hubQueue(){
+    return this.groups.filter(g=>this.hubDraftFor(g.id)||this.hubNeedsWork(g))
+      .sort((a,b)=>this.siblings(b.id).length-this.siblings(a.id).length).map(g=>g.id);
+  }
+  buildHubPrompt(){
+    const q=this.hubQueue().filter(gid=>!this.hubDraftFor(gid)).slice(0,HUB_BATCH);
+    if(!q.length)return null;
+    const items=q.map(gid=>{
+      const g=this.groupRow(gid),comp=g.group_component?this.compOf(g.group_component):null;
+      const mem=this.stories.filter(s=>s.group_id===gid);
+      const chars=[...new Set(mem.filter(s=>s.role!=='primitive').map(s=>`${s.kanji} = ${s.meaning||'?'}`))].slice(0,16);
+      const prims=[...new Set(mem.filter(s=>s.role==='primitive').map(s=>s.kanji))];
+      const cur=(g.group_story||'').trim();
+      return[`### hub_id ${gid}: ${g.group_component||g.group_kanji}`,
+        comp?.name?`- component name in my lexicon: "${comp.name}"`:null,
+        g.group_meaning?`- stored meaning: ${g.group_meaning}${vagueMeaning(g.group_meaning)||g.group_meaning.length>40?'   <-- probably one member\'s gloss or a book note, propose a better one':''}`:'- stored meaning: (none)',
+        chars.length?`- member kanji: ${chars.join(' · ')}`:'- member kanji: none yet',
+        prims.length?`- also used as an element in this hub: ${prims.join(' ')}`:null,
+        cur?`- CURRENT HUB STORY (do NOT reuse this wording, rewrite from scratch):\n  """${cur}"""`:'- current hub story: none'
+      ].filter(Boolean).join('\n');
+    }).join('\n\n');
+    return `You are helping me write ORIGINAL kanji mnemonics for my own study app.
+This batch is HUBS: each hub is a shared component, and every member kanji's story will be built on the hub's image. Get the hub right and the members follow.
+
+COPYRIGHT RULE — this is not optional:
+- Do NOT reproduce, paraphrase closely, or recall keywords/stories/images from "Remembering the Kanji" or any other published kanji course.
+- Where a CURRENT HUB STORY is shown, treat it as a negative example: rewrite completely in your own words.
+
+FOR EACH HUB WRITE:
+- "group_meaning": a short name for the component's idea (1–4 words), e.g. "heart / feelings".
+- "persona": ONE concrete, visual, slightly absurd image I will picture every time I see this component. A character or object with personality, not a dictionary gloss. This exact image will be reused in every member's story, so make it vivid and stable.
+- "group_story": a full paragraph (4–7 sentences). Bring the persona to life, show why the component carries that idea, and walk through 3–4 of the member kanji to show how the persona behaves in each. Bilingual: English prose with Japanese in kana/kanji where it helps (gloss it in parentheses).
+- No stroke counts, no "this kanji means…", no writing-order notes, no references to book frames.
+
+Return ONLY a JSON array, one object per hub, no prose around it. Echo "hub_id" exactly:
+[{"hub_id":123,"hub":"心","group_meaning":"...","persona":"...","group_story":"..."}]
+
+HUBS TO WRITE (${q.length}):
+
+${items}`;
+  }
+  async copyHubPrompt(){
+    const p=this.buildHubPrompt();
+    if(!p){this.toast('No hubs left to write');return}
+    try{await navigator.clipboard.writeText(p);this.toast(`📋 Hub prompt for ${p.match(/^### hub_id/gm).length} hub(s) copied`)}
+    catch{this.sheet={type:'prompt',text:p};this.render()}
+  }
+  async applyHubDrafts(list){
+    if(this.ro())return;
+    if(!this.isAdmin()){this.toast('Admin only');return}
+    let ok=0,fail=0;
+    for(const it of list){
+      const g=this.groupRow(+it.hub_id);
+      if(!g||!it.group_story){fail++;continue}
+      await sb.from('japanese_kanji_story_drafts').delete().eq('status','pending').eq('kind','hub').eq('group_id',g.id);
+      const{error}=await sb.from('japanese_kanji_story_drafts').insert({
+        kind:'hub',group_id:g.id,group_kanji:g.group_kanji,status:'pending',
+        keyword:it.group_meaning||null,group_link:it.persona||null,story:it.group_story,
+        story_previous:g.group_story||null,
+        keyword_note:JSON.stringify({meaning:g.group_meaning||null,persona:g.group_persona||null}),
+        source:'claude',user_id:this.user.id
+      });
+      error?(fail++,console.warn('hub',g.id,error.message)):ok++;
+    }
+    const d=await sb.from('japanese_kanji_story_drafts').select('*').order('created_at',{ascending:false});
+    this.drafts=d.data||[];
+    this.sheet=null;this.render();
+    this.toast(`✓ ${ok} hub draft(s) queued${fail?` · ${fail} skipped`:''}`);
+  }
+  async approveHub(gid){
+    const g=this.groupRow(gid),d=this.hubDraftFor(gid);
+    if(!g||!d||!this.isAdmin()||this.ro())return;
+    const row={group_story:d.story,group_persona:d.group_link||g.group_persona,group_meaning:d.keyword||g.group_meaning};
+    const{error}=await sb.from('japanese_kanji_story_groups').update(row).eq('id',gid);
+    if(error){alert('Publish failed: '+error.message);return}
+    await sb.from('japanese_kanji_story_drafts').update({status:'approved',reviewed_at:new Date().toISOString()}).eq('id',d.id);
+    Object.assign(g,row);d.status='approved';
+    this.render();this.toast(`✓ Hub ${g.group_kanji} published`);
+  }
+  async rejectHub(gid){
+    const d=this.hubDraftFor(gid);
+    if(!d||this.ro())return;
+    await sb.from('japanese_kanji_story_drafts').update({status:'rejected',reviewed_at:new Date().toISOString()}).eq('id',d.id);
+    d.status='rejected';this.render();this.toast('Hub draft rejected');
+  }
+  async rollbackHub(gid){
+    if(this.ro())return;
+    const g=this.groupRow(gid);
+    const hist=this.drafts.find(d=>d.kind==='hub'&&d.group_id===gid&&d.status==='approved');
+    if(!g||!hist){this.toast('No previous version stored');return}
+    let prev={};try{prev=JSON.parse(hist.keyword_note||'{}')}catch{}
+    const row={group_story:hist.story_previous,group_meaning:prev.meaning??g.group_meaning,group_persona:prev.persona??null};
+    const{error}=await sb.from('japanese_kanji_story_groups').update(row).eq('id',gid);
+    if(error){alert(error.message);return}
+    await sb.from('japanese_kanji_story_drafts').update({status:'rolled_back'}).eq('id',hist.id);
+    Object.assign(g,row);hist.status='rolled_back';this.render();this.toast('↩ Hub rolled back');
   }
 
   // ===== RENDER =====
@@ -683,7 +797,7 @@ ${un.join(' ')}`;
       if(a<0||b<a){alert('No JSON array found');return}
       let list;try{list=JSON.parse(txt.slice(a,b+1))}catch(e){alert('Invalid JSON: '+e.message);return}
       if(!Array.isArray(list)||!list.length){alert('Expected a non-empty JSON array');return}
-      list[0].kanji_list?this.applyProposals(list):this.applyDrafts(list);
+      list[0].kanji_list?this.applyProposals(list):list[0].hub_id!=null?this.applyHubDrafts(list):this.applyDrafts(list);
     });
     document.querySelectorAll('[data-accept]').forEach(b=>b.addEventListener('click',()=>this.acceptProposal(+b.dataset.accept)));
     document.querySelectorAll('[data-decline]').forEach(b=>b.addEventListener('click',async()=>{
