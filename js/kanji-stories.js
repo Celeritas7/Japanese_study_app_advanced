@@ -247,14 +247,14 @@ class StoryPanel{
     const q=this.queue().slice(0,BATCH);
     if(!q.length)return null;
     const items=q.map(k=>{
-      const st=this.storyFor(k),g=this.groups.find(x=>x.group_kanji===(st?.group_kanji));
-      const id=st?.group_kanji?this.groupIdentity(st.group_kanji):null;
+      const st=this.storyFor(k),gid=st?.group_id??null;
+      const id=gid?this.groupIdentity(gid):null;
       const words=(this.kanjiWords.get(this.charOf(k))||[]).slice(0,4).map(w=>`${w.kanji}（${w.hiragana||''}）= ${w.meaning||''}`);
       const m=this.meaningOf(k),r=this.readingsOf(k);
       const anchor=id
         ?[`- shared component: ${id.glyph}${id.name?` = "${id.name}"`:''}${id.variantOf?` (variant of ${id.variantOf})`:''}`,
           id.persona?`  its established image: ${id.persona}`:`  NO IMAGE SET YET — propose one in "component_persona" and reuse it for every kanji in this group`,
-          `  group siblings: ${this.siblings(st.group_kanji).filter(x=>x!==k).join(' ')||'none'}`,
+          `  group siblings: ${[...new Set(this.siblings(gid).filter(x=>x!==k).map(x=>this.charOf(x)))].filter(c=>c!==this.charOf(k)).join(' ')||'none'}`,
           id.meaning&&!id.persona?`  (ignore the group's stored meaning "${id.meaning}" — it was copied from one member kanji and is not the group idea)`:null
         ].filter(Boolean).join('\n')
         :'- shared component: none assigned';
