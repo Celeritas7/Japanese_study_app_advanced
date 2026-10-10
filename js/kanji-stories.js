@@ -50,6 +50,10 @@ function bookLike(story,meaning){
   if(/\b(frame|page)\s*(no\.?|number|#)?\s*\d+/i.test(s))return true;
   if(/^this (kanji|character)\b/i.test(s))return true;
   if(/\*[^*]{2,24}\*/.test(s))return true;                      // *keyword* markers
+  if(/^\*\s/.test(s))return true;                               // "* jawbone …" primitive-definition entries
+  if(/\[\d+\]\s*$/.test(s))return true;                         // trailing "[15]" stroke count
+  if(/\bkey ?words?\b|\bprimitives?\b/i.test(s))return true;    // the course's own vocabulary
+  if(/\.\s*\.\s*\./.test(s))return true;                        // "Water . . . gully." element lists
   if(/written with|left side|right side|on the top|radical on/i.test(s)&&s.length<220)return true;
   if(meaning&&s.length<70&&s.toLowerCase().includes(String(meaning).toLowerCase().split(/[,(]/)[0].trim()))return true;
   if(s.length<45)return true;
