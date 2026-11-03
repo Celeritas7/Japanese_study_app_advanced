@@ -37,7 +37,7 @@ import * as wordAlert from './handlers/word-alert.js';
 import * as addSentence from './handlers/add-sentence.js';
 import * as bulkLinker from './handlers/bulk-linker.js';
 import * as reviewQueue from './handlers/review-queue.js';
-import { rmInit, rmComplete } from './rmSession.js';
+import { rmInit, rmComplete } from './rmSession.js?v=37';
 
 // Guest user ID for testing (matches your Google OAuth user ID)
 const GUEST_USER_ID = 'd469efb7-f9e1-4b49-8b14-75a42b4d22e0';
